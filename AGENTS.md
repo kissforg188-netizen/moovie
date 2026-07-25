@@ -2,32 +2,41 @@
 
 ## Cursor Cloud specific instructions
 
-This repository ("moovie") is currently an empty project stub for a movie streaming application. It contains only a `README.md` file with no source code, dependencies, or services.
+This repository hosts **เลือกดี (Lueakdee)** — an affiliate content automation MVP for Shopee, TikTok Shop, and Facebook. Manual-first: no external affiliate APIs required.
 
-### Current State
+### Stack
 
-- No package manager or dependency files exist (`package.json`, `requirements.txt`, `go.mod`, etc.)
-- No build system configured (`Makefile`, `Dockerfile`, `docker-compose.yml`)
-- No services to start or test
-- No lint, test, or build commands available
+- **Node.js** + **Next.js** (App Router) + **TypeScript** + **Tailwind CSS v4**
+- Local JSON database at `data/db.json` (created by `npm run seed`)
+- CLI workflows via `tsx`: `scripts/morning.ts`, `scripts/evening.ts`
 
-### Environment Verification
-
-The Cloud VM provides baseline tooling (git, Node.js via nvm, Python 3). To confirm the environment is ready:
+### Setup
 
 ```bash
-git status
-node --version
-python3 --version
+npm install
+npm run seed
 ```
 
-### When Code Is Added
+### Dev / lint / test / build
 
-Future agents should check for:
+```bash
+npm run dev                 # http://localhost:3000
+npm run lint
+npm run test:unit
+npm run build
+npm run workflow:morning    # daily top products + draft calendar
+npm run workflow:evening    # analyze manual metrics
+```
 
-- `package.json` (Node.js/JS/TS) → use the lockfile's package manager (`npm install`, `pnpm install`, or `yarn install`)
-- `requirements.txt` or `pyproject.toml` (Python) → `pip install -r requirements.txt` or `uv sync`
-- `Dockerfile` or `docker-compose.yml` → containerized services
-- `Makefile` → check for `setup`, `dev`, `lint`, and `test` targets
+### Important product rules
 
-Update the VM environment update script and this section once the tech stack is established.
+- Never auto-post to social platforms; drafts require explicit user approval
+- Every caption includes affiliate disclosure
+- No guaranteed-income claims — experimental lab wording only
+- Platform adapters under `src/lib/adapters/` are stubs until API keys exist
+
+### Data
+
+- Runtime DB: `data/db.json` (gitignored)
+- Seed samples: `npm run seed`
+- Export: `/api/export?type=json|products.csv|schedule.csv|metrics.csv`
