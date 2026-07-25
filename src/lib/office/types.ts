@@ -9,11 +9,23 @@ export type DepartmentId =
 
 export type TaskStatus = "in_progress" | "waiting_approval" | "done" | "backlog";
 
+export type RobotId =
+  | "silver-knight"
+  | "lavender-v"
+  | "orange-crab"
+  | "green-tank"
+  | "purple-astro"
+  | "blue-mechanic"
+  | "red-tripod"
+  | "yellow-worker"
+  | "maroon-leader";
+
 export interface Employee {
   id: string;
   name: string;
   role: string;
   avatarHue: number;
+  robotId: RobotId;
   deskX: number; // 0-100 on floor plan
   deskY: number;
 }

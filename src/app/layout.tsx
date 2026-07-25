@@ -33,6 +33,15 @@ export default function RootLayout({
         <main className="mx-auto max-w-7xl px-4 py-6 md:py-8">{children}</main>
         <footer className="mx-auto max-w-7xl px-4 pb-10 text-xs text-[var(--ink-soft)]">
           เลือกดี Office Lab — workflow การ์ตูน · Affiliate draft ก่อนโพสต์ · ไม่การันตีรายได้
+          {" · "}
+          <a
+            href="https://www.freepik.com"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-[var(--line)] hover:text-[var(--sage)]"
+          >
+            Robot characters designed by Freepik
+          </a>
         </footer>
       </body>
     </html>

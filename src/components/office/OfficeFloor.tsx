@@ -114,6 +114,7 @@ export function OfficeFloor({
                         name={emp.name}
                         role={emp.role}
                         hue={emp.avatarHue}
+                        robotId={emp.robotId}
                         busy={busy}
                         compact
                       />

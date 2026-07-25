@@ -12,8 +12,8 @@ export const DEPARTMENTS: Department[] = [
     roomH: 36,
     icon: "💼",
     employees: [
-      { id: "e-s1", name: "มายด์", role: "Sales Lead", avatarHue: 155, deskX: 12, deskY: 18 },
-      { id: "e-s2", name: "ต้น", role: "AE", avatarHue: 190, deskX: 22, deskY: 28 },
+      { id: "e-s1", name: "มายด์", role: "Sales Lead", avatarHue: 155, robotId: "silver-knight", deskX: 12, deskY: 18 },
+      { id: "e-s2", name: "ต้น", role: "AE", avatarHue: 190, robotId: "blue-mechanic", deskX: 22, deskY: 28 },
     ],
     steps: [
       { id: "s1", order: 1, title: "รับลีด", description: "คัดกรองลีดจากช่องทางต่าง ๆ", ownerRole: "AE", typicalHours: 2 },
@@ -34,8 +34,8 @@ export const DEPARTMENTS: Department[] = [
     roomH: 36,
     icon: "📣",
     employees: [
-      { id: "e-m1", name: "พลอย", role: "Content Lead", avatarHue: 330, deskX: 44, deskY: 16 },
-      { id: "e-m2", name: "กัน", role: "Media Buyer", avatarHue: 25, deskX: 56, deskY: 30 },
+      { id: "e-m1", name: "พลอย", role: "Content Lead", avatarHue: 330, robotId: "lavender-v", deskX: 44, deskY: 16 },
+      { id: "e-m2", name: "กัน", role: "Media Buyer", avatarHue: 25, robotId: "orange-crab", deskX: 56, deskY: 30 },
     ],
     steps: [
       { id: "m1", order: 1, title: "บรีฟแคมเปญ", description: "รับโจทย์และกำหนด KPI", ownerRole: "Content Lead", typicalHours: 3 },
@@ -56,8 +56,8 @@ export const DEPARTMENTS: Department[] = [
     roomH: 36,
     icon: "📒",
     employees: [
-      { id: "e-a1", name: "นุ่น", role: "Accountant", avatarHue: 210, deskX: 78, deskY: 18 },
-      { id: "e-a2", name: "โอ๊ต", role: "AP/AR", avatarHue: 245, deskX: 88, deskY: 30 },
+      { id: "e-a1", name: "นุ่น", role: "Accountant", avatarHue: 210, robotId: "purple-astro", deskX: 78, deskY: 18 },
+      { id: "e-a2", name: "โอ๊ต", role: "AP/AR", avatarHue: 245, robotId: "maroon-leader", deskX: 88, deskY: 30 },
     ],
     steps: [
       { id: "a1", order: 1, title: "รับเอกสาร", description: "รวบรวมใบแจ้งหนี้/ใบเสร็จ", ownerRole: "AP/AR", typicalHours: 2 },
@@ -78,8 +78,8 @@ export const DEPARTMENTS: Department[] = [
     roomH: 42,
     icon: "📦",
     employees: [
-      { id: "e-w1", name: "โจ", role: "Warehouse Lead", avatarHue: 45, deskX: 12, deskY: 62 },
-      { id: "e-w2", name: "เบียร์", role: "Picker", avatarHue: 85, deskX: 22, deskY: 78 },
+      { id: "e-w1", name: "โจ", role: "Warehouse Lead", avatarHue: 45, robotId: "yellow-worker", deskX: 12, deskY: 62 },
+      { id: "e-w2", name: "เบียร์", role: "Picker", avatarHue: 85, robotId: "green-tank", deskX: 22, deskY: 78 },
     ],
     steps: [
       { id: "w1", order: 1, title: "รับออเดอร์", description: "ดึงใบเบิกจากระบบ", ownerRole: "Warehouse Lead", typicalHours: 1 },
@@ -100,8 +100,8 @@ export const DEPARTMENTS: Department[] = [
     roomH: 42,
     icon: "🛒",
     employees: [
-      { id: "e-p1", name: "ฟ้า", role: "Buyer", avatarHue: 280, deskX: 44, deskY: 60 },
-      { id: "e-p2", name: "ติ๊ก", role: "Vendor Coord", avatarHue: 305, deskX: 56, deskY: 76 },
+      { id: "e-p1", name: "ฟ้า", role: "Buyer", avatarHue: 280, robotId: "red-tripod", deskX: 44, deskY: 60 },
+      { id: "e-p2", name: "ติ๊ก", role: "Vendor Coord", avatarHue: 305, robotId: "blue-mechanic", deskX: 56, deskY: 76 },
     ],
     steps: [
       { id: "p1", order: 1, title: "รับคำขอซื้อ", description: "ตรวจ PR จากแผนกอื่น", ownerRole: "Buyer", typicalHours: 2 },
@@ -122,8 +122,8 @@ export const DEPARTMENTS: Department[] = [
     roomH: 22,
     icon: "🎧",
     employees: [
-      { id: "e-c1", name: "มิ้นต์", role: "CS Agent", avatarHue: 170, deskX: 78, deskY: 58 },
-      { id: "e-c2", name: "แอน", role: "CS Lead", avatarHue: 140, deskX: 88, deskY: 66 },
+      { id: "e-c1", name: "มิ้นต์", role: "CS Agent", avatarHue: 170, robotId: "lavender-v", deskX: 78, deskY: 58 },
+      { id: "e-c2", name: "แอน", role: "CS Lead", avatarHue: 140, robotId: "orange-crab", deskX: 88, deskY: 66 },
     ],
     steps: [
       { id: "c1", order: 1, title: "รับเคส", description: "เปิดตั๋วจากแชท/อีเมล", ownerRole: "CS Agent", typicalHours: 0.5 },
@@ -144,8 +144,8 @@ export const DEPARTMENTS: Department[] = [
     roomH: 18,
     icon: "🏢",
     employees: [
-      { id: "e-x1", name: "คุณเอ", role: "CEO", avatarHue: 195, deskX: 78, deskY: 82 },
-      { id: "e-x2", name: "คุณบี", role: "COO", avatarHue: 320, deskX: 88, deskY: 86 },
+      { id: "e-x1", name: "คุณเอ", role: "CEO", avatarHue: 195, robotId: "maroon-leader", deskX: 78, deskY: 82 },
+      { id: "e-x2", name: "คุณบี", role: "COO", avatarHue: 320, robotId: "silver-knight", deskX: 88, deskY: 86 },
     ],
     steps: [
       { id: "x1", order: 1, title: "รับคำขออนุมัติ", description: "รวมคำขอจากทุกแผนก", ownerRole: "COO", typicalHours: 1 },

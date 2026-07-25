@@ -103,7 +103,7 @@ export function OfficeDashboard() {
               แผนผังออฟฟิศการ์ตูน
             </h1>
             <p className="mt-1 max-w-xl text-sm text-[var(--ink-soft)]">
-              เลือกแผนก ดูตัวละครและเอกสารเคลื่อนตามขั้นตอน คลิกงานเพื่อดูรายละเอียด
+              เลือกแผนก ดูหุ่นยนต์ flat design และเอกสารเคลื่อนตามขั้นตอน คลิกงานเพื่อดูรายละเอียด
             </p>
           </div>
           <label className="block w-full md:max-w-xs">
