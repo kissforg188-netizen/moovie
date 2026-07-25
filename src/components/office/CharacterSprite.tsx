@@ -107,7 +107,7 @@ export function CharacterSprite({
           />
 
           {/* smile */}
-          <div className="absolute bottom-[5px] left-1/2 h-[5px] w-3 -translate-x-1/2 rounded-b-full border-b-[2.5px] border-[#5b4668]/ />
+          <div className="absolute bottom-[5px] left-1/2 h-[5px] w-3 -translate-x-1/2 rounded-b-full border-b-[2.5px] border-[#5b4668]" />
         </div>
 
         {/* body */}
