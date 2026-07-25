@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #1c2a24;
+  --ink-soft: #3d5349;
+  --mist: #eef5f1;
+  --paper: #f7faf8;
+  --sage: #3f6f5c;
+  --sage-deep: #2a4d3f;
+  --leaf: #7fa892;
+  --sand: #e8dcc8;
+  --coral: #c96b4a;
+  --line: rgba(28, 42, 36, 0.12);
+  --glow: rgba(63, 111, 92, 0.18);
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-mist: var(--mist);
+  --color-paper: var(--paper);
+  --color-sage: var(--sage);
+  --color-sage-deep: var(--sage-deep);
+  --color-leaf: var(--leaf);
+  --color-sand: var(--sand);
+  --color-coral: var(--coral);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(127, 168, 146, 0.28), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(232, 220, 200, 0.55), transparent 50%),
+    linear-gradient(180deg, #f4f8f5 0%, var(--paper) 40%, #eef3f0 100%);
+  color: var(--foreground);
+  font-family: var(--font-body), "Sarabun", sans-serif;
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(63, 111, 92, 0.22);
+}
+
+.brand-mark {
+  font-family: var(--font-display), "Cormorant Garamond", serif;
+  letter-spacing: -0.02em;
+}
+
+.surface {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+}
+
+.fade-up {
+  animation: fadeUp 0.55s ease both;
+}
+
+.fade-up-delay {
+  animation: fadeUp 0.7s ease 0.08s both;
+}
+
+.pulse-soft {
+  animation: pulseSoft 2.8s ease-in-out infinite;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--glow);
+  }
+  50% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
