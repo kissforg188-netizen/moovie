@@ -16,9 +16,9 @@ const body = Sarabun({
 });
 
 export const metadata: Metadata = {
-  title: "เลือกดี — Affiliate Lab",
+  title: "เลือกดี — Office Workflow Lab",
   description:
-    "ระบบทดลอง Affiliate สำหรับ Shopee / TikTok Shop / Facebook แบบมี approval ก่อนโพสต์",
+    "แดชบอร์ดออฟฟิศการ์ตูนดู workflow แต่ละแผนก พร้อม Affiliate Lab แบบมี approval ก่อนโพสต์",
 };
 
 export default function RootLayout({
@@ -30,9 +30,9 @@ export default function RootLayout({
     <html lang="th" className={`${display.variable} ${body.variable} h-full`}>
       <body className="min-h-full antialiased">
         <Nav />
-        <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-        <footer className="mx-auto max-w-6xl px-4 pb-10 text-xs text-[var(--ink-soft)]">
-          เลือกดี Affiliate Lab — draft ก่อนโพสต์ · มี disclosure · ไม่การันตีรายได้
+        <main className="mx-auto max-w-7xl px-4 py-6 md:py-8">{children}</main>
+        <footer className="mx-auto max-w-7xl px-4 pb-10 text-xs text-[var(--ink-soft)]">
+          เลือกดี Office Lab — workflow การ์ตูน · Affiliate draft ก่อนโพสต์ · ไม่การันตีรายได้
         </footer>
       </body>
     </html>

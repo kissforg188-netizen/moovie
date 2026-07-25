@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const links = [
-  { href: "/", label: "แดชบอร์ด" },
+  { href: "/", label: "ออฟฟิศ" },
+  { href: "/affiliate", label: "Affiliate" },
   { href: "/products", label: "สินค้า" },
   { href: "/calendar", label: "ตารางโพสต์" },
   { href: "/results", label: "ผลลัพธ์" },
@@ -14,13 +15,13 @@ export function Nav() {
   const pathname = usePathname();
   return (
     <header className="sticky top-0 z-40 border-b border-[var(--line)] bg-[rgba(247,250,248,0.85)] backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
         <Link href="/" className="group flex items-baseline gap-2">
           <span className="brand-mark text-3xl text-[var(--sage-deep)] transition-colors group-hover:text-[var(--sage)]">
             เลือกดี
           </span>
           <span className="text-xs tracking-wide text-[var(--ink-soft)]">
-            Affiliate Lab
+            Office Lab
           </span>
         </Link>
         <nav className="flex flex-wrap gap-1">
