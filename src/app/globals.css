@@ -90,13 +90,50 @@ body {
   }
 }
 
-/* Cartoon office motion */
-.office-floor {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+/* Cartoon neon office */
+.office-floor,
+.neon-floor {
+  box-shadow:
+    inset 0 0 0 1px rgba(165, 243, 252, 0.2),
+    0 12px 40px rgba(15, 20, 40, 0.35);
+}
+
+.neon-grid {
+  background-image:
+    linear-gradient(rgba(103, 232, 249, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(244, 114, 182, 0.08) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.neon-room {
+  backdrop-filter: blur(2px);
+}
+
+.neon-room-active {
+  transform: translateY(-1px);
+}
+
+.neon-task-chip {
+  background: rgba(12, 18, 36, 0.82);
+  border: 1px solid rgba(165, 243, 252, 0.45);
+  backdrop-filter: blur(4px);
+}
+
+.neon-task-selected {
+  outline: 2px solid #f9a8d4;
+  box-shadow: 0 0 14px rgba(249, 168, 212, 0.7) !important;
+}
+
+.neon-chibi {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+}
+
+.neon-idle {
+  animation: neonPulse 3.2s ease-in-out infinite;
 }
 
 .office-bob {
-  animation: officeBob 2.4s ease-in-out infinite;
+  animation: officeBob 2.2s ease-in-out infinite;
 }
 
 .office-doc-float {
@@ -107,24 +144,34 @@ body {
   animation: officeCardDrift 3.2s ease-in-out infinite;
 }
 
+@keyframes neonPulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px var(--neon-soft, rgba(190 95% 70% / 0.4)));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px var(--neon, hsl(190 95% 70%)));
+  }
+}
+
 @keyframes officeBob {
   0%,
   100% {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(-3px);
+    transform: translateY(-4px);
   }
 }
 
 @keyframes officeDocFloat {
   0%,
   100% {
-    transform: translateY(0) rotate(-6deg);
-    opacity: 0.85;
+    transform: translateY(0) rotate(-8deg);
+    opacity: 0.9;
   }
   50% {
-    transform: translateY(-5px) rotate(8deg);
+    transform: translateY(-6px) rotate(10deg);
     opacity: 1;
   }
 }
@@ -135,7 +182,7 @@ body {
     transform: translateX(0);
   }
   50% {
-    transform: translateX(3px);
+    transform: translateX(4px);
   }
 }
 
@@ -143,6 +190,7 @@ body {
   .office-bob,
   .office-doc-float,
   .office-card-drift,
+  .neon-idle,
   .fade-up,
   .fade-up-delay,
   .pulse-soft {

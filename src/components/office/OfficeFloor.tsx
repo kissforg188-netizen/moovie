@@ -20,17 +20,13 @@ export function OfficeFloor({
   selectedTaskId?: string | null;
 }) {
   return (
-    <div className="office-floor relative w-full overflow-hidden rounded-2xl border border-[var(--line)] bg-[#d8e6dc]">
-      <div
-        className="pointer-events-none absolute inset-0 opacity-40"
-        style={{
-          backgroundImage:
-            "linear-gradient(rgba(28,42,36,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(28,42,36,0.05) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-      />
-      <div className="pointer-events-none absolute left-[32%] top-[8%] h-[84%] w-[3%] rounded-full bg-[#c5d5c9]" />
-      <div className="pointer-events-none absolute left-[4%] top-[45%] h-[3%] w-[92%] rounded-full bg-[#c5d5c9]" />
+    <div className="office-floor neon-floor relative w-full overflow-hidden rounded-2xl border border-cyan-300/30">
+      {/* night sky wash */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,#2a1f4d_0%,#12182b_45%,#0b1020_100%)]" />
+      <div className="pointer-events-none absolute inset-0 opacity-50 mix-blend-screen neon-grid" />
+      {/* neon hallways */}
+      <div className="pointer-events-none absolute left-[32%] top-[8%] h-[84%] w-[3%] rounded-full bg-gradient-to-b from-cyan-300/50 via-fuchsia-400/40 to-lime-300/40 blur-[1px] shadow-[0_0_18px_rgba(103,232,249,0.55)]" />
+      <div className="pointer-events-none absolute left-[4%] top-[45%] h-[3%] w-[92%] rounded-full bg-gradient-to-r from-fuchsia-400/40 via-cyan-300/50 to-amber-300/40 blur-[1px] shadow-[0_0_18px_rgba(244,114,182,0.45)]" />
 
       <div className="relative aspect-[4/3] min-h-[320px] w-full md:aspect-[16/10]">
         {departments.map((dept) => {
@@ -49,27 +45,38 @@ export function OfficeFloor({
                 }
               }}
               className={`absolute cursor-pointer overflow-hidden rounded-xl border-2 text-left transition-all duration-300 ${
-                active
-                  ? "z-10 border-[var(--sage-deep)] shadow-[0_8px_24px_rgba(42,77,63,0.22)]"
-                  : "border-white/70 hover:border-[var(--sage)] hover:shadow-md"
+                active ? "z-10 neon-room-active" : "neon-room"
               }`}
               style={{
                 left: `${dept.roomX}%`,
                 top: `${dept.roomY}%`,
                 width: `${dept.roomW}%`,
                 height: `${dept.roomH}%`,
+                borderColor: active ? dept.color : `${dept.color}99`,
+                boxShadow: active
+                  ? `0 0 0 1px ${dept.color}, 0 0 22px ${dept.color}88, inset 0 0 24px ${dept.color}33`
+                  : `0 0 12px ${dept.color}44, inset 0 0 18px rgba(255,255,255,0.04)`,
                 background: active
-                  ? `linear-gradient(160deg, ${dept.color}22, #fff9)`
-                  : "linear-gradient(160deg, #fff8, #f3f7f4cc)",
+                  ? `linear-gradient(165deg, ${dept.color}55, rgba(12,16,32,0.88) 55%)`
+                  : `linear-gradient(165deg, ${dept.color}28, rgba(10,14,28,0.82) 60%)`,
               }}
             >
               <div
-                className="flex items-center gap-1 border-b border-black/5 px-1.5 py-1 text-[10px] font-medium md:text-xs"
-                style={{ color: dept.color }}
+                className="flex items-center gap-1 border-b border-white/10 px-1.5 py-1 text-[10px] font-semibold md:text-xs"
+                style={{
+                  color: "#fff",
+                  textShadow: `0 0 8px ${dept.color}`,
+                }}
               >
                 <span aria-hidden>{dept.icon}</span>
                 <span className="truncate">{dept.shortName}</span>
-                <span className="ml-auto rounded-full bg-white/80 px-1.5 text-[9px] text-[var(--ink-soft)]">
+                <span
+                  className="ml-auto rounded-full px-1.5 text-[9px] text-white"
+                  style={{
+                    background: `${dept.color}cc`,
+                    boxShadow: `0 0 8px ${dept.color}`,
+                  }}
+                >
                   {deptTasks.length}
                 </span>
               </div>
@@ -86,8 +93,8 @@ export function OfficeFloor({
                     Math.max(4, ((emp.deskX - dept.roomX) / dept.roomW) * 100),
                   );
                   const top = Math.min(
-                    52,
-                    Math.max(6, ((emp.deskY - dept.roomY) / dept.roomH) * 70),
+                    48,
+                    Math.max(4, ((emp.deskY - dept.roomY) / dept.roomH) * 62),
                   );
                   return (
                     <div
@@ -95,7 +102,14 @@ export function OfficeFloor({
                       className="absolute"
                       style={{ left: `${left}%`, top: `${top}%` }}
                     >
-                      <div className="mb-0.5 h-2 w-7 rounded-sm bg-[#c4b59a] shadow-sm" />
+                      <div
+                        className="mb-0.5 h-2 w-8 rounded-sm border border-cyan-200/40"
+                        style={{
+                          background:
+                            "linear-gradient(90deg, #67e8f9aa, #f0abfcaa, #fde68aaa)",
+                          boxShadow: "0 0 10px rgba(103,232,249,0.45)",
+                        }}
+                      />
                       <CharacterSprite
                         name={emp.name}
                         role={emp.role}
@@ -116,10 +130,14 @@ export function OfficeFloor({
                         e.stopPropagation();
                         onSelectTask(task.id);
                       }}
-                      className={`office-card-drift inline-flex max-w-full items-center gap-1 truncate rounded-md border border-white/80 bg-white/90 px-1.5 py-0.5 text-[9px] shadow-sm ${
-                        selectedTaskId === task.id ? "ring-2 ring-[var(--sage)]" : ""
+                      className={`office-card-drift neon-task-chip inline-flex max-w-full items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-[9px] text-white ${
+                        selectedTaskId === task.id ? "neon-task-selected" : ""
                       }`}
-                      style={{ animationDelay: `${i * 0.35}s` }}
+                      style={{
+                        animationDelay: `${i * 0.35}s`,
+                        borderColor: dept.color,
+                        boxShadow: `0 0 10px ${dept.color}66`,
+                      }}
                     >
                       <span className="shrink-0">📄</span>
                       <span className="truncate">{task.title}</span>
@@ -136,9 +154,11 @@ export function OfficeFloor({
           );
         })}
 
-        <div className="pointer-events-none absolute bottom-[2%] left-[48%] -translate-x-1/2 text-center text-[10px] text-[var(--ink-soft)]">
-          <div className="text-lg">🪴</div>
-          โถงกลาง
+        <div className="pointer-events-none absolute bottom-[2%] left-[48%] -translate-x-1/2 text-center text-[10px] text-cyan-100/80">
+          <div className="text-lg drop-shadow-[0_0_8px_#67e8f9]">🪴✨</div>
+          <span className="tracking-wide" style={{ textShadow: "0 0 8px #67e8f9" }}>
+            โถงกลางนีออน
+          </span>
         </div>
       </div>
     </div>
