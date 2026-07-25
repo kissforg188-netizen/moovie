@@ -9,6 +9,7 @@ const links = [
   { href: "/products", label: "สินค้า" },
   { href: "/calendar", label: "ตารางโพสต์" },
   { href: "/results", label: "ผลลัพธ์" },
+  { href: "/guide", label: "คู่มือ" },
 ];
 
 export function Nav() {
