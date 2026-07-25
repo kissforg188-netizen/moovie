@@ -5,15 +5,15 @@ import type { CSSProperties } from "react";
 function neonPalette(hue: number) {
   const h = ((hue % 360) + 360) % 360;
   return {
-    glow: `hsl(${h} 95% 65%)`,
-    glowSoft: `hsl(${h} 90% 70% / 0.55)`,
-    shirt: `hsl(${h} 85% 62%)`,
-    shirtDeep: `hsl(${h} 75% 48%)`,
-    hair: `hsl(${(h + 28) % 360} 90% 68%)`,
-    hairShine: `hsl(${(h + 28) % 360} 100% 88%)`,
-    skin: `hsl(${(h + 18) % 360} 55% 90%)`,
-    blush: `hsl(${(h + 330) % 360} 90% 72%)`,
-    eye: `hsl(${(h + 200) % 360} 40% 28%)`,
+    glow: `hsl(${h} 95% 68%)`,
+    glowSoft: `hsl(${h} 95% 72% / 0.65)`,
+    shirt: `hsl(${h} 90% 64%)`,
+    shirtDeep: `hsl(${h} 80% 50%)`,
+    hair: `hsl(${(h + 24) % 360} 95% 70%)`,
+    hairShine: `hsl(${(h + 24) % 360} 100% 90%)`,
+    skin: "#ffe8f2",
+    blush: "#ff8ec8",
+    eye: "#2b2440",
   };
 }
 
@@ -34,123 +34,124 @@ export function CharacterSprite({
 
   return (
     <div
-      className={`neon-chibi flex flex-col items-center ${compact ? "scale-[0.92]" : ""} ${
+      className={`neon-chibi flex flex-col items-center ${
         busy ? "office-bob" : "neon-idle"
       }`}
       title={`${name} · ${role}`}
+      style={
+        {
+          "--neon": c.glow,
+          "--neon-soft": c.glowSoft,
+          transform: compact ? "scale(1)" : "scale(1.08)",
+        } as CSSProperties
+      }
     >
-      <div
-        className="relative"
-        style={
-          {
-            "--neon": c.glow,
-            "--neon-soft": c.glowSoft,
-          } as CSSProperties
-        }
-      >
+      <div className="relative h-[52px] w-[44px]">
         {/* aura */}
         <div
-          className="pointer-events-none absolute -inset-2 rounded-full blur-md"
+          className="pointer-events-none absolute left-1/2 top-3 h-10 w-10 -translate-x-1/2 rounded-full blur-md"
           style={{ background: c.glowSoft }}
         />
 
-        {/* body */}
+        {/* head (big chibi) */}
         <div
-          className="relative mx-auto h-8 w-9 rounded-[1.1rem] border-[2.5px]"
+          className="absolute left-1/2 top-0 z-10 h-9 w-9 -translate-x-1/2 rounded-full border-[2.5px]"
           style={{
-            background: `linear-gradient(180deg, ${c.shirt} 0%, ${c.shirtDeep} 100%)`,
+            background: `radial-gradient(circle at 32% 28%, #fff 0%, ${c.skin} 42%, #ffd6ea 100%)`,
             borderColor: c.glow,
-            boxShadow: `0 0 10px ${c.glowSoft}, inset 0 -3px 0 rgba(0,0,0,0.12)`,
+            boxShadow: `0 0 14px ${c.glowSoft}, 0 0 2px ${c.glow}`,
           }}
         >
-          {/* belly highlight */}
-          <div className="absolute left-1/2 top-1.5 h-2 w-3 -translate-x-1/2 rounded-full bg-white/35" />
-          {/* tiny arms */}
+          {/* bangs */}
           <div
-            className="absolute -left-1.5 top-2 h-2.5 w-2 rounded-full border-2"
-            style={{ background: c.skin, borderColor: c.glow }}
+            className="absolute -top-0.5 left-[2px] right-[2px] h-3.5 rounded-[1rem_1rem_40%_40%] border-x-[2.5px] border-t-[2.5px]"
+            style={{
+              background: `linear-gradient(180deg, ${c.hairShine} 0%, ${c.hair} 70%)`,
+              borderColor: c.glow,
+            }}
+          />
+          {/* ahoge */}
+          <div
+            className="absolute -top-2.5 left-[14px] h-3 w-2 rotate-[-18deg] rounded-full border-2"
+            style={{ background: c.hair, borderColor: c.glow }}
+          />
+
+          {/* eyes - oversized cute */}
+          <div className="absolute top-[14px] left-[6px] h-[9px] w-[8px] rounded-full bg-white shadow-[0_0_5px_rgba(255,255,255,0.95)]">
+            <div
+              className="absolute bottom-[1px] left-[1px] h-[7px] w-[6px] rounded-full"
+              style={{ background: c.eye }}
+            >
+              <span className="absolute left-[1px] top-[1px] h-[3px] w-[3px] rounded-full bg-white" />
+              <span className="absolute bottom-[1px] right-[1px] h-[1.5px] w-[1.5px] rounded-full bg-white/70" />
+            </div>
+          </div>
+          <div className="absolute top-[14px] right-[6px] h-[9px] w-[8px] rounded-full bg-white shadow-[0_0_5px_rgba(255,255,255,0.95)]">
+            <div
+              className="absolute bottom-[1px] left-[1px] h-[7px] w-[6px] rounded-full"
+              style={{ background: c.eye }}
+            >
+              <span className="absolute left-[1px] top-[1px] h-[3px] w-[3px] rounded-full bg-white" />
+              <span className="absolute bottom-[1px] right-[1px] h-[1.5px] w-[1.5px] rounded-full bg-white/70" />
+            </div>
+          </div>
+
+          {/* blush neon */}
+          <div
+            className="absolute bottom-[9px] left-[2px] h-2 w-2.5 rounded-full opacity-90"
+            style={{ background: c.blush, boxShadow: `0 0 8px ${c.blush}` }}
           />
           <div
-            className="absolute -right-1.5 top-2 h-2.5 w-2 rounded-full border-2"
-            style={{ background: c.skin, borderColor: c.glow }}
+            className="absolute bottom-[9px] right-[2px] h-2 w-2.5 rounded-full opacity-90"
+            style={{ background: c.blush, boxShadow: `0 0 8px ${c.blush}` }}
           />
+
+          {/* smile */}
+          <div className="absolute bottom-[5px] left-1/2 h-[5px] w-3 -translate-x-1/2 rounded-b-full border-b-[2.5px] border-[#5b4668]/ />
         </div>
 
-        {/* head */}
+        {/* body */}
         <div
-          className="absolute -top-6 left-1/2 h-8 w-8 -translate-x-1/2 rounded-full border-[2.5px]"
+          className="absolute bottom-0 left-1/2 z-[5] h-5 w-7 -translate-x-1/2 rounded-[0.9rem] border-[2.5px]"
           style={{
-            background: `radial-gradient(circle at 35% 30%, #fff 0%, ${c.skin} 45%, ${c.skin} 100%)`,
+            background: `linear-gradient(180deg, ${c.shirt} 0%, ${c.shirtDeep} 100%)`,
             borderColor: c.glow,
             boxShadow: `0 0 12px ${c.glowSoft}`,
           }}
         >
-          {/* hair bangs */}
-          <div
-            className="absolute -top-1 left-[3px] right-[3px] h-3.5 rounded-t-full border-x-[2.5px] border-t-[2.5px]"
-            style={{
-              background: `linear-gradient(180deg, ${c.hairShine}, ${c.hair})`,
-              borderColor: c.glow,
-            }}
-          />
-          {/* hair tuft */}
-          <div
-            className="absolute -top-2.5 left-1/2 h-2.5 w-2 -translate-x-1/2 rounded-full border-2"
-            style={{ background: c.hair, borderColor: c.glow }}
-          />
-
-          {/* eyes */}
-          <div className="absolute bottom-[11px] left-[7px] h-[7px] w-[6px] rounded-full bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)]">
-            <div
-              className="absolute bottom-[1px] left-[1px] h-[5px] w-[4px] rounded-full"
-              style={{ background: c.eye }}
-            >
-              <div className="absolute left-[1px] top-[1px] h-[2px] w-[2px] rounded-full bg-white" />
-            </div>
-          </div>
-          <div className="absolute bottom-[11px] right-[7px] h-[7px] w-[6px] rounded-full bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)]">
-            <div
-              className="absolute bottom-[1px] left-[1px] h-[5px] w-[4px] rounded-full"
-              style={{ background: c.eye }}
-            >
-              <div className="absolute left-[1px] top-[1px] h-[2px] w-[2px] rounded-full bg-white" />
-            </div>
-          </div>
-
-          {/* blush */}
-          <div
-            className="absolute bottom-[8px] left-[3px] h-1.5 w-2 rounded-full opacity-80"
-            style={{ background: c.blush, boxShadow: `0 0 6px ${c.blush}` }}
-          />
-          <div
-            className="absolute bottom-[8px] right-[3px] h-1.5 w-2 rounded-full opacity-80"
-            style={{ background: c.blush, boxShadow: `0 0 6px ${c.blush}` }}
-          />
-
-          {/* smile */}
-          <div className="absolute bottom-[5px] left-1/2 h-1.5 w-2.5 -translate-x-1/2 rounded-b-full border-b-2 border-[rgba(40,30,50,0.45)]" />
+          <div className="absolute left-1/2 top-1 h-1.5 w-2.5 -translate-x-1/2 rounded-full bg-white/40" />
         </div>
+
+        {/* feet */}
+        <div
+          className="absolute bottom-0 left-[11px] h-1.5 w-2 rounded-full border"
+          style={{ background: c.shirtDeep, borderColor: c.glow }}
+        />
+        <div
+          className="absolute bottom-0 right-[11px] h-1.5 w-2 rounded-full border"
+          style={{ background: c.shirtDeep, borderColor: c.glow }}
+        />
 
         {busy && (
           <span
-            className="office-doc-float absolute -right-3 -top-4 text-[11px] drop-shadow-[0_0_6px_#ff8bd6]"
+            className="office-doc-float absolute -right-1 top-0 z-20 text-[12px] drop-shadow-[0_0_8px_#ff8bd6]"
             aria-hidden
           >
-            ✨📄
+            ✨
           </span>
         )}
       </div>
 
       <p
-        className="mt-1.5 max-w-[4.8rem] truncate text-center text-[10px] font-semibold leading-tight"
+        className="mt-0.5 max-w-[4.8rem] truncate text-center text-[10px] font-semibold leading-tight"
         style={{
           color: c.glow,
-          textShadow: `0 0 8px ${c.glowSoft}`,
+          textShadow: `0 0 10px ${c.glowSoft}`,
         }}
       >
         {name}
       </p>
-      <p className="max-w-[4.8rem] truncate text-center text-[9px] text-white/70">
+      <p className="max-w-[4.8rem] truncate text-center text-[9px] text-cyan-50/75">
         {role}
       </p>
     </div>
