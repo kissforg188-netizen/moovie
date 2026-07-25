@@ -39,7 +39,7 @@ npm run workflow:evening
 
 | คำสั่ง | ความหมาย |
 | --- | --- |
-| `npm run build` | ビルド production |
+| `npm run build` | build production |
 | `npm run start` | รัน production server |
 | `npm run lint` | ESLint |
 | `npm run test:unit` | เทส scoring |
