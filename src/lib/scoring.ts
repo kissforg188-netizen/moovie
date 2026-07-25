@@ -1,0 +1,65 @@
+import type { Product, RankedProduct, ScoreBreakdown } from "./types";
+
+/** Impulse-buy sweet spot roughly ฿99–฿799 */
+function impulsePriceScore(price: number): number {
+  if (price <= 0) return 0;
+  if (price >= 99 && price <= 399) return 100;
+  if (price > 399 && price <= 799) return 80;
+  if (price > 799 && price <= 1499) return 55;
+  if (price < 99) return 70;
+  return 30;
+}
+
+function commissionScore(rate: number): number {
+  if (rate >= 20) return 100;
+  if (rate >= 12) return 85;
+  if (rate >= 8) return 70;
+  if (rate >= 5) return 55;
+  if (rate >= 2) return 35;
+  return 15;
+}
+
+function painClarityScore(product: Product): number {
+  const pains = product.painPoints.filter((p) => p.trim().length > 0);
+  const sells = product.sellingPoints.filter((p) => p.trim().length > 0);
+  const painPart = Math.min(pains.length, 3) * 22;
+  const sellPart = Math.min(sells.length, 3) * 10;
+  const audience = product.targetAudience.trim().length > 8 ? 14 : 0;
+  return Math.min(100, painPart + sellPart + audience);
+}
+
+function scale1to5(value: number): number {
+  const clamped = Math.max(1, Math.min(5, value || 1));
+  return ((clamped - 1) / 4) * 100;
+}
+
+export function scoreProduct(product: Product): ScoreBreakdown {
+  const commission = commissionScore(product.commissionRate);
+  const impulsePrice = impulsePriceScore(product.price);
+  const painClarity = painClarityScore(product);
+  const videoEase = scale1to5(product.videoEase);
+  const seasonal = scale1to5(product.seasonalScore);
+
+  const total =
+    commission * 0.25 +
+    impulsePrice * 0.2 +
+    painClarity * 0.25 +
+    videoEase * 0.15 +
+    seasonal * 0.15;
+
+  return {
+    commission: Math.round(commission),
+    impulsePrice: Math.round(impulsePrice),
+    painClarity: Math.round(painClarity),
+    videoEase: Math.round(videoEase),
+    seasonal: Math.round(seasonal),
+    total: Math.round(total * 10) / 10,
+  };
+}
+
+export function rankProducts(products: Product[], limit = 5): RankedProduct[] {
+  return products
+    .map((product) => ({ product, score: scoreProduct(product) }))
+    .sort((a, b) => b.score.total - a.score.total)
+    .slice(0, limit);
+}
