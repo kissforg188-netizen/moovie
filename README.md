@@ -13,6 +13,19 @@
 - **ไม่โพสต์อัตโนมัติ** — สร้าง draft แล้วต้อง Approve ก่อนโพสต์ด้วยมือ
 - Adapter สำหรับ Shopee / TikTok Shop / Meta API แยกไว้เป็น stub สำหรับต่อภายหลัง
 
+
+## Production (cPanel / MySQL)
+
+Live: [https://shopee.sogiin6868.com](https://shopee.sogiin6868.com)
+
+- PHP + MySQL package: `deploy/php/`
+- First-time setup: open `/install.php` (สร้างตาราง + แคตตาล็อกเริ่มต้น + คิววันนี้)
+- Image guide: [/guide/](https://shopee.sogiin6868.com/guide/)
+- Config example: `deploy/php/config.example.php` (อย่า commit รหัสผ่านจริง)
+
+> โฮสต์ shared รัน PHP ได้ — ชุด Next.js ยังใช้สำหรับพัฒนาในเครื่อง
+
+
 ## เริ่มใช้งาน
 
 ```bash
