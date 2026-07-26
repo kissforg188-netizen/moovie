@@ -2,15 +2,24 @@
 header('Content-Type: text/plain; charset=utf-8');
 $b = 'https://raw.githubusercontent.com/kissforg188-netizen/moovie/cursor/bc-77a70e80-e883-46f0-b08f-691fd9c5f36a-1a67/deploy/php/';
 $fs = [
-  'lib/automation.php','lib/adapters.php','lib/app.php','lib/install.php',
-  'api.php','index.php','install.php','assets/app.css','assets/app.js',
-  'samples/products.sample.json','samples/products.sample.csv','.htaccess',
+  'guide/index.html','guide/index.php',
+  'guide/screens/guide-01-dashboard.png',
+  'guide/screens/guide-02-automation-center.png',
+  'guide/screens/guide-03-morning-done.png',
+  'guide/screens/guide-04-import.png',
+  'guide/screens/guide-05-content-pack.png',
+  'guide/screens/guide-06-calendar.png',
+  'guide/screens/guide-07-approved.png',
+  'guide/screens/guide-08-results.png',
+  'guide/screens/guide-09-evening.png',
+  'guide/screens/guide-10-handbook.png',
+  'lib/automation.php','lib/adapters.php','api.php','index.php','assets/app.css','assets/app.js',
 ];
 $o = 0;
 foreach ($fs as $f) {
   $u = $b . implode('/', array_map('rawurlencode', explode('/', $f)));
   $ch = curl_init($u);
-  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => 1, CURLOPT_FOLLOWLOCATION => 1, CURLOPT_TIMEOUT => 90, CURLOPT_SSL_VERIFYPEER => 0]);
+  curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => 1, CURLOPT_FOLLOWLOCATION => 1, CURLOPT_TIMEOUT => 120, CURLOPT_SSL_VERIFYPEER => 0]);
   $d = curl_exec($ch);
   $c = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   curl_close($ch);
