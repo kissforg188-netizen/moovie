@@ -43,3 +43,6 @@ next-env.d.ts
 # local db temp
 data/db.json.tmp
 data/*.tmp
+config.production.php
+deploy/php/config.php
+deploy/php/bootstrap.php

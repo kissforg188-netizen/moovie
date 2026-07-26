@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>คู่มือรูปภาพ — เลือกดี Affiliate Lab</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=Sarabun:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/app.css" />
+  <style>
+    .shot { border:1px solid var(--line); border-radius:16px; overflow:hidden; margin:12px 0 24px; background:#fff; }
+    .shot img { width:100%; display:block; background:var(--mist); }
+    .shot figcaption { padding:10px 14px; font-size:.9rem; color:var(--ink-soft); }
+    .steps { counter-reset: step; }
+    .steps h3::before { counter-increment: step; content: counter(step) ". "; color: var(--sage); }
+  </style>
+</head>
+<body>
+  <header class="topnav">
+    <a class="logo" href="../index.php"><span class="brand">เลือกดี</span><small>คู่มือ</small></a>
+    <nav>
+      <a href="../index.php">กลับแดชบอร์ด</a>
+      <a class="active" href="./">คู่มือรูปภาพ</a>
+    </nav>
+  </header>
+  <main class="wrap steps">
+    <section class="hero">
+      <p class="eyebrow">Production handbook</p>
+      <h1 class="brand">คู่มือใช้งานพร้อมรูป</h1>
+      <p class="lead">ใช้กับไซต์จริงที่ <strong>https://shopee.sogiin6868.com</strong> — ข้อมูลเก็บใน MySQL ไม่ใช่ไฟล์ทดสอบ</p>
+    </section>
+
+    <h3>เปิดแดชบอร์ด</h3>
+    <p>หลังติดตั้งแล้วเข้าหน้าแรก จะเห็น Top สินค้า คิววันนี้ และปุ่ม Morning/Evening</p>
+    <figure class="shot">
+      <img src="screens/01-dashboard.png" alt="แดชบอร์ดเลือกดี" onerror="this.src='../assets/products/fan.svg'" />
+      <figcaption>หน้าแดชบอร์ด — รัน Morning เพื่อสร้าง draft ประจำวัน</figcaption>
+    </figure>
+
+    <h3>เพิ่มสินค้าด้วยลิงก์ affiliate จริง</h3>
+    <p>ไปที่เมนู <strong>สินค้า</strong> ใส่ชื่อ ลิงก์ Shopee/TikTok ราคา ค่าคอม จุดขาย/pain point แล้วกดบันทึก</p>
+    <figure class="shot">
+      <img src="screens/02-products.png" alt="หน้าสินค้า" onerror="this.src='../assets/products/sunscreen.svg'" />
+      <figcaption>ฟอร์มสินค้า — เปลี่ยนลิงก์ตัวอย่างเป็นลิงก์ affiliate ของคุณก่อนโพสต์</figcaption>
+    </figure>
+
+    <h3>สร้าง Content Pack</h3>
+    <p>กด “สร้าง Content Pack” จะได้ hooks 5 แบบ, CTA 3 แบบ, TikTok script, Facebook Page/Group, Reels + disclosure</p>
+    <figure class="shot">
+      <img src="screens/03-content.png" alt="content pack" onerror="this.src='../assets/products/ringlight.svg'" />
+      <figcaption>ตัวอย่างคอนเทนต์ภาษาไทย น้ำเสียงช่วยเลือกของ ไม่ขายแข็ง</figcaption>
+    </figure>
+
+    <h3>Approve ก่อนโพสต์จริง</h3>
+    <p>เปิด <strong>ตารางโพสต์</strong> → กด Approve → คัดลอก caption ไปโพสต์ด้วยมือบน TikTok/Facebook → กด “ยืนยันว่าโพสต์แล้ว”</p>
+    <figure class="shot">
+      <img src="screens/04-calendar.png" alt="ตารางโพสต์" onerror="this.src='../assets/products/bottle.svg'" />
+      <figcaption>ระบบไม่โพสต์อัตโนมัติ มี approval gate เสมอ</figcaption>
+    </figure>
+
+    <h3>บันทึกผลจากข้อมูลจริง</h3>
+    <p>เย็นนี้กรอก views/clicks/orders/ค่าคอมจากแพลตฟอร์มจริง แล้วรัน Evening เพื่อดูว่ามุมไหนเวิร์ก</p>
+    <figure class="shot">
+      <img src="screens/05-results.png" alt="ผลลัพธ์ ROI" onerror="this.src='../assets/products/mousepad.svg'" />
+      <figcaption>ROI คำนวณจากตัวเลขที่คุณกรอก — ไม่ใช่การันตีรายได้</figcaption>
+    </figure>
+
+    <h3>ภาพสินค้าตัวอย่างในแคตตาล็อกเริ่มต้น</h3>
+    <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+      <img src="../assets/products/fan.svg" alt="fan" />
+      <img src="../assets/products/sunscreen.svg" alt="sunscreen" />
+      <img src="../assets/products/bottle.svg" alt="bottle" />
+      <img src="../assets/products/cablebox.svg" alt="cable" />
+    </div>
+    <p class="note">สินค้าเริ่มต้นเป็นแคตตาล็อกพร้อมใช้ — ต้องแทนที่ลิงก์ด้วย affiliate link จริงของคุณก่อนโปรโมต</p>
+
+    <article class="card">
+      <h3 style="margin-top:0">กฎสำคัญ</h3>
+      <ul>
+        <li>ห้ามสแปม / ห้ามโพสต์ซ้ำไร้คุณภาพ</li>
+        <li>ทุก caption มี disclosure affiliate</li>
+        <li>ไม่เคลมรายได้แน่นอน</li>
+        <li>โพสต์จริงทำด้วยมือหลัง Approve เท่านั้น</li>
+      </ul>
+    </article>
+  </main>
+</body>
+</html>
