@@ -1,0 +1,141 @@
+import { newId } from "./db";
+import type {
+  ContentChannel,
+  ContentPack,
+  Product,
+  ScheduledPost,
+} from "./types";
+
+const SLOT_PLAN: { time: string; channel: ContentChannel }[] = [
+  { time: "10:30", channel: "tiktok" },
+  { time: "13:00", channel: "facebook_reels" },
+  { time: "19:30", channel: "facebook_post" },
+];
+
+/** Alternate evening slot to Facebook Group on even calendar days (anti-spam mix). */
+function slotsForDate(date: string): { time: string; channel: ContentChannel }[] {
+  const day = Number(date.slice(-2));
+  const slots = SLOT_PLAN.map((s) => ({ ...s }));
+  if (!Number.isNaN(day) && day % 2 === 0) {
+    const evening = slots.find((s) => s.time === "19:30");
+    if (evening) evening.channel = "facebook_group";
+  }
+  return slots;
+}
+
+function daysBetween(a: string, b: string): number {
+  const ms = Date.parse(b) - Date.parse(a);
+  return Math.floor(ms / (24 * 60 * 60 * 1000));
+}
+
+function captionForChannel(
+  pack: ContentPack,
+  channel: ContentChannel,
+  hookIndex: number,
+  ctaIndex: number,
+): string {
+  const hook = pack.hooks[hookIndex] ?? pack.hooks[0];
+  const cta = pack.ctas[ctaIndex] ?? pack.ctas[0];
+  if (channel === "tiktok") {
+    return `${hook}\n\n${pack.tiktokScript.voiceover}\n\n${cta}\n\n${pack.disclosure}`;
+  }
+  if (channel === "facebook_reels") {
+    return pack.reelsCaption;
+  }
+  if (channel === "facebook_group") {
+    return pack.facebookGroupCaption || pack.facebookCaption;
+  }
+  return pack.facebookCaption;
+}
+
+/**
+ * Suggest 2–3 quality posts/day. Never auto-publishes — status starts as draft.
+ * Skips product+channel pairs used in the last 3 days to reduce spammy repeats.
+ */
+export function buildDailySchedule(params: {
+  date: string;
+  ranked: { product: Product; pack: ContentPack }[];
+  existing: ScheduledPost[];
+  maxPosts?: number;
+}): ScheduledPost[] {
+  const maxPosts = params.maxPosts ?? 3;
+  const slots = slotsForDate(params.date);
+
+  const usedToday = new Set(
+    params.existing
+      .filter((s) => s.date === params.date)
+      .map((s) => `${s.productId}:${s.channel}`),
+  );
+
+  const recentKeys = new Set(
+    params.existing
+      .filter((s) => {
+        const gap = daysBetween(s.date, params.date);
+        return gap >= 0 && gap <= 3 && s.status !== "skipped";
+      })
+      .map((s) => `${s.productId}:${s.channel}`),
+  );
+
+  const posts: ScheduledPost[] = [];
+  let slotIndex = 0;
+
+  for (const pick of params.ranked) {
+    if (posts.length >= maxPosts) break;
+
+    // Find a channel slot that is not recently used for this product
+    let assigned: { time: string; channel: ContentChannel } | null = null;
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[(slotIndex + i) % slots.length];
+      const key = `${pick.product.id}:${slot.channel}`;
+      if (usedToday.has(key) || recentKeys.has(key)) continue;
+      assigned = slot;
+      slotIndex = (slotIndex + i + 1) % slots.length;
+      break;
+    }
+
+    // If all channels are recent for this product, skip it (anti-spam)
+    if (!assigned) continue;
+
+    const hookIndex =
+      (posts.length + (pick.pack.variant ?? 0)) % pick.pack.hooks.length;
+    const ctaIndex =
+      (posts.length + (pick.pack.variant ?? 0)) % pick.pack.ctas.length;
+    const key = `${pick.product.id}:${assigned.channel}`;
+    usedToday.add(key);
+    recentKeys.add(key);
+
+    posts.push({
+      id: newId("post"),
+      date: params.date,
+      suggestedTime: assigned.time,
+      channel: assigned.channel,
+      productId: pick.product.id,
+      contentPackId: pick.pack.id,
+      hookIndex,
+      ctaIndex,
+      status: "draft",
+      captionPreview: captionForChannel(
+        pick.pack,
+        assigned.channel,
+        hookIndex,
+        ctaIndex,
+      ),
+    });
+  }
+
+  // Prefer at least 2 posts when inventory allows
+  return posts.slice(0, maxPosts);
+}
+
+export function channelLabel(channel: ContentChannel): string {
+  switch (channel) {
+    case "tiktok":
+      return "TikTok";
+    case "facebook_post":
+      return "Facebook Page";
+    case "facebook_group":
+      return "Facebook Group";
+    case "facebook_reels":
+      return "Facebook Reels";
+  }
+}
