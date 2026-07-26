@@ -107,3 +107,41 @@ document.querySelectorAll(".metrics-form").forEach((formEl) => {
     setTimeout(() => location.reload(), 500);
   });
 });
+
+const importBtn = document.getElementById("importBtn");
+if (importBtn) {
+  importBtn.addEventListener("click", async () => {
+    const format = document.getElementById("importFormat")?.value || "json";
+    const payload = document.getElementById("importPayload")?.value || "";
+    importBtn.disabled = true;
+    try {
+      const data = await api("import_products", { format, payload });
+      toast(`Import สำเร็จ ${data.imported} รายการ (ข้าม ${data.skipped})`);
+      setTimeout(() => location.reload(), 700);
+    } catch (e) {
+      toast(e.message);
+      importBtn.disabled = false;
+    }
+  });
+}
+
+const approveSelectedBtn = document.getElementById("approveSelectedBtn");
+if (approveSelectedBtn) {
+  approveSelectedBtn.addEventListener("click", async () => {
+    const ids = [...document.querySelectorAll(".draft-check:checked")].map((el) => el.value);
+    if (!ids.length) {
+      toast("เลือก draft อย่างน้อย 1 ชิ้น");
+      return;
+    }
+    if (!confirm(`Approve ${ids.length} draft?\nระบบจะไม่โพสต์ให้อัตโนมัติ`)) return;
+    approveSelectedBtn.disabled = true;
+    try {
+      const data = await api("approve_selected", { ids });
+      toast(data.message || "อนุมัติแล้ว");
+      setTimeout(() => location.reload(), 700);
+    } catch (e) {
+      toast(e.message);
+      approveSelectedBtn.disabled = false;
+    }
+  });
+}

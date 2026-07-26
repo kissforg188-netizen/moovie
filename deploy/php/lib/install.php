@@ -100,6 +100,21 @@ CREATE TABLE IF NOT EXISTS settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 SQL);
 
+    $pdo->exec(<<<SQL
+CREATE TABLE IF NOT EXISTS automation_logs (
+  id VARCHAR(64) PRIMARY KEY,
+  job_type VARCHAR(64) NOT NULL,
+  status ENUM('pending','running','success','failed') NOT NULL DEFAULT 'pending',
+  message TEXT NOT NULL,
+  meta LONGTEXT NULL,
+  created_at DATETIME NOT NULL,
+  finished_at DATETIME NULL,
+  INDEX (created_at),
+  INDEX (job_type),
+  INDEX (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+SQL);
+
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare('INSERT INTO settings (setting_key, setting_value, updated_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_at=VALUES(updated_at)');
     $stmt->execute(['installed_at', $now, $now]);

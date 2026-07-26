@@ -7,8 +7,12 @@ if (!is_installed()) {
     exit;
 }
 
+require_once __DIR__ . '/lib/automation.php';
+require_once __DIR__ . '/lib/adapters.php';
+ensure_automation_schema();
+
 $page = $_GET['page'] ?? 'home';
-$allowed = ['home','products','calendar','results','guide'];
+$allowed = ['home','products','calendar','results','automation','guide'];
 if (!in_array($page, $allowed, true)) $page = 'home';
 
 $ranked = rank_products(5);
@@ -20,6 +24,10 @@ $products = all_products();
 $morning = latest_brief('morning');
 $evening = latest_brief('evening');
 $analysis = analyze_posted(null);
+$autoLogs = list_automation_logs(40);
+$statusCounts = automation_status_counts();
+$adapters = active_affiliate_adapters();
+$futureAdapters = future_affiliate_adapters();
 ?>
 <!doctype html>
 <html lang="th">
@@ -37,6 +45,7 @@ $analysis = analyze_posted(null);
     <a class="logo" href="?page=home"><span class="brand">เลือกดี</span><small>Affiliate Lab</small></a>
     <nav>
       <a class="<?= $page==='home'?'active':'' ?>" href="?page=home">แดชบอร์ด</a>
+      <a class="<?= $page==='automation'?'active':'' ?>" href="?page=automation">Automation</a>
       <a class="<?= $page==='products'?'active':'' ?>" href="?page=products">สินค้า</a>
       <a class="<?= $page==='calendar'?'active':'' ?>" href="?page=calendar">ตารางโพสต์</a>
       <a class="<?= $page==='results'?'active':'' ?>" href="?page=results">ผลลัพธ์</a>
@@ -51,8 +60,9 @@ $analysis = analyze_posted(null);
         <h1 class="brand">เลือกดี</h1>
         <p class="lead">คัดสินค้า affiliate สร้างคอนเทนต์ภาษาไทย และวางตารางโพสต์แบบไม่สแปม — ทุกชิ้นเป็น draft จนกว่าคุณจะอนุมัติ</p>
         <div class="actions">
-          <button class="btn primary" data-action="workflow_morning">รัน Morning</button>
-          <button class="btn" data-action="workflow_evening">รัน Evening</button>
+          <button class="btn primary" data-action="automation_morning">รัน Morning Automation</button>
+          <button class="btn" data-action="automation_evening">รัน Evening Automation</button>
+          <a class="btn" href="?page=automation">Automation Center</a>
           <a class="btn" href="?page=products">เพิ่มสินค้า</a>
         </div>
         <p class="note"><?= h(INCOME_DISCLAIMER) ?></p>
@@ -153,7 +163,7 @@ $analysis = analyze_posted(null);
         <article class="card schedule-card">
           <div class="row-between">
             <div>
-              <p class="muted"><?= h($s['suggested_time']) ?> · <?= h(channel_label($s['channel'])) ?> · <span class="badge"><?= h($s['status']) ?></span></p>
+              <p class="muted"><?= h($s['suggested_time']) ?> · <?= h(channel_label($s['channel'])) ?> · <span class="badge status-<?= h(ui_status($s['status'])) ?>"><?= h(ui_status($s['status'])) ?></span></p>
               <h3><?= h($s['product_name'] ?? $s['product_id']) ?></h3>
             </div>
             <div class="actions">
@@ -204,6 +214,122 @@ $analysis = analyze_posted(null);
           </article>
         <?php endforeach; ?>
       </section>
+
+    <?php elseif ($page === 'automation'): ?>
+      <section class="hero fade-up">
+        <p class="eyebrow">Full Automation · Safe · No spam · Approve gate</p>
+        <h1 class="brand">Automation Center</h1>
+        <p class="lead">รันงานอัตโนมัติทั้งเช้า–เย็น: คัดสินค้า สร้างคอนเทนต์ จัดตาราง draft และรายงานผล — <strong>ไม่โพสต์จริงจนกว่าจะ Approve</strong></p>
+        <p class="note"><?= h(INCOME_DISCLAIMER) ?></p>
+      </section>
+
+      <section class="stats fade-up">
+        <article><p>Pending</p><strong><?= (int)$statusCounts['pending'] ?></strong></article>
+        <article><p>Generated</p><strong><?= (int)$statusCounts['generated'] ?></strong></article>
+        <article><p>Approved</p><strong><?= (int)$statusCounts['approved'] ?></strong></article>
+        <article><p>Posted</p><strong><?= (int)$statusCounts['posted'] ?></strong></article>
+        <article><p>Failed</p><strong><?= (int)$statusCounts['failed'] ?></strong></article>
+      </section>
+
+      <section class="card">
+        <h2>ควบคุม Automation</h2>
+        <div class="actions">
+          <button class="btn primary" data-action="automation_morning">Run Morning Automation</button>
+          <button class="btn" data-action="automation_evening">Run Evening Automation</button>
+          <button class="btn" data-action="generate_drafts">Generate Drafts</button>
+          <button class="btn" id="approveSelectedBtn">Approve Selected Drafts</button>
+        </div>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=json">Export JSON</a>
+          <a class="btn" href="api.php?action=export&format=csv&scope=products">Export CSV สินค้า</a>
+          <a class="btn" href="api.php?action=export&format=csv&scope=schedule">Export CSV ตาราง</a>
+          <a class="btn" href="api.php?action=export&format=csv&scope=logs">Export CSV Logs</a>
+        </div>
+        <p class="note">Morning = scoring + content pack + daily schedule drafts · Evening = result tracking + recommendation</p>
+      </section>
+
+      <div class="grid-2">
+        <section class="card">
+          <h2>Auto Product Import</h2>
+          <p class="muted">วาง JSON array หรือ CSV (มีหัวตาราง name,affiliateUrl,price,commissionRate,...)</p>
+          <label>รูปแบบ
+            <select id="importFormat"><option value="json">JSON</option><option value="csv">CSV</option></select>
+          </label>
+          <textarea id="importPayload" rows="10" placeholder='[{"name":"สินค้าตัวอย่าง","affiliateUrl":"https://shopee.co.th/","price":199,"commissionRate":12,"platform":"shopee","category":"แกเจ็ต","sellingPoints":["ใช้ง่าย"],"painPoints":["ร้อน"]}]'></textarea>
+          <div class="actions">
+            <button class="btn primary" id="importBtn">Import สินค้า</button>
+            <a class="btn" href="samples/products.sample.json" target="_blank">ตัวอย่าง JSON</a>
+            <a class="btn" href="samples/products.sample.csv" target="_blank">ตัวอย่าง CSV</a>
+          </div>
+        </section>
+        <section class="card">
+          <h2>Adapters (placeholder)</h2>
+          <ul>
+            <?php foreach ($adapters as $a): ?>
+              <li><?= h($a->name()) ?> · mode <?= h($a->mode()) ?></li>
+            <?php endforeach; ?>
+            <?php foreach ($futureAdapters as $a): ?>
+              <li class="muted"><?= h($a->name()) ?> · รอ API key</li>
+            <?php endforeach; ?>
+            <li class="muted">Facebook/Meta Publisher · canPublish=false (กันโพสต์อัตโนมัติ)</li>
+          </ul>
+          <p class="note">ทุก caption มี disclosure affiliate · ห้ามสแปม · วันละ 2–3 draft</p>
+        </section>
+      </div>
+
+      <section>
+        <h2>Draft วันนี้ · เลือกเพื่อ Approve</h2>
+        <?php if (!$todaySchedule): ?>
+          <div class="card">ยังไม่มี draft — กด Generate Drafts หรือ Morning Automation</div>
+        <?php endif; ?>
+        <?php foreach ($todaySchedule as $s): $ui = ui_status($s['status']); ?>
+          <article class="card schedule-card">
+            <label class="row-between">
+              <span>
+                <?php if (in_array($s['status'], ['draft','generated','pending'], true)): ?>
+                  <input type="checkbox" class="draft-check" value="<?= h($s['id']) ?>" />
+                <?php endif; ?>
+                <?= h($s['suggested_time']) ?> · <?= h(channel_label($s['channel'])) ?> ·
+                <span class="badge status-<?= h($ui) ?>"><?= h($ui) ?></span>
+              </span>
+              <strong><?= h($s['product_name'] ?? '') ?></strong>
+            </label>
+            <details><summary>ดู caption</summary><pre><?= h($s['caption_preview']) ?></pre></details>
+          </article>
+        <?php endforeach; ?>
+      </section>
+
+      <section>
+        <h2>Automation Log</h2>
+        <div class="card table-wrap">
+          <table class="log-table">
+            <thead>
+              <tr><th>เวลา</th><th>งาน</th><th>สถานะ</th><th>รายละเอียด</th></tr>
+            </thead>
+            <tbody>
+              <?php if (!$autoLogs): ?>
+                <tr><td colspan="4" class="muted">ยังไม่มี log — รัน automation เพื่อเริ่มบันทึก</td></tr>
+              <?php endif; ?>
+              <?php foreach ($autoLogs as $log): ?>
+                <tr>
+                  <td><?= h($log['created_at']) ?></td>
+                  <td><?= h($log['job_type']) ?></td>
+                  <td><span class="badge status-<?= h($log['status']) ?>"><?= h($log['status']) ?></span></td>
+                  <td><?= h($log['message']) ?></td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <?php if ($evening): ?>
+        <section class="card">
+          <h2>Evening Report / แนะนำวันถัดไป</h2>
+          <p><?= h($evening['summary']) ?></p>
+          <ul><?php foreach ($evening['recommendations'] as $r): ?><li><?= h($r) ?></li><?php endforeach; ?></ul>
+        </section>
+      <?php endif; ?>
     <?php endif; ?>
   </main>
 

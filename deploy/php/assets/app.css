@@ -53,6 +53,17 @@ body {
 .btn.small { padding: 6px 10px; font-size: .85rem; }
 .btn:hover { filter: brightness(1.05); }
 .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin: 18px 0; }
+.stats:has(article:nth-child(5)) { grid-template-columns: repeat(5,1fr); }
+.badge.status-generated, .badge.status-draft { background: #e7f1ff; }
+.badge.status-approved { background: #e7f6ec; }
+.badge.status-posted { background: #ece7f6; }
+.badge.status-failed { background: #fdece8; color: var(--coral); }
+.badge.status-pending, .badge.status-running { background: #fff4df; }
+.badge.status-success { background: #e7f6ec; }
+.table-wrap { overflow-x: auto; }
+.log-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.log-table th, .log-table td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+#importPayload { width: 100%; margin-top: 8px; padding: 10px; border-radius: 8px; border: 1px solid var(--line); font: inherit; }
 .stats article, .card {
   background: rgba(255,255,255,.72); border: 1px solid var(--line); border-radius: 16px; padding: 16px;
 }
