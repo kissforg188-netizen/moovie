@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { BulkApproveButton } from "@/components/BulkApproveButton";
 import { ImportPanel } from "@/components/ImportPanel";
+import { LoginStatusPanel } from "@/components/LoginStatusPanel";
 import { WorkflowButtons } from "@/components/WorkflowButtons";
+import { mergeAccounts } from "@/lib/accounts";
 import { INCOME_DISCLAIMER } from "@/lib/disclosure";
 import { channelLabel } from "@/lib/schedule";
 import { currentSeasonHint } from "@/lib/seasonality";
@@ -15,6 +17,7 @@ export default async function AutomationPage() {
     await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
+  const accounts = mergeAccounts(db.accounts);
   const logs = (db.automationLogs ?? [])
     .slice()
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -37,6 +40,8 @@ export default async function AutomationPage() {
           ฤดูกาลตอนนี้: <span className="text-[var(--sage-deep)]">{season.label}</span>
         </p>
       </section>
+
+      <LoginStatusPanel initialAccounts={accounts} />
 
       <WorkflowButtons />
 

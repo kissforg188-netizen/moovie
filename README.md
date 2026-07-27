@@ -64,8 +64,8 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 ## หน้าเว็บ
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
-- `/affiliate` แดชบอร์ด Affiliate + รัน workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (morning/evening, import CSV/JSON, bulk approve, logs)
+- `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
+- `/automation` ศูนย์อัตโนมัติ (login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
 - `/calendar` ตารางโพสต์วันนี้ + Approve
 - `/results` กรอก views/clicks/orders/ค่าคอม + ดูวิเคราะห์
