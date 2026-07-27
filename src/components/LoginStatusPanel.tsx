@@ -52,7 +52,7 @@ export function LoginStatusPanel({
             Login ตอนไหน · สถานะบัญชี
           </h2>
           <p className="mt-1 text-sm text-[var(--ink-soft)]">
-            ระบบเลือกดีไม่ login Shopee/TikTok ให้คุณ — กดอัปเดตสถานะเองหลังเข้าใช้งาน
+            กดลิงก์ด้านล่างเพื่อไป Login/ผูกบัญชีบนแพลตฟอร์มจริง แล้วกลับมาอัปเดตสถานะ
             ({readyCount}/{accounts.length} พร้อม)
           </p>
         </div>
@@ -96,6 +96,21 @@ export function LoginStatusPanel({
               <p className="mt-1 text-xs leading-relaxed text-[var(--ink-soft)]">
                 {item.detail}
               </p>
+              {related.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {related.map((acc) => (
+                    <a
+                      key={acc.key}
+                      href={acc.loginUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-md bg-[var(--sage-deep)] px-2 py-1 text-[11px] text-white hover:bg-[var(--sage)]"
+                    >
+                      {acc.loginCta} ↗
+                    </a>
+                  ))}
+                </div>
+              )}
             </li>
           );
         })}
@@ -125,6 +140,28 @@ export function LoginStatusPanel({
             <p className="mt-2 text-sm text-[var(--ink-soft)]">
               {account.purpose}
             </p>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <a
+                href={account.loginUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-md bg-[var(--sage)] px-3 py-1.5 text-xs text-white hover:bg-[var(--sage-deep)]"
+              >
+                {account.loginCta} ↗
+              </a>
+              {account.signupUrl && (
+                <a
+                  href={account.signupUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md border border-[var(--line)] bg-white/90 px-3 py-1.5 text-xs hover:bg-[var(--mist)]"
+                >
+                  สมัคร / ผูกบัญชี ↗
+                </a>
+              )}
+            </div>
+
             <div className="mt-3 flex flex-wrap gap-2">
               {STATUS_OPTIONS.map((opt) => (
                 <button
