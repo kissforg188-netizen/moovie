@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { DEFAULT_ACCOUNTS } from "./accounts";
 import type { Database } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -11,6 +12,7 @@ const emptyDb = (): Database => ({
   schedule: [],
   briefs: [],
   automationLogs: [],
+  accounts: DEFAULT_ACCOUNTS.map((a) => ({ ...a })),
 });
 
 let writeQueue: Promise<void> = Promise.resolve();
@@ -35,6 +37,7 @@ export async function readDb(): Promise<Database> {
       schedule: parsed.schedule ?? [],
       briefs: parsed.briefs ?? [],
       automationLogs: parsed.automationLogs ?? [],
+      accounts: parsed.accounts ?? DEFAULT_ACCOUNTS.map((a) => ({ ...a })),
     };
   } catch {
     return emptyDb();

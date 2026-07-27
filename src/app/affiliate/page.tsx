@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { LoginStatusPanel } from "@/components/LoginStatusPanel";
 import { ScoreBadge } from "@/components/ScoreBadge";
 import { WorkflowButtons } from "@/components/WorkflowButtons";
+import { mergeAccounts } from "@/lib/accounts";
 import { INCOME_DISCLAIMER } from "@/lib/disclosure";
 import { channelLabel } from "@/lib/schedule";
 import { getDashboardSnapshot } from "@/lib/workflow";
@@ -10,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function AffiliateDashboardPage() {
   const { ranked, todaySchedule, latestMorning, latestEvening, db } =
     await getDashboardSnapshot();
+  const accounts = mergeAccounts(db.accounts);
 
   return (
     <div className="space-y-8">
@@ -51,6 +54,8 @@ export default async function AffiliateDashboardPage() {
           </Link>
         </div>
       </section>
+
+      <LoginStatusPanel initialAccounts={accounts} />
 
       <WorkflowButtons />
 

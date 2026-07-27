@@ -109,6 +109,28 @@ export interface AutomationLog {
   finishedAt?: string;
 }
 
+/** Manual account readiness — no OAuth yet; user marks status themselves. */
+export type AccountKey =
+  | "shopee_affiliate"
+  | "tiktok_shop_affiliate"
+  | "tiktok_app"
+  | "facebook";
+
+export type AccountReadyStatus = "not_ready" | "ready" | "logged_in_today";
+
+export interface AccountStatus {
+  key: AccountKey;
+  label: string;
+  platform: "shopee" | "tiktok" | "facebook";
+  /** When in the workflow the user must login */
+  whenToLogin: string;
+  /** What this login is for */
+  purpose: string;
+  status: AccountReadyStatus;
+  notes?: string;
+  updatedAt?: string;
+}
+
 export interface Database {
   products: Product[];
   contentPacks: ContentPack[];
@@ -116,4 +138,6 @@ export interface Database {
   briefs: DailyBrief[];
   /** Optional job history for Automation Center (JSON DB). */
   automationLogs?: AutomationLog[];
+  /** Manual login/readiness status for affiliate + posting apps. */
+  accounts?: AccountStatus[];
 }
