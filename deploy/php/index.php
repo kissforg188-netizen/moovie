@@ -255,11 +255,9 @@ $futureAdapters = future_affiliate_adapters();
           <label>รูปแบบ
             <select id="importFormat"><option value="json">JSON</option><option value="csv">CSV</option></select>
           </label>
-          <textarea id="importPayload" rows="10" placeholder='[{"name":"สินค้าตัวอย่าง","affiliateUrl":"https://shopee.co.th/","price":199,"commissionRate":12,"platform":"shopee","category":"แกเจ็ต","sellingPoints":["ใช้ง่าย"],"painPoints":["ร้อน"]}]'></textarea>
+          <textarea id="importPayload" rows="10" placeholder='[{"name":"","affiliateUrl":"","price":0,"commissionRate":0,"platform":"shopee","category":"","sellingPoints":[],"painPoints":[]}]'></textarea>
           <div class="actions">
             <button class="btn primary" id="importBtn">Import สินค้า</button>
-            <a class="btn" href="samples/products.sample.json" target="_blank">ตัวอย่าง JSON</a>
-            <a class="btn" href="samples/products.sample.csv" target="_blank">ตัวอย่าง CSV</a>
           </div>
         </section>
         <section class="card">

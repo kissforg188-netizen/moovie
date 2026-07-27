@@ -372,8 +372,8 @@ export const TASKS: OfficeTask[] = [
   // Warehouse
   {
     id: "t-w1",
-    title: "แพ็กออเดอร์รีวิวสินค้าตัวอย่าง",
-    description: "ส่งของตัวอย่างให้ครีเอเตอร์ 5 คน",
+    title: "แพ็กออเดอร์รีวิวสินค้า",
+    description: "ส่งของให้ครีเอเตอร์ 5 คน",
     departmentId: "warehouse",
     stepId: "w3",
     status: "in_progress",

@@ -30,7 +30,7 @@ Live: [https://shopee.sogiin6868.com](https://shopee.sogiin6868.com)
 
 ```bash
 npm install
-npm run seed
+npm run seed   # เคลียร์ DB ให้ว่าง (ไม่มีสินค้าตัวอย่าง)
 npm run dev
 ```
 
@@ -55,7 +55,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 | คำสั่ง | ความหมาย |
 |--------|----------|
-| `npm run seed` | ใส่สินค้าตัวอย่าง 6 รายการ |
+| `npm run seed` | เคลียร์ฐานข้อมูลให้ว่าง (ไม่ใส่ของตัวอย่าง) |
 | `npm run workflow:morning` | คัด Top 5 + content pack + ตาราง draft วันนี้ |
 | `npm run workflow:evening` | วิเคราะห์ผลที่กรอก + แนะนำวันถัดไป |
 | `npm run test:unit` | เทสต์ scoring / content / schedule |
