@@ -127,6 +127,12 @@ export interface AccountStatus {
   /** What this login is for */
   purpose: string;
   status: AccountReadyStatus;
+  /** Official login / bind portal */
+  loginUrl: string;
+  /** Optional signup / join page */
+  signupUrl?: string;
+  /** Short label for the primary link button */
+  loginCta: string;
   notes?: string;
   updatedAt?: string;
 }
