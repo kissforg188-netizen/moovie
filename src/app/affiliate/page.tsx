@@ -38,6 +38,12 @@ export default async function AffiliateDashboardPage() {
             ดูตารางวันนี้
           </Link>
           <Link
+            href="/automation"
+            className="rounded-md border border-[var(--line)] bg-white/70 px-4 py-2 text-sm hover:bg-white"
+          >
+            ศูนย์อัตโนมัติ
+          </Link>
+          <Link
             href="/"
             className="rounded-md border border-[var(--line)] bg-white/70 px-4 py-2 text-sm hover:bg-white"
           >

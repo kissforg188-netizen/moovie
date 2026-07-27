@@ -115,8 +115,8 @@ export function generateContentPack(
   options?: { variant?: number },
 ): ContentPack {
   const variant = options?.variant ?? 0;
-  const hooks = generateHooks(product, variant);
-  const ctas = generateCTAs(variant);
+  const hooks = generateHooks(product, variant).map((h) => softCopy(h));
+  const ctas = generateCTAs(variant).map((c) => softCopy(c));
   const tags = generateHashtags(product);
   const pain = firstPain(product);
   const sell = firstSell(product);
