@@ -47,3 +47,7 @@ npm run dev
 - Automation Center UI: `/automation`
 - Production PHP+MySQL package lives under `deploy/php/` (cPanel); keep secrets out of git
 - Export briefs: `/api/export?format=csv&scope=briefs`
+- Export weekly rollup: `/api/export?format=csv&scope=weekly`
+- Morning/evening are idempotent per day; pass `{ "force": true }` or CLI `--force` to regenerate
+- Weekly product rollup: `src/lib/weekly.ts`
+- Filming checklist lives on each content pack (`filmingChecklist`)

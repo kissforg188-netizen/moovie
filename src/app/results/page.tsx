@@ -4,6 +4,7 @@ import { analyzePosted } from "@/lib/analytics";
 import { INCOME_DISCLAIMER } from "@/lib/disclosure";
 import { readDb, todayISO } from "@/lib/db";
 import { channelLabel } from "@/lib/schedule";
+import { weeklyInsightLines, weeklyProductRollup } from "@/lib/weekly";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ export default async function ResultsPage() {
     db.schedule.filter((s) => s.metrics),
     db.products,
   );
+  const weekly = weeklyProductRollup(db.products, db.schedule, date, 7);
+  const weeklyLines = weeklyInsightLines(weekly);
 
   return (
     <div className="space-y-8">
@@ -55,6 +58,49 @@ export default async function ResultsPage() {
             );
           })
         )}
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="brand-mark text-3xl text-[var(--sage-deep)]">
+            สรุป 7 วันล่าสุด
+          </h2>
+          <a
+            href="/api/export?format=csv&scope=weekly"
+            className="text-xs text-[var(--sage)] hover:underline"
+          >
+            Export CSV
+          </a>
+        </div>
+        {weekly.length === 0 ? (
+          <p className="surface rounded-2xl p-5 text-sm text-[var(--ink-soft)]">
+            ยังไม่มีเมตริกในช่วง 7 วัน — กรอกผลหลังโพสต์เพื่อดูว่าสินค้าไหนทำเงินทดลองได้ดีกว่า
+          </p>
+        ) : (
+          <div className="grid gap-3">
+            {weekly.map((row) => (
+              <article key={row.productId} className="surface rounded-2xl p-4">
+                <div className="flex flex-wrap justify-between gap-2">
+                  <h3 className="font-medium">{row.productName}</h3>
+                  <span className="text-xs text-[var(--ink-soft)]">
+                    score {row.score.toFixed(1)}
+                  </span>
+                </div>
+                <p className="text-sm text-[var(--ink-soft)]">
+                  {row.posts} โพสต์ · views {row.views.toLocaleString("th-TH")} · clicks{" "}
+                  {row.clicks.toLocaleString("th-TH")} · orders {row.orders} · ค่าคอม ฿
+                  {row.commission.toLocaleString("th-TH")} · CTR เฉลี่ย{" "}
+                  {(row.avgCtr * 100).toFixed(1)}%
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
+        <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+          {weeklyLines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
       </section>
 
       <section className="space-y-3">

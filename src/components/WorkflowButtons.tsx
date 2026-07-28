@@ -8,19 +8,22 @@ export function WorkflowButtons() {
   const [log, setLog] = useState("");
   const [busy, setBusy] = useState<"morning" | "evening" | null>(null);
 
-  async function run(kind: "morning" | "evening") {
+  async function run(kind: "morning" | "evening", force = false) {
     setBusy(kind);
     setLog("");
     const res = await fetch(`/api/workflow/${kind}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: "{}",
+      body: JSON.stringify({ force }),
     });
     const data = await res.json();
     setBusy(null);
     if (data.brief) {
+      const note = force
+        ? ""
+        : "\n\n(โหมด idempotent — กด “รันใหม่” ถ้าต้องการสร้าง brief ใหม่หลังแก้ข้อมูล)";
       setLog(
-        `${data.brief.summary}\n\n${data.brief.recommendations.map((r: string) => `• ${r}`).join("\n")}\n\n${data.brief.disclaimer}`,
+        `${data.brief.summary}\n\n${data.brief.recommendations.map((r: string) => `• ${r}`).join("\n")}\n\n${data.brief.disclaimer}${note}`,
       );
     } else {
       setLog(data.error ?? "เสร็จแล้ว");
@@ -33,6 +36,7 @@ export function WorkflowButtons() {
       <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">Workflow ประจำวัน</h2>
       <p className="mt-1 text-sm text-[var(--ink-soft)]">
         เช้า: คัด Top 5 + สร้าง content pack + ตาราง draft · เย็น: วิเคราะห์ผลที่กรอกแล้วแนะนำวันถัดไป
+        — ไม่โพสต์จริงจนกว่าจะ Approve
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         <button
@@ -51,6 +55,22 @@ export function WorkflowButtons() {
         >
           {busy === "evening" ? "กำลังรันเย็น..." : "รัน Evening workflow"}
         </button>
+        <button
+          type="button"
+          disabled={!!busy}
+          onClick={() => run("morning", true)}
+          className="rounded-md border border-dashed border-[var(--line)] px-3 py-2 text-xs text-[var(--ink-soft)] hover:bg-[var(--mist)] disabled:opacity-60"
+        >
+          Morning รันใหม่
+        </button>
+        <button
+          type="button"
+          disabled={!!busy}
+          onClick={() => run("evening", true)}
+          className="rounded-md border border-dashed border-[var(--line)] px-3 py-2 text-xs text-[var(--ink-soft)] hover:bg-[var(--mist)] disabled:opacity-60"
+        >
+          Evening รันใหม่
+        </button>
         <a
           href="/api/export?format=json"
           className="rounded-md border border-[var(--line)] px-4 py-2 text-sm hover:bg-[var(--mist)]"
@@ -68,6 +88,12 @@ export function WorkflowButtons() {
           className="rounded-md border border-[var(--line)] px-4 py-2 text-sm hover:bg-[var(--mist)]"
         >
           Export ตาราง CSV
+        </a>
+        <a
+          href="/api/export?format=csv&scope=weekly"
+          className="rounded-md border border-[var(--line)] px-4 py-2 text-sm hover:bg-[var(--mist)]"
+        >
+          Export สัปดาห์ CSV
         </a>
       </div>
       {log && (

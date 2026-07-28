@@ -57,6 +57,8 @@ export interface ContentPack {
   facebookGroupCaption: string;
   reelsCaption: string;
   videoPriorityNote: string;
+  /** Practical shot list for 15–30s videos (Thai). */
+  filmingChecklist: string[];
   /** Variant seed used to rotate hooks/CTAs and reduce duplicate spam. */
   variant?: number;
 }

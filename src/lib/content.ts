@@ -173,6 +173,16 @@ export function generateContentPack(
         ? "ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ"
         : "ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม";
 
+  const filmingChecklist = [
+    "แสงพอ / มือนิ่ง หรือตั้งขาตั้ง — ถ่ายแนวดิ่ง 9:16",
+    `เปิดคลิปด้วย pain: “${pain}” ไม่เกิน 3 วินาที`,
+    `สาธิตจุดขายหลัก 1 ข้อ: ${sell}`,
+    `โชว์ราคาประมาณ ${priceLabel(product.price)} แบบไม่เร่งซื้อ`,
+    "ปิดด้วย CTA อ่อนโยน + ใส่ disclosure บนจอหรือในแคปชัน",
+    "ตรวจแคปชันซ้ำกับโพสต์วันก่อน — ห้ามก็อปข้อความเดิมทั้งก้อน",
+    "โพสต์จริงหลัง Approve ในแดชบอร์ดเท่านั้น",
+  ];
+
   return {
     id: newId("pack"),
     productId: product.id,
@@ -187,6 +197,7 @@ export function generateContentPack(
     facebookGroupCaption: withDisclosure(facebookGroupBody),
     reelsCaption: withDisclosure(reelsBody),
     videoPriorityNote,
+    filmingChecklist,
     variant,
   };
 }

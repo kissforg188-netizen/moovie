@@ -10,6 +10,7 @@ import { rankProducts } from "./scoring";
 import { buildDailySchedule } from "./schedule";
 import { currentSeasonHint } from "./seasonality";
 import type { ContentPack, DailyBrief, Database } from "./types";
+import { weeklyInsightLines, weeklyProductRollup } from "./weekly";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -19,13 +20,51 @@ function dayNumber(date: string): number {
 function needsFreshPack(pack: ContentPack | undefined, date: string): boolean {
   if (!pack) return true;
   if (!pack.facebookGroupCaption) return true;
+  if (!pack.filmingChecklist || pack.filmingChecklist.length === 0) return true;
   const createdDay = pack.createdAt.slice(0, 10);
   return createdDay !== date;
 }
 
-export async function runMorningWorkflow(date = todayISO()) {
+function latestBrief(
+  db: Database,
+  type: "morning" | "evening",
+  date: string,
+): DailyBrief | undefined {
+  return [...db.briefs]
+    .filter((b) => b.type === type && b.date === date)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+}
+
+export async function runMorningWorkflow(
+  date = todayISO(),
+  options?: { force?: boolean },
+) {
+  const force = options?.force ?? false;
+
+  // Idempotent: if morning already ran and we already have drafts today, reuse
+  if (!force) {
+    const existing = await readDb();
+    const prior = latestBrief(existing, "morning", date);
+    const todayDrafts = existing.schedule.filter((s) => s.date === date);
+    if (prior && todayDrafts.length > 0) {
+      const jobId = await logAutomationStart(
+        "morning",
+        `ข้าม Morning ซ้ำ ${date} (มี brief + draft แล้ว — ส่ง force=true เพื่อรันใหม่)`,
+        { date, idempotent: true },
+      );
+      await logAutomationFinish(
+        jobId,
+        "success",
+        `ใช้ brief เช้าที่มีอยู่แล้ว: ${prior.summary}`,
+        { date, reusedBriefId: prior.id, drafts: todayDrafts.length },
+      );
+      return existing;
+    }
+  }
+
   const jobId = await logAutomationStart("morning", `เริ่ม Morning workflow ${date}`, {
     date,
+    force,
   });
   try {
     const db = await updateDb((db) => {
@@ -42,7 +81,7 @@ export async function runMorningWorkflow(date = todayISO()) {
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 
         let pack = existing;
-        if (needsFreshPack(existing, date)) {
+        if (force || needsFreshPack(existing, date)) {
           const variant = dayNumber(date) + ranked.indexOf(item);
           pack = generateContentPack(item.product, { variant });
           packs.push(pack);
@@ -64,19 +103,26 @@ export async function runMorningWorkflow(date = todayISO()) {
         .slice()
         .sort((a, b) => b.product.videoEase - a.product.videoEase)[0];
       const season = currentSeasonHint(new Date(`${date}T12:00:00.000Z`));
+      const platforms = [...new Set(ranked.map((r) => r.product.platform))];
+
+      const checklistHint = videoFirst?.pack.filmingChecklist?.[0]
+        ? `Checklist ถ่ายวิดีโอ (ตัวแรก): ${videoFirst.pack.filmingChecklist[0]}`
+        : null;
 
       const recommendations = [
         ranked.length
           ? `Top โปรโมตวันนี้: ${ranked.map((r) => r.product.name).join(", ")}`
           : "ยังไม่มีสินค้า — เพิ่มสินค้าในแดชบอร์ดก่อน",
+        `กระจายแพลตฟอร์มใน Top: ${platforms.join(", ") || "—"}`,
         `ช่วงฤดูกาล: ${season.label} — หมวดที่สอดคล้องมีโอกาสถูกจัดอันดับสูงขึ้นเล็กน้อย (ทดลอง)`,
         videoFirst
           ? `ควรทำวิดีโอก่อน: ${videoFirst.product.name} — ${videoFirst.pack.videoPriorityNote}`
           : "ยังไม่มีคิววิดีโอ",
+        checklistHint,
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน 3 วันล่าสุด และกระจายช่องทางในวันเดียวกัน",
-      ];
+      ].filter(Boolean) as string[];
 
       const brief: DailyBrief = {
         id: newId("brief"),
@@ -95,9 +141,7 @@ export async function runMorningWorkflow(date = todayISO()) {
       return db;
     });
 
-    const brief = [...db.briefs]
-      .filter((b) => b.type === "morning" && b.date === date)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const brief = latestBrief(db, "morning", date);
 
     await logAutomationFinish(jobId, "success", brief?.summary ?? "morning ok", {
       date,
@@ -114,14 +158,41 @@ export async function runMorningWorkflow(date = todayISO()) {
   }
 }
 
-export async function runEveningWorkflow(date = todayISO()) {
+export async function runEveningWorkflow(
+  date = todayISO(),
+  options?: { force?: boolean },
+) {
+  const force = options?.force ?? false;
+
+  if (!force) {
+    const existing = await readDb();
+    const prior = latestBrief(existing, "evening", date);
+    if (prior) {
+      const jobId = await logAutomationStart(
+        "evening",
+        `ข้าม Evening ซ้ำ ${date} (มี brief แล้ว — ส่ง force=true เพื่อรันใหม่หลังกรอกผลเพิ่ม)`,
+        { date, idempotent: true },
+      );
+      await logAutomationFinish(
+        jobId,
+        "success",
+        `ใช้ brief เย็นที่มีอยู่แล้ว: ${prior.summary}`,
+        { date, reusedBriefId: prior.id },
+      );
+      return existing;
+    }
+  }
+
   const jobId = await logAutomationStart("evening", `เริ่ม Evening workflow ${date}`, {
     date,
+    force,
   });
   try {
     const db = await updateDb((db) => {
       const todays = db.schedule.filter((s) => s.date === date);
       const analysis = analyzePosted(todays, db.products);
+      const weekly = weeklyProductRollup(db.products, db.schedule, date, 7);
+      const weeklyLines = weeklyInsightLines(weekly);
 
       const nextFocus = rankProducts(db.products, 3, db.schedule).map(
         (r) => r.product.name,
@@ -129,6 +200,7 @@ export async function runEveningWorkflow(date = todayISO()) {
 
       const recommendations = [
         ...analysis.recommendations,
+        ...weeklyLines,
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -138,7 +210,10 @@ export async function runEveningWorkflow(date = todayISO()) {
         id: newId("brief"),
         date,
         type: "evening",
-        topProductIds: analysis.winners.map((w) => w.post.productId),
+        topProductIds:
+          weekly[0]?.productId
+            ? [weekly[0].productId, ...analysis.winners.map((w) => w.post.productId)]
+            : analysis.winners.map((w) => w.post.productId),
         contentPackIds: [],
         scheduleIds: todays.map((t) => t.id),
         summary: analysis.summary,
@@ -150,9 +225,7 @@ export async function runEveningWorkflow(date = todayISO()) {
       return db;
     });
 
-    const brief = [...db.briefs]
-      .filter((b) => b.type === "evening" && b.date === date)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const brief = latestBrief(db, "evening", date);
     await logAutomationFinish(jobId, "success", brief?.summary ?? "evening ok", {
       date,
     });
@@ -173,6 +246,7 @@ export async function getDashboardSnapshot(): Promise<{
   todaySchedule: Database["schedule"];
   latestMorning?: DailyBrief;
   latestEvening?: DailyBrief;
+  weekly: ReturnType<typeof weeklyProductRollup>;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -186,5 +260,6 @@ export async function getDashboardSnapshot(): Promise<{
   const latestEvening = [...db.briefs]
     .filter((b) => b.type === "evening")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  return { db, ranked, todaySchedule, latestMorning, latestEvening };
+  const weekly = weeklyProductRollup(db.products, db.schedule, date, 7);
+  return { db, ranked, todaySchedule, latestMorning, latestEvening, weekly };
 }

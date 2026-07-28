@@ -95,6 +95,13 @@ export function ProductActions({ productId }: { productId: string }) {
                 {pack.reelsCaption}
               </p>
               <p>
+                <strong>Checklist ถ่ายวิดีโอ</strong>
+                {"\n"}
+                {(pack.filmingChecklist ?? [])
+                  .map((c, i) => `${i + 1}. ${c}`)
+                  .join("\n")}
+              </p>
+              <p>
                 <strong>Hashtags</strong>
                 {"\n"}
                 {[...pack.hashtagsTh, ...pack.hashtagsEn].join(" ")}

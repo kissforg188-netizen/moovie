@@ -79,6 +79,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - CSV สินค้า: `/api/export?format=csv&scope=products`
 - CSV ตาราง: `/api/export?format=csv&scope=schedule`
 - CSV briefs เช้า/เย็น: `/api/export?format=csv&scope=briefs`
+- CSV สรุปสัปดาห์: `/api/export?format=csv&scope=weekly`
 
 ## Workflow แนะนำ
 
@@ -127,6 +128,10 @@ data/db.json       ฐานข้อมูลไฟล์ (JSON)
 - วันคู่สลับช่องเย็นเป็น Facebook Group (น้ำเสียงแชร์ในกลุ่ม ไม่ขายแข็ง)
 - Soft-sanitize คำโฆษณาเกินจริง / เคลมรายได้แน่นอน ก่อนใส่ caption
 - คะแนนฤดูกาลอิงปฏิทินไทย (เช่น สงกรานต์, 11.11, ปีใหม่) แบบ soft boost
+- Morning/Evening แบบ **idempotent** — รันซ้ำวันเดียวกันจะไม่สร้าง brief ซ้ำ (ใช้ `--force` หรือปุ่ม “รันใหม่”)
+- Top สินค้ากระจายแพลตฟอร์มแบบอ่อน ๆ (ไม่ให้ Shopee กินโควต้าทั้งหมดเมื่อมี TikTok Shop คะแนนใกล้เคียง)
+- Content pack มี **filming checklist** สำหรับวิดีโอ 15–30 วิ
+- สรุปผลทดลองรายสัปดาห์ (7 วัน) + export CSV ที่ `/results`
 
 ## ข้อจำกัด MVP
 

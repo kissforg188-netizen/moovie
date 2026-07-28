@@ -11,6 +11,7 @@ import {
   channelLabel,
 } from "../src/lib/schedule";
 import { effectiveSeasonalScore, thaiSeasonBoost } from "../src/lib/seasonality";
+import { weeklyInsightLines, weeklyProductRollup } from "../src/lib/weekly";
 import type { Product, ScheduledPost } from "../src/lib/types";
 
 function sample(partial: Partial<Product> & Pick<Product, "id" | "name">): Product {
@@ -205,6 +206,84 @@ function run() {
   });
   assert.ok(briefCsv.includes("morning"));
   assert.ok(briefCsv.includes("สรุปเช้า"));
+
+  // Filming checklist on content packs
+  assert.ok(pack.filmingChecklist.length >= 5);
+  assert.ok(pack.filmingChecklist.some((c) => c.includes("disclosure")));
+
+  // Weekly rollup from manual metrics
+  const weeklyPosts: ScheduledPost[] = [
+    {
+      id: "p1",
+      date: "2026-07-26",
+      suggestedTime: "10:30",
+      channel: "tiktok",
+      productId: "a",
+      contentPackId: pack.id,
+      hookIndex: 0,
+      ctaIndex: 0,
+      status: "posted",
+      captionPreview: "x",
+      metrics: {
+        views: 1000,
+        clicks: 80,
+        orders: 4,
+        commissionEarned: 120,
+        recordedAt: new Date().toISOString(),
+      },
+    },
+    {
+      id: "p2",
+      date: "2026-07-25",
+      suggestedTime: "13:00",
+      channel: "facebook_reels",
+      productId: "b",
+      contentPackId: "pack-b",
+      hookIndex: 1,
+      ctaIndex: 1,
+      status: "posted",
+      captionPreview: "y",
+      metrics: {
+        views: 500,
+        clicks: 10,
+        orders: 0,
+        commissionEarned: 0,
+        recordedAt: new Date().toISOString(),
+      },
+    },
+  ];
+  const weekly = weeklyProductRollup(
+    [cheapHigh, expensiveLow],
+    weeklyPosts,
+    "2026-07-27",
+    7,
+  );
+  assert.equal(weekly[0].productId, "a");
+  assert.ok(weeklyInsightLines(weekly)[0].includes("ถูกคอมสูง"));
+
+  // Platform diversity soft-mix in top N when scores are close
+  const manyShopee = [
+    sample({ id: "s1", name: "S1", platform: "shopee", commissionRate: 20, price: 150, videoEase: 5, seasonalScore: 5, painPoints: ["a", "b", "c"], sellingPoints: ["x", "y", "z"] }),
+    sample({ id: "s2", name: "S2", platform: "shopee", commissionRate: 19, price: 160, videoEase: 5, seasonalScore: 5, painPoints: ["a", "b", "c"], sellingPoints: ["x", "y", "z"] }),
+    sample({ id: "s3", name: "S3", platform: "shopee", commissionRate: 18, price: 170, videoEase: 5, seasonalScore: 5, painPoints: ["a", "b", "c"], sellingPoints: ["x", "y", "z"] }),
+    sample({ id: "s4", name: "S4", platform: "shopee", commissionRate: 17, price: 180, videoEase: 5, seasonalScore: 5, painPoints: ["a", "b", "c"], sellingPoints: ["x", "y", "z"] }),
+    sample({
+      id: "t1",
+      name: "T1",
+      platform: "tiktok_shop",
+      commissionRate: 16,
+      price: 190,
+      videoEase: 5,
+      seasonalScore: 5,
+      painPoints: ["a", "b", "c"],
+      sellingPoints: ["x", "y", "z"],
+    }),
+  ];
+  const mixed = rankProducts(manyShopee, 5);
+  assert.ok(
+    mixed.some((r) => r.product.platform === "tiktok_shop"),
+    "ควรดึง TikTok Shop เข้า Top เมื่อคะแนนใกล้เคียง เพื่อกระจายแพลตฟอร์ม",
+  );
 
   console.log("All unit tests passed");
 }

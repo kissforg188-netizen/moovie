@@ -102,6 +102,48 @@ export function briefsToCsv(db: Database): string {
   return [header.join(","), ...rows].join("\n");
 }
 
+export function weeklyToCsv(
+  rows: {
+    productId: string;
+    productName: string;
+    posts: number;
+    views: number;
+    clicks: number;
+    orders: number;
+    commission: number;
+    avgCtr: number;
+    score: number;
+  }[],
+): string {
+  const header = [
+    "productId",
+    "productName",
+    "posts",
+    "views",
+    "clicks",
+    "orders",
+    "commission",
+    "avgCtr",
+    "score",
+  ];
+  const body = rows.map((r) =>
+    [
+      r.productId,
+      r.productName,
+      r.posts,
+      r.views,
+      r.clicks,
+      r.orders,
+      r.commission,
+      r.avgCtr.toFixed(4),
+      r.score.toFixed(2),
+    ]
+      .map(csvEscape)
+      .join(","),
+  );
+  return [header.join(","), ...body].join("\n");
+}
+
 export function dbToJson(db: Database): string {
   return JSON.stringify(db, null, 2);
 }
