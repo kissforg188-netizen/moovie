@@ -124,22 +124,40 @@ export function normalizeImportRow(row: RawRow): Omit<
       ),
     ),
     notes: String(pick(row, ["notes", "โน้ต"]) ?? "imported").trim(),
+    active: true,
   };
 }
 
-export function rowsToProducts(rows: RawRow[]): {
+function urlKey(url: string): string {
+  return url.trim().toLowerCase().replace(/\/+$/, "");
+}
+
+export function rowsToProducts(
+  rows: RawRow[],
+  existingUrls: string[] = [],
+): {
   products: Product[];
   skipped: number;
+  duplicates: number;
 } {
   const now = new Date().toISOString();
   const products: Product[] = [];
   let skipped = 0;
+  let duplicates = 0;
+  const seen = new Set(existingUrls.map(urlKey));
+
   for (const row of rows) {
     const normalized = normalizeImportRow(row);
     if (!normalized) {
       skipped += 1;
       continue;
     }
+    const key = urlKey(normalized.affiliateUrl);
+    if (seen.has(key)) {
+      duplicates += 1;
+      continue;
+    }
+    seen.add(key);
     products.push({
       ...normalized,
       id: newId("prod"),
@@ -147,7 +165,7 @@ export function rowsToProducts(rows: RawRow[]): {
       updatedAt: now,
     });
   }
-  return { products, skipped };
+  return { products, skipped, duplicates };
 }
 
 export function parseImportPayload(

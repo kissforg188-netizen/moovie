@@ -2,11 +2,13 @@ import Link from "next/link";
 import { BulkApproveButton } from "@/components/BulkApproveButton";
 import { ImportPanel } from "@/components/ImportPanel";
 import { LoginStatusPanel } from "@/components/LoginStatusPanel";
+import { SettingsPanel } from "@/components/SettingsPanel";
 import { WorkflowButtons } from "@/components/WorkflowButtons";
 import { mergeAccounts } from "@/lib/accounts";
 import { INCOME_DISCLAIMER } from "@/lib/disclosure";
 import { channelLabel } from "@/lib/schedule";
 import { currentSeasonHint } from "@/lib/seasonality";
+import { resolveSettings } from "@/lib/settings";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { todayISO } from "@/lib/db";
 
@@ -17,6 +19,7 @@ export default async function AutomationPage() {
     await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
+  const settings = resolveSettings(db);
   const accounts = mergeAccounts(db.accounts);
   const logs = (db.automationLogs ?? [])
     .slice()
@@ -44,6 +47,8 @@ export default async function AutomationPage() {
       <LoginStatusPanel initialAccounts={accounts} />
 
       <WorkflowButtons />
+
+      <SettingsPanel maxPostsPerDay={settings.maxPostsPerDay} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <ImportPanel />

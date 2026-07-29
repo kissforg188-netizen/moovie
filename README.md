@@ -12,6 +12,11 @@
 - โหมด **manual** เป็นค่าเริ่มต้น (ใส่สินค้า/ลิงก์/ค่าคอมเอง)
 - **ไม่โพสต์อัตโนมัติ** — สร้าง draft แล้วต้อง Approve ก่อนโพสต์ด้วยมือ
 - Adapter สำหรับ Shopee / TikTok Shop / Meta API แยกไว้เป็น stub สำหรับต่อภายหลัง
+- พักสินค้าที่ไม่ต้องการโปรโมตชั่วคราว (ไม่เข้า Morning ranking)
+- ตั้งเป้า draft 2 หรือ 3 ชิ้น/วันได้ที่ `/automation`
+- Content pack มี hook 5 · CTA 3 · มุมขาย 3 · hashtag ไทย/อังกฤษ · filming checklist
+- ตรวจลิงก์ affiliate ซ้ำตอนเพิ่ม/นำเข้า เพื่อลดสแปม
+- คัดลอกแคปชันจากตารางโพสต์ได้ทันที
 
 
 ## Production (cPanel / MySQL)

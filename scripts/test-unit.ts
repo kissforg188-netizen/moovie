@@ -65,6 +65,7 @@ function run() {
   const pack = generateContentPack(cheapHigh, { variant: 0 });
   assert.equal(pack.hooks.length, 5);
   assert.equal(pack.ctas.length, 3);
+  assert.equal(pack.sellingAngles.length, 3);
   assert.ok(pack.facebookCaption.includes(AFFILIATE_DISCLOSURE));
   assert.ok(pack.facebookGroupCaption.includes(AFFILIATE_DISCLOSURE));
   assert.ok(pack.reelsCaption.includes(AFFILIATE_DISCLOSURE));
@@ -75,6 +76,29 @@ function run() {
     pack.hooks[0],
     packB.hooks[0],
     "variant ต่างกันควรหมุน hook เพื่อลดสแปม",
+  );
+  assert.notEqual(
+    pack.sellingAngles[0],
+    packB.sellingAngles[0],
+    "variant ต่างกันควรหมุนมุมขาย",
+  );
+
+  // Paused products must be excluded from ranking
+  const paused = sample({
+    id: "paused",
+    name: "พักไว้",
+    active: false,
+    price: 99,
+    commissionRate: 50,
+    videoEase: 5,
+    seasonalScore: 5,
+    painPoints: ["a", "b", "c"],
+    sellingPoints: ["x", "y", "z"],
+  });
+  const rankedActive = rankProducts([paused, expensiveLow], 5);
+  assert.ok(
+    rankedActive.every((r) => r.product.id !== "paused"),
+    "สินค้าที่พักต้องไม่เข้า ranking",
   );
 
   const schedule = buildDailySchedule({
@@ -172,6 +196,10 @@ function run() {
   const imported = rowsToProducts(parseCsv(csv));
   assert.equal(imported.products.length, 1);
   assert.equal(imported.products[0].platform, "shopee");
+  assert.equal(imported.duplicates, 0);
+  const dupImport = rowsToProducts(parseCsv(csv), ["https://shopee.co.th/x"]);
+  assert.equal(dupImport.products.length, 0);
+  assert.equal(dupImport.duplicates, 1);
   assert.ok(
     normalizeImportRow({ ชื่อ: "ก", ลิงก์: "https://x.com" })?.name === "ก",
   );

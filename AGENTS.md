@@ -51,3 +51,7 @@ npm run dev
 - Morning/evening are idempotent per day; pass `{ "force": true }` or CLI `--force` to regenerate
 - Weekly product rollup: `src/lib/weekly.ts`
 - Filming checklist lives on each content pack (`filmingChecklist`)
+- Selling angles (3): `sellingAngles` on content packs
+- Pause products: `active: false` excludes from morning ranking (`PATCH /api/products/:id`)
+- Draft volume: `settings.maxPostsPerDay` (2|3) via `PATCH /api/settings`
+- Duplicate affiliate URL blocked on create/import

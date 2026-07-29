@@ -50,6 +50,21 @@ export function generateCTAs(variant = 0): string[] {
   return rotate(ctas, variant).slice(0, 3);
 }
 
+/** Three soft selling angles — help the viewer choose, never guarantee results. */
+export function generateSellingAngles(product: Product, variant = 0): string[] {
+  const pain = firstPain(product);
+  const sell = firstSell(product);
+  const audience = product.targetAudience || "คนที่กำลังหาของอยู่";
+  const angles = [
+    `มุมปัญหา: เล่าสั้น ๆ เรื่อง${pain} แล้วค่อยโชว์ว่า ${sell} ช่วยได้แค่ไหน (ไม่โอเวอร์เคลม)`,
+    `มุมเทียบเลือก: ให้${audience}เทียบสเปก/ราคาประมาณ ${priceLabel(product.price)} กับของที่ใช้อยู่ก่อนตัดสินใจ`,
+    `มุมใช้งานจริง: โชว์ 1 สถานการณ์ประจำวันในหมวด ${product.category} + จุดที่ชอบคือ ${sell}`,
+    `มุมประหยัดเวลา: บอกว่าทำไมของชิ้นนี้ลดขั้นตอนเรื่อง${pain} โดยไม่ต้องซื้อแพงก่อน`,
+    `มุมเพื่อนแนะนำ: น้ำเสียงคุยกัน แชร์ตัวเลือก ไม่เร่งกดซื้อ — ให้ดูรีวิวเพิ่มที่ลิงก์`,
+  ];
+  return rotate(angles, variant).slice(0, 3).map((a) => softCopy(a));
+}
+
 export function generateHashtags(product: Product): {
   th: string[];
   en: string[];
@@ -183,6 +198,8 @@ export function generateContentPack(
     "โพสต์จริงหลัง Approve ในแดชบอร์ดเท่านั้น",
   ];
 
+  const sellingAngles = generateSellingAngles(product, variant);
+
   return {
     id: newId("pack"),
     productId: product.id,
@@ -198,6 +215,7 @@ export function generateContentPack(
     reelsCaption: withDisclosure(reelsBody),
     videoPriorityNote,
     filmingChecklist,
+    sellingAngles,
     variant,
   };
 }

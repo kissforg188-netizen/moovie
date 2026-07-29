@@ -9,6 +9,7 @@ import { INCOME_DISCLAIMER } from "./disclosure";
 import { rankProducts } from "./scoring";
 import { buildDailySchedule } from "./schedule";
 import { currentSeasonHint } from "./seasonality";
+import { resolveSettings } from "./settings";
 import type { ContentPack, DailyBrief, Database } from "./types";
 import { weeklyInsightLines, weeklyProductRollup } from "./weekly";
 
@@ -21,6 +22,7 @@ function needsFreshPack(pack: ContentPack | undefined, date: string): boolean {
   if (!pack) return true;
   if (!pack.facebookGroupCaption) return true;
   if (!pack.filmingChecklist || pack.filmingChecklist.length === 0) return true;
+  if (!pack.sellingAngles || pack.sellingAngles.length === 0) return true;
   const createdDay = pack.createdAt.slice(0, 10);
   return createdDay !== date;
 }
@@ -68,6 +70,7 @@ export async function runMorningWorkflow(
   });
   try {
     const db = await updateDb((db) => {
+      const settings = resolveSettings(db);
       const ranked = rankProducts(db.products, 5, db.schedule);
       const packs: ContentPack[] = [];
       const pairs: {
@@ -95,7 +98,7 @@ export async function runMorningWorkflow(
         date,
         ranked: pairs,
         existing: db.schedule,
-        maxPosts: 3,
+        maxPosts: settings.maxPostsPerDay,
       });
       db.schedule.push(...newPosts);
 
@@ -104,22 +107,29 @@ export async function runMorningWorkflow(
         .sort((a, b) => b.product.videoEase - a.product.videoEase)[0];
       const season = currentSeasonHint(new Date(`${date}T12:00:00.000Z`));
       const platforms = [...new Set(ranked.map((r) => r.product.platform))];
+      const paused = db.products.filter((p) => p.active === false).length;
 
       const checklistHint = videoFirst?.pack.filmingChecklist?.[0]
         ? `Checklist ถ่ายวิดีโอ (ตัวแรก): ${videoFirst.pack.filmingChecklist[0]}`
+        : null;
+
+      const angleHint = videoFirst?.pack.sellingAngles?.[0]
+        ? `มุมขายแนะนำตัวแรก: ${videoFirst.pack.sellingAngles[0]}`
         : null;
 
       const recommendations = [
         ranked.length
           ? `Top โปรโมตวันนี้: ${ranked.map((r) => r.product.name).join(", ")}`
           : "ยังไม่มีสินค้า — เพิ่มสินค้าในแดชบอร์ดก่อน",
+        paused > 0 ? `ข้ามสินค้าที่พักไว้ ${paused} ชิ้น (ไม่เข้า ranking)` : null,
         `กระจายแพลตฟอร์มใน Top: ${platforms.join(", ") || "—"}`,
         `ช่วงฤดูกาล: ${season.label} — หมวดที่สอดคล้องมีโอกาสถูกจัดอันดับสูงขึ้นเล็กน้อย (ทดลอง)`,
         videoFirst
           ? `ควรทำวิดีโอก่อน: ${videoFirst.product.name} — ${videoFirst.pack.videoPriorityNote}`
           : "ยังไม่มีคิววิดีโอ",
         checklistHint,
-        `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (ต้อง Approve ก่อนโพสต์จริง)`,
+        angleHint,
+        `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน 3 วันล่าสุด และกระจายช่องทางในวันเดียวกัน",
       ].filter(Boolean) as string[];

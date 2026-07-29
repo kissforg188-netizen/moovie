@@ -105,13 +105,15 @@ export function scoreProduct(
 /**
  * Rank by fit score, then soft-diversify platforms in the top N
  * so morning picks are not all from one shop when inventory allows.
+ * Paused products (active === false) are excluded.
  */
 export function rankProducts(
   products: Product[],
   limit = 5,
   history: ScheduledPost[] = [],
 ): RankedProduct[] {
-  const scored = products
+  const active = products.filter((p) => p.active !== false);
+  const scored = active
     .map((product) => ({ product, score: scoreProduct(product, history) }))
     .sort((a, b) => b.score.total - a.score.total);
 

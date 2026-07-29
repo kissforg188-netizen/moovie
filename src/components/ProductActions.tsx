@@ -4,11 +4,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ContentPack } from "@/lib/types";
 
-export function ProductActions({ productId }: { productId: string }) {
+export function ProductActions({
+  productId,
+  active = true,
+}: {
+  productId: string;
+  active?: boolean;
+}) {
   const router = useRouter();
   const [pack, setPack] = useState<ContentPack | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
 
   async function generate() {
     setBusy(true);
@@ -26,6 +33,20 @@ export function ProductActions({ productId }: { productId: string }) {
     }
     const data = await res.json();
     setPack(data.pack);
+    router.refresh();
+  }
+
+  async function toggleActive() {
+    setBusy(true);
+    setStatusMsg("");
+    const res = await fetch(`/api/products/${productId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !active }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    setStatusMsg(data.message ?? data.error ?? "");
     router.refresh();
   }
 
@@ -48,6 +69,14 @@ export function ProductActions({ productId }: { productId: string }) {
         </button>
         <button
           type="button"
+          onClick={toggleActive}
+          disabled={busy}
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-soft)] hover:bg-[var(--mist)]"
+        >
+          {active ? "พักโปรโมต" : "เปิดโปรโมตอีกครั้ง"}
+        </button>
+        <button
+          type="button"
           onClick={remove}
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--ink-soft)] hover:bg-[var(--mist)]"
         >
@@ -55,6 +84,7 @@ export function ProductActions({ productId }: { productId: string }) {
         </button>
       </div>
       {error && <p className="text-xs text-[var(--coral)]">{error}</p>}
+      {statusMsg && <p className="text-xs text-[var(--ink-soft)]">{statusMsg}</p>}
       {pack && (
         <div className="rounded-xl border border-[var(--line)] bg-white/70 p-3 text-sm">
           <p className="mb-2 font-medium text-[var(--sage-deep)]">Content Pack พร้อมแล้ว</p>
@@ -71,6 +101,13 @@ export function ProductActions({ productId }: { productId: string }) {
                 <strong>CTA</strong>
                 {"\n"}
                 {pack.ctas.map((c, i) => `${i + 1}. ${c}`).join("\n")}
+              </p>
+              <p>
+                <strong>มุมขาย (3 แบบ)</strong>
+                {"\n"}
+                {(pack.sellingAngles ?? [])
+                  .map((a, i) => `${i + 1}. ${a}`)
+                  .join("\n")}
               </p>
               <p>
                 <strong>TikTok script</strong>

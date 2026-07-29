@@ -3,7 +3,7 @@ import {
   logAutomationFinish,
   logAutomationStart,
 } from "@/lib/automation-log";
-import { updateDb } from "@/lib/db";
+import { readDb, updateDb } from "@/lib/db";
 import { parseImportPayload, rowsToProducts } from "@/lib/import";
 
 export async function POST(request: Request) {
@@ -12,17 +12,25 @@ export async function POST(request: Request) {
     const contentType = request.headers.get("content-type");
     const body = await request.text();
     const rows = parseImportPayload(body, contentType);
-    const { products, skipped } = rowsToProducts(rows);
+    const current = await readDb();
+    const { products, skipped, duplicates } = rowsToProducts(
+      rows,
+      current.products.map((p) => p.affiliateUrl),
+    );
 
     if (products.length === 0) {
       await logAutomationFinish(jobId, "failed", "ไม่มีแถวที่นำเข้าได้", {
         skipped,
+        duplicates,
       });
       return NextResponse.json(
         {
           error:
-            "ไม่พบสินค้าที่นำเข้าได้ — ต้องมีอย่างน้อย name และ affiliateUrl/url",
+            duplicates > 0
+              ? `ข้ามลิงก์ซ้ำ ${duplicates} รายการ และไม่มีสินค้าใหม่ให้นำเข้า`
+              : "ไม่พบสินค้าที่นำเข้าได้ — ต้องมีอย่างน้อย name และ affiliateUrl/url",
           skipped,
+          duplicates,
         },
         { status: 400 },
       );
@@ -36,14 +44,15 @@ export async function POST(request: Request) {
     await logAutomationFinish(
       jobId,
       "success",
-      `นำเข้า ${products.length} สินค้า (ข้าม ${skipped})`,
-      { imported: products.length, skipped },
+      `นำเข้า ${products.length} สินค้า (ข้ามแถวเสีย ${skipped}, ลิงก์ซ้ำ ${duplicates})`,
+      { imported: products.length, skipped, duplicates },
     );
 
     return NextResponse.json({
       ok: true,
       imported: products.length,
       skipped,
+      duplicates,
       products,
     });
   } catch (err) {

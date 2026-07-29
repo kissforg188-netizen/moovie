@@ -1,14 +1,17 @@
 import { BulkApproveButton } from "@/components/BulkApproveButton";
+import { CopyCaptionButton } from "@/components/CopyCaptionButton";
 import { ScheduleActions } from "@/components/ScheduleActions";
 import { WorkflowButtons } from "@/components/WorkflowButtons";
 import { readDb, todayISO } from "@/lib/db";
 import { channelLabel } from "@/lib/schedule";
+import { resolveSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function CalendarPage() {
   const db = await readDb();
   const date = todayISO();
+  const settings = resolveSettings(db);
   const posts = db.schedule
     .filter((s) => s.date === date)
     .sort((a, b) => a.suggestedTime.localeCompare(b.suggestedTime));
@@ -18,7 +21,8 @@ export default async function CalendarPage() {
       <div>
         <h1 className="brand-mark text-4xl text-[var(--sage-deep)]">ตารางโพสต์</h1>
         <p className="mt-1 text-sm text-[var(--ink-soft)]">
-          แนะนำวันละ 2–3 ชิ้น · สถานะเริ่มต้นเป็น draft · ต้อง Approve ก่อนโพสต์ด้วยมือ
+          แนะนำวันละ {settings.maxPostsPerDay} ชิ้น · สถานะเริ่มต้นเป็น draft · ต้อง Approve
+          ก่อนโพสต์ด้วยมือ
         </p>
         <p className="mt-1 text-xs text-[var(--coral)]">
           ระบบไม่โพสต์อัตโนมัติไปยัง TikTok หรือ Facebook
@@ -51,7 +55,10 @@ export default async function CalendarPage() {
                       {product?.name ?? "สินค้า"} · status: {post.status}
                     </p>
                   </div>
-                  <ScheduleActions id={post.id} status={post.status} />
+                  <div className="flex flex-wrap items-start gap-2">
+                    <CopyCaptionButton text={post.captionPreview} />
+                    <ScheduleActions id={post.id} status={post.status} />
+                  </div>
                 </div>
                 <pre className="mt-3 whitespace-pre-wrap rounded-xl bg-[var(--mist)] p-3 text-xs leading-relaxed">
                   {post.captionPreview}
@@ -59,7 +66,7 @@ export default async function CalendarPage() {
                 {pack && (
                   <details className="mt-3">
                     <summary className="cursor-pointer text-xs text-[var(--sage)]">
-                      Script / hooks เพิ่มเติม
+                      Script / hooks / มุมขาย เพิ่มเติม
                     </summary>
                     <div className="mt-2 space-y-2 text-xs text-[var(--ink-soft)]">
                       <p>{pack.videoPriorityNote}</p>
@@ -69,6 +76,14 @@ export default async function CalendarPage() {
                       <p>
                         CTA ที่ใช้: {pack.ctas[post.ctaIndex] ?? pack.ctas[0]}
                       </p>
+                      {(pack.sellingAngles?.length ?? 0) > 0 && (
+                        <p>
+                          มุมขาย:{" "}
+                          {pack.sellingAngles
+                            .map((a, i) => `${i + 1}) ${a}`)
+                            .join(" · ")}
+                        </p>
+                      )}
                       <pre className="whitespace-pre-wrap">
                         {pack.tiktokScript.scenes
                           .map((s) => `[${s.time}] ${s.line}`)

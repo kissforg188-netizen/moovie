@@ -20,6 +20,8 @@ export interface Product {
   videoEase: number; // 1-5 how easy to make short video
   seasonalScore: number; // 1-5 seasonal/trending potential
   notes?: string;
+  /** When false, product is paused and excluded from morning ranking. Default true. */
+  active?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +61,8 @@ export interface ContentPack {
   videoPriorityNote: string;
   /** Practical shot list for 15–30s videos (Thai). */
   filmingChecklist: string[];
+  /** Soft selling angles (help-choose tone, not hard sell). */
+  sellingAngles: string[];
   /** Variant seed used to rotate hooks/CTAs and reduce duplicate spam. */
   variant?: number;
 }
@@ -139,6 +143,13 @@ export interface AccountStatus {
   updatedAt?: string;
 }
 
+/** User preferences for draft scheduling (never auto-publishes). */
+export interface AutomationSettings {
+  /** Suggested drafts per day (2–3). Default 3. */
+  maxPostsPerDay: 2 | 3;
+  updatedAt?: string;
+}
+
 export interface Database {
   products: Product[];
   contentPacks: ContentPack[];
@@ -148,4 +159,6 @@ export interface Database {
   automationLogs?: AutomationLog[];
   /** Manual login/readiness status for affiliate + posting apps. */
   accounts?: AccountStatus[];
+  /** Draft volume and related prefs. */
+  settings?: AutomationSettings;
 }
