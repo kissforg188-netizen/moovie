@@ -147,6 +147,16 @@ export interface AccountStatus {
 export interface AutomationSettings {
   /** Suggested drafts per day (2–3). Default 3. */
   maxPostsPerDay: 2 | 3;
+  /**
+   * Anti-spam: skip product+channel pairs used within this many days.
+   * Default 3. Range 2–7.
+   */
+  cooldownDays: number;
+  /**
+   * Auto-skip leftover drafts older than this many days when morning runs.
+   * Default 5. Range 3–14. Never skips approved/posted.
+   */
+  staleDraftDays: number;
   updatedAt?: string;
 }
 

@@ -119,6 +119,9 @@ SQL);
     $stmt = $pdo->prepare('INSERT INTO settings (setting_key, setting_value, updated_at) VALUES (?,?,?) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value), updated_at=VALUES(updated_at)');
     $stmt->execute(['installed_at', $now, $now]);
     $stmt->execute(['app_mode', 'production', $now]);
+    $stmt->execute(['max_posts_per_day', '3', $now]);
+    $stmt->execute(['cooldown_days', '3', $now]);
+    $stmt->execute(['stale_draft_days', '5', $now]);
 
     if ($seed) {
         seed_starter_catalog();

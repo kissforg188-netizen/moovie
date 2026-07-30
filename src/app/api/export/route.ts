@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { todayISO, readDb } from "@/lib/db";
 import {
   briefsToCsv,
+  contentPacksToMarkdown,
   dbToJson,
   productsToCsv,
   scheduleToCsv,
+  todayDraftsToMarkdown,
   weeklyToCsv,
 } from "@/lib/export";
 import { weeklyProductRollup } from "@/lib/weekly";
@@ -14,6 +16,23 @@ export async function GET(request: Request) {
   const format = searchParams.get("format") ?? "json";
   const scope = searchParams.get("scope") ?? "all";
   const db = await readDb();
+
+  if (format === "md" || format === "markdown") {
+    let md: string;
+    let filename = "affiliate-packs.md";
+    if (scope === "today" || scope === "drafts") {
+      md = todayDraftsToMarkdown(db, todayISO());
+      filename = `affiliate-drafts-${todayISO()}.md`;
+    } else {
+      md = contentPacksToMarkdown(db);
+    }
+    return new NextResponse(md, {
+      headers: {
+        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+      },
+    });
+  }
 
   if (format === "csv") {
     let csv: string;

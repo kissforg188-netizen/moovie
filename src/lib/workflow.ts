@@ -7,7 +7,7 @@ import { generateContentPack } from "./content";
 import { newId, readDb, todayISO, updateDb } from "./db";
 import { INCOME_DISCLAIMER } from "./disclosure";
 import { rankProducts } from "./scoring";
-import { buildDailySchedule } from "./schedule";
+import { buildDailySchedule, expireStaleDrafts } from "./schedule";
 import { currentSeasonHint } from "./seasonality";
 import { resolveSettings } from "./settings";
 import type { ContentPack, DailyBrief, Database } from "./types";
@@ -71,6 +71,11 @@ export async function runMorningWorkflow(
   try {
     const db = await updateDb((db) => {
       const settings = resolveSettings(db);
+      const { expiredIds } = expireStaleDrafts(
+        db.schedule,
+        date,
+        settings.staleDraftDays,
+      );
       const ranked = rankProducts(db.products, 5, db.schedule);
       const packs: ContentPack[] = [];
       const pairs: {
@@ -99,6 +104,7 @@ export async function runMorningWorkflow(
         ranked: pairs,
         existing: db.schedule,
         maxPosts: settings.maxPostsPerDay,
+        cooldownDays: settings.cooldownDays,
       });
       db.schedule.push(...newPosts);
 
@@ -122,6 +128,9 @@ export async function runMorningWorkflow(
           ? `Top โปรโมตวันนี้: ${ranked.map((r) => r.product.name).join(", ")}`
           : "ยังไม่มีสินค้า — เพิ่มสินค้าในแดชบอร์ดก่อน",
         paused > 0 ? `ข้ามสินค้าที่พักไว้ ${paused} ชิ้น (ไม่เข้า ranking)` : null,
+        expiredIds.length > 0
+          ? `ข้าม draft ค้าง ${expiredIds.length} ชิ้น (เก่ากว่า ${settings.staleDraftDays} วัน)`
+          : null,
         `กระจายแพลตฟอร์มใน Top: ${platforms.join(", ") || "—"}`,
         `ช่วงฤดูกาล: ${season.label} — หมวดที่สอดคล้องมีโอกาสถูกจัดอันดับสูงขึ้นเล็กน้อย (ทดลอง)`,
         videoFirst
@@ -131,7 +140,7 @@ export async function runMorningWorkflow(
         angleHint,
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
-        "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน 3 วันล่าสุด และกระจายช่องทางในวันเดียวกัน",
+        `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
       ].filter(Boolean) as string[];
 
       const brief: DailyBrief = {

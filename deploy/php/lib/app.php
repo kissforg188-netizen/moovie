@@ -323,8 +323,44 @@ function caption_for_channel(array $pack, string $channel, int $hookIndex, int $
     return $pack['facebookCaption'];
 }
 
-function build_daily_schedule(string $date, array $rankedPairs, int $maxPosts = 3): array
+function get_app_setting(string $key, string $default = ''): string
 {
+    $stmt = db()->prepare('SELECT setting_value FROM settings WHERE setting_key=?');
+    $stmt->execute([$key]);
+    $row = $stmt->fetch();
+    return $row ? (string)$row['setting_value'] : $default;
+}
+
+function cooldown_days(): int
+{
+    $n = (int) get_app_setting('cooldown_days', '3');
+    return max(2, min(7, $n ?: 3));
+}
+
+function stale_draft_days(): int
+{
+    $n = (int) get_app_setting('stale_draft_days', '5');
+    return max(3, min(14, $n ?: 5));
+}
+
+function max_posts_per_day(): int
+{
+    $n = (int) get_app_setting('max_posts_per_day', '3');
+    return $n === 2 ? 2 : 3;
+}
+
+/** Skip leftover drafts older than stale_draft_days (never touches approved/posted). */
+function expire_stale_drafts(string $today): int
+{
+    $days = stale_draft_days();
+    $stmt = db()->prepare("UPDATE schedule SET status='skipped' WHERE status='draft' AND post_date < DATE_SUB(?, INTERVAL ? DAY)");
+    $stmt->execute([$today, $days]);
+    return $stmt->rowCount();
+}
+
+function build_daily_schedule(string $date, array $rankedPairs, int $maxPosts = 3, ?int $cooldownDays = null): array
+{
+    $cooldownDays = $cooldownDays ?? cooldown_days();
     $slots = [
         ['time' => '10:30', 'channel' => 'tiktok'],
         ['time' => '13:00', 'channel' => 'facebook_reels'],
@@ -344,8 +380,8 @@ function build_daily_schedule(string $date, array $rankedPairs, int $maxPosts = 
     }
 
     $recent = [];
-    $stmt = $pdo->prepare("SELECT product_id, channel FROM schedule WHERE post_date BETWEEN DATE_SUB(?, INTERVAL 3 DAY) AND ? AND status <> 'skipped'");
-    $stmt->execute([$date, $date]);
+    $stmt = $pdo->prepare("SELECT product_id, channel FROM schedule WHERE post_date BETWEEN DATE_SUB(?, INTERVAL ? DAY) AND ? AND status <> 'skipped'");
+    $stmt->execute([$date, $cooldownDays, $date]);
     foreach ($stmt->fetchAll() as $r) {
         $recent[$r['product_id'] . ':' . $r['channel']] = true;
     }
@@ -402,6 +438,7 @@ SQL);
 function run_morning_workflow(?string $date = null): array
 {
     $date = $date ?: today_iso();
+    $expired = expire_stale_drafts($date);
     $ranked = rank_products(5);
     $pairs = [];
     foreach ($ranked as $i => $item) {
@@ -416,18 +453,22 @@ function run_morning_workflow(?string $date = null): array
         }
         $pairs[] = ['product' => $item['product'], 'pack' => $pack];
     }
-    $newPosts = build_daily_schedule($date, $pairs, 3);
+    $maxPosts = max_posts_per_day();
+    $cooldown = cooldown_days();
+    $newPosts = build_daily_schedule($date, $pairs, $maxPosts, $cooldown);
     foreach ($newPosts as $p) save_schedule_post($p);
 
     usort($pairs, fn($a, $b) => $b['product']['videoEase'] <=> $a['product']['videoEase']);
     $videoFirst = $pairs[0] ?? null;
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
+        $expired > 0 ? "ข้าม draft ค้าง {$expired} ชิ้น (เก่ากว่า " . stale_draft_days() . ' วัน)' : null,
         $videoFirst ? 'ควรทำวิดีโอก่อน: ' . $videoFirst['product']['name'] . ' — ' . $videoFirst['pack']['videoPriorityNote'] : 'ยังไม่มีคิววิดีโอ',
-        'สร้าง draft โพสต์ ' . count($newPosts) . ' ชิ้น (ต้อง Approve ก่อนโพสต์จริง)',
+        'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
-        'ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน 3 วันล่าสุด เพื่อลดสแปม',
+        "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
     ];
+    $recs = array_values(array_filter($recs));
     $brief = [
         'id' => new_id('brief'),
         'date' => $date,

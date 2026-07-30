@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { readDb, updateDb } from "@/lib/db";
-import { normalizeMaxPosts, resolveSettings } from "@/lib/settings";
+import {
+  normalizeCooldownDays,
+  normalizeMaxPosts,
+  normalizeStaleDraftDays,
+  resolveSettings,
+} from "@/lib/settings";
 
 export async function GET() {
   const db = await readDb();
@@ -8,12 +13,31 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
-  const body = (await request.json()) as { maxPostsPerDay?: unknown };
-  const maxPostsPerDay = normalizeMaxPosts(body.maxPostsPerDay);
+  const body = (await request.json()) as {
+    maxPostsPerDay?: unknown;
+    cooldownDays?: unknown;
+    staleDraftDays?: unknown;
+  };
+
+  const current = resolveSettings(await readDb());
+  const maxPostsPerDay =
+    body.maxPostsPerDay !== undefined
+      ? normalizeMaxPosts(body.maxPostsPerDay)
+      : current.maxPostsPerDay;
+  const cooldownDays =
+    body.cooldownDays !== undefined
+      ? normalizeCooldownDays(body.cooldownDays)
+      : current.cooldownDays;
+  const staleDraftDays =
+    body.staleDraftDays !== undefined
+      ? normalizeStaleDraftDays(body.staleDraftDays)
+      : current.staleDraftDays;
 
   const db = await updateDb((db) => {
     db.settings = {
       maxPostsPerDay,
+      cooldownDays,
+      staleDraftDays,
       updatedAt: new Date().toISOString(),
     };
     return db;
@@ -21,6 +45,6 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({
     settings: resolveSettings(db),
-    message: `ตั้งเป้า draft ${maxPostsPerDay} ชิ้น/วันแล้ว (ยังต้อง Approve ก่อนโพสต์จริง)`,
+    message: `ตั้งค่าแล้ว: ${maxPostsPerDay} draft/วัน · cooldown ${cooldownDays} วัน · ข้าม draft ค้าง ${staleDraftDays} วัน (ยังต้อง Approve ก่อนโพสต์จริง)`,
   });
 }

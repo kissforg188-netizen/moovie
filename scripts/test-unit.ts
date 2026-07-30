@@ -2,15 +2,21 @@ import assert from "assert";
 import { sanitizeMarketingText } from "../src/lib/compliance";
 import { withDisclosure, AFFILIATE_DISCLOSURE } from "../src/lib/disclosure";
 import { generateContentPack } from "../src/lib/content";
-import { briefsToCsv } from "../src/lib/export";
+import { briefsToCsv, contentPackToMarkdown } from "../src/lib/export";
 import { normalizeImportRow, parseCsv, rowsToProducts } from "../src/lib/import";
 import { rankProducts, scoreProduct } from "../src/lib/scoring";
 import {
   buildDailySchedule,
   captionFingerprint,
   channelLabel,
+  expireStaleDrafts,
 } from "../src/lib/schedule";
 import { effectiveSeasonalScore, thaiSeasonBoost } from "../src/lib/seasonality";
+import {
+  normalizeCooldownDays,
+  normalizeStaleDraftDays,
+  resolveSettings,
+} from "../src/lib/settings";
 import { weeklyInsightLines, weeklyProductRollup } from "../src/lib/weekly";
 import type { Product, ScheduledPost } from "../src/lib/types";
 
@@ -312,6 +318,112 @@ function run() {
     mixed.some((r) => r.product.platform === "tiktok_shop"),
     "ควรดึง TikTok Shop เข้า Top เมื่อคะแนนใกล้เคียง เพื่อกระจายแพลตฟอร์ม",
   );
+
+  // Settings: cooldown + stale draft defaults
+  assert.equal(normalizeCooldownDays(99), 7);
+  assert.equal(normalizeCooldownDays(1), 2);
+  assert.equal(normalizeStaleDraftDays(1), 3);
+  assert.equal(normalizeStaleDraftDays(20), 14);
+  const resolved = resolveSettings({
+    products: [],
+    contentPacks: [],
+    schedule: [],
+    briefs: [],
+  });
+  assert.equal(resolved.cooldownDays, 3);
+  assert.equal(resolved.staleDraftDays, 5);
+
+  // Configurable cooldown: with cooldownDays=2, gap=3 (วันถัดไปหลังครบ) ว่างอีกครั้ง
+  const cooldownPrior: ScheduledPost[] = [
+    {
+      id: "old2",
+      date: "2026-07-24",
+      suggestedTime: "10:30",
+      channel: "tiktok",
+      productId: "a",
+      contentPackId: pack.id,
+      hookIndex: 0,
+      ctaIndex: 0,
+      status: "posted",
+      captionPreview: "x",
+    },
+  ];
+  const stillBlocked = buildDailySchedule({
+    date: "2026-07-26",
+    ranked: [{ product: cheapHigh, pack }],
+    existing: cooldownPrior,
+    cooldownDays: 2,
+  });
+  assert.ok(
+    stillBlocked.every((s) => !(s.productId === "a" && s.channel === "tiktok")),
+    "gap=2 กับ cooldown=2 ยังต้องบล็อก",
+  );
+  const shortCooldown = buildDailySchedule({
+    date: "2026-07-27",
+    ranked: [{ product: cheapHigh, pack }],
+    existing: cooldownPrior,
+    cooldownDays: 2,
+  });
+  assert.ok(
+    shortCooldown.some((s) => s.productId === "a" && s.channel === "tiktok"),
+    "cooldown 2 วันควรอนุญาต tiktok ซ้ำเมื่อ gap > 2",
+  );
+
+  // Stale draft expiry skips old drafts only
+  const staleList: ScheduledPost[] = [
+    {
+      id: "stale",
+      date: "2026-07-01",
+      suggestedTime: "10:30",
+      channel: "tiktok",
+      productId: "a",
+      contentPackId: pack.id,
+      hookIndex: 0,
+      ctaIndex: 0,
+      status: "draft",
+      captionPreview: "old draft",
+    },
+    {
+      id: "fresh",
+      date: "2026-07-28",
+      suggestedTime: "13:00",
+      channel: "facebook_reels",
+      productId: "b",
+      contentPackId: "p",
+      hookIndex: 0,
+      ctaIndex: 0,
+      status: "draft",
+      captionPreview: "fresh",
+    },
+    {
+      id: "kept",
+      date: "2026-07-01",
+      suggestedTime: "19:30",
+      channel: "facebook_post",
+      productId: "a",
+      contentPackId: pack.id,
+      hookIndex: 0,
+      ctaIndex: 0,
+      status: "approved",
+      captionPreview: "approved keep",
+    },
+  ];
+  const expired = expireStaleDrafts(staleList, "2026-07-30", 5);
+  assert.ok(expired.expiredIds.includes("stale"));
+  assert.equal(staleList.find((s) => s.id === "stale")?.status, "skipped");
+  assert.equal(staleList.find((s) => s.id === "fresh")?.status, "draft");
+  assert.equal(staleList.find((s) => s.id === "kept")?.status, "approved");
+
+  // August Mother's Day seasonality
+  const augGift = thaiSeasonBoost("ของขวัญ", new Date("2026-08-10T12:00:00Z"));
+  assert.ok(augGift.label.includes("วันแม่"));
+  assert.ok(augGift.boost >= 10);
+
+  // Markdown content pack export includes disclosure + hooks
+  const md = contentPackToMarkdown(pack, cheapHigh);
+  assert.ok(md.includes(AFFILIATE_DISCLOSURE));
+  assert.ok(md.includes("## Hooks"));
+  assert.ok(md.includes(cheapHigh.name));
 
   console.log("All unit tests passed");
 }

@@ -14,7 +14,9 @@
 - Adapter สำหรับ Shopee / TikTok Shop / Meta API แยกไว้เป็น stub สำหรับต่อภายหลัง
 - พักสินค้าที่ไม่ต้องการโปรโมตชั่วคราว (ไม่เข้า Morning ranking)
 - ตั้งเป้า draft 2 หรือ 3 ชิ้น/วันได้ที่ `/automation`
+- ตั้ง **cooldown กันสแปม** (2–7 วัน) และ **ข้าม draft ค้าง** อัตโนมัติตอน Morning
 - Content pack มี hook 5 · CTA 3 · มุมขาย 3 · hashtag ไทย/อังกฤษ · filming checklist
+- Export content pack / ตารางวันนี้เป็น **Markdown** พร้อมถ่าย
 - ตรวจลิงก์ affiliate ซ้ำตอนเพิ่ม/นำเข้า เพื่อลดสแปม
 - คัดลอกแคปชันจากตารางโพสต์ได้ทันที
 
@@ -85,6 +87,8 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - CSV ตาราง: `/api/export?format=csv&scope=schedule`
 - CSV briefs เช้า/เย็น: `/api/export?format=csv&scope=briefs`
 - CSV สรุปสัปดาห์: `/api/export?format=csv&scope=weekly`
+- Markdown content packs: `/api/export?format=md&scope=packs`
+- Markdown ตารางวันนี้: `/api/export?format=md&scope=today`
 
 ## Workflow แนะนำ
 
@@ -126,17 +130,18 @@ data/db.json       ฐานข้อมูลไฟล์ (JSON)
 
 - วันละ 2–3 draft เท่านั้น และต้อง Approve ก่อนโพสต์จริง  
 - หมุน hook/CTA และสร้าง content pack ใหม่รายวัน  
-- หลีกเลี่ยงคู่สินค้า+ช่องทางที่เพิ่งใช้ใน 3 วันล่าสุด  
+- หลีกเลี่ยงคู่สินค้า+ช่องทางที่เพิ่งใช้ในช่วง cooldown (ค่าเริ่มต้น 3 วัน ปรับได้ 2–7)  
+- Morning ข้าม draft ค้างอัตโนมัติ (ค่าเริ่มต้น 5 วัน ไม่แตะ approved/posted)  
 - กระจายช่องทางในวันเดียวกัน (ไม่ยัดช่องเดียว)  
 - ตรวจ fingerprint caption ไม่ให้ซ้ำในวันเดียวกัน  
 - กด “ข้าม (ไม่โพสต์)” ได้ถ้า draft ไม่ผ่าน — สถานะ `skipped` ไม่นับเป็นคิวซ้ำ  
 - วันคู่สลับช่องเย็นเป็น Facebook Group (น้ำเสียงแชร์ในกลุ่ม ไม่ขายแข็ง)
 - Soft-sanitize คำโฆษณาเกินจริง / เคลมรายได้แน่นอน ก่อนใส่ caption
-- คะแนนฤดูกาลอิงปฏิทินไทย (เช่น สงกรานต์, 11.11, ปีใหม่) แบบ soft boost
+- คะแนนฤดูกาลอิงปฏิทินไทย (เช่น สงกรานต์, วันแม่/สิงหาคม, 11.11, ปีใหม่) แบบ soft boost
 - Morning/Evening แบบ **idempotent** — รันซ้ำวันเดียวกันจะไม่สร้าง brief ซ้ำ (ใช้ `--force` หรือปุ่ม “รันใหม่”)
 - Top สินค้ากระจายแพลตฟอร์มแบบอ่อน ๆ (ไม่ให้ Shopee กินโควต้าทั้งหมดเมื่อมี TikTok Shop คะแนนใกล้เคียง)
 - Content pack มี **filming checklist** สำหรับวิดีโอ 15–30 วิ
-- สรุปผลทดลองรายสัปดาห์ (7 วัน) + export CSV ที่ `/results`
+- Export Markdown สำหรับถ่ายวิดีโอ + สรุปผลทดลองรายสัปดาห์ (7 วัน) + CSV ที่ `/results`
 
 ## ข้อจำกัด MVP
 

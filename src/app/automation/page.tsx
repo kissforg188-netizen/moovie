@@ -48,7 +48,38 @@ export default async function AutomationPage() {
 
       <WorkflowButtons />
 
-      <SettingsPanel maxPostsPerDay={settings.maxPostsPerDay} />
+      <SettingsPanel
+        maxPostsPerDay={settings.maxPostsPerDay}
+        cooldownDays={settings.cooldownDays}
+        staleDraftDays={settings.staleDraftDays}
+      />
+
+      <div className="flex flex-wrap gap-3 text-xs">
+        <a
+          href="/api/export?format=md&scope=packs"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Content Packs (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=today"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export ตารางวันนี้ (.md)
+        </a>
+        <a
+          href="/api/export?format=csv&scope=schedule"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Schedule CSV
+        </a>
+        <a
+          href="/api/export?format=json"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export JSON
+        </a>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <ImportPanel />

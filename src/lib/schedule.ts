@@ -59,16 +59,40 @@ export function captionFingerprint(text: string): string {
 }
 
 /**
+ * Auto-skip leftover drafts older than staleDraftDays (never touches approved/posted).
+ * Frees anti-spam slots so morning can schedule fresh quality drafts.
+ */
+export function expireStaleDrafts(
+  schedule: ScheduledPost[],
+  today: string,
+  staleDraftDays: number,
+): { expiredIds: string[] } {
+  const expiredIds: string[] = [];
+  for (const post of schedule) {
+    if (post.status !== "draft") continue;
+    const gap = daysBetween(post.date, today);
+    if (gap > staleDraftDays) {
+      post.status = "skipped";
+      expiredIds.push(post.id);
+    }
+  }
+  return { expiredIds };
+}
+
+/**
  * Suggest 2–3 quality posts/day. Never auto-publishes — status starts as draft.
- * Skips product+channel pairs used in the last 3 days to reduce spammy repeats.
+ * Skips product+channel pairs used within cooldownDays to reduce spammy repeats.
  */
 export function buildDailySchedule(params: {
   date: string;
   ranked: { product: Product; pack: ContentPack }[];
   existing: ScheduledPost[];
   maxPosts?: number;
+  /** Anti-spam window in days (default 3). */
+  cooldownDays?: number;
 }): ScheduledPost[] {
   const maxPosts = params.maxPosts ?? 3;
+  const cooldownDays = params.cooldownDays ?? 3;
   const slots = slotsForDate(params.date);
 
   const usedToday = new Set(
@@ -81,7 +105,7 @@ export function buildDailySchedule(params: {
     params.existing
       .filter((s) => {
         const gap = daysBetween(s.date, params.date);
-        return gap >= 0 && gap <= 3 && s.status !== "skipped";
+        return gap >= 0 && gap <= cooldownDays && s.status !== "skipped";
       })
       .map((s) => `${s.productId}:${s.channel}`),
   );
