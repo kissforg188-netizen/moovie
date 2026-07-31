@@ -1,5 +1,7 @@
+import { learningRankBoost } from "./learning";
 import { effectiveSeasonalScore } from "./seasonality";
 import type {
+  LearningState,
   Product,
   RankedProduct,
   ScheduledPost,
@@ -74,6 +76,7 @@ export function scoreProduct(
   product: Product,
   history: ScheduledPost[] = [],
   date = new Date(),
+  learning?: LearningState | null,
 ): ScoreBreakdown {
   const commission = commissionScore(product.commissionRate);
   const impulsePrice = impulsePriceScore(product.price);
@@ -90,7 +93,10 @@ export function scoreProduct(
     videoEase * 0.15 +
     seasonal * 0.15;
 
-  const total = base * 0.85 + historyBoost * 0.15;
+  const total =
+    base * 0.85 +
+    historyBoost * 0.15 +
+    learningRankBoost(product.id, learning);
 
   return {
     commission: Math.round(commission),
@@ -102,35 +108,47 @@ export function scoreProduct(
   };
 }
 
+function categoryKey(category: string): string {
+  return (category || "ทั่วไป").trim().toLowerCase() || "ทั่วไป";
+}
+
 /**
- * Rank by fit score, then soft-diversify platforms in the top N
- * so morning picks are not all from one shop when inventory allows.
+ * Rank by fit score, then soft-diversify platforms + categories in the top N
+ * so morning picks are not all from one shop/category when inventory allows.
  * Paused products (active === false) are excluded.
  */
 export function rankProducts(
   products: Product[],
   limit = 5,
   history: ScheduledPost[] = [],
+  learning?: LearningState | null,
 ): RankedProduct[] {
   const active = products.filter((p) => p.active !== false);
   const scored = active
-    .map((product) => ({ product, score: scoreProduct(product, history) }))
+    .map((product) => ({
+      product,
+      score: scoreProduct(product, history, new Date(), learning),
+    }))
     .sort((a, b) => b.score.total - a.score.total);
 
   if (scored.length < limit) return scored;
 
   const picked: RankedProduct[] = [];
   const platformCount = new Map<string, number>();
+  const categoryCount = new Map<string, number>();
   const pickedIds = new Set<string>();
 
-  // First pass: prefer under-represented platforms while staying near top scores
+  // First pass: prefer under-represented platforms/categories near top scores
   for (const item of scored) {
     if (picked.length >= limit) break;
     const platform = item.product.platform;
-    const count = platformCount.get(platform) ?? 0;
-    const dominant = Math.max(0, ...platformCount.values());
-    // Soft rule: avoid 4+ of same platform when alternatives exist in top band
-    if (count >= 3 && dominant >= 3) {
+    const cat = categoryKey(item.product.category);
+    const pCount = platformCount.get(platform) ?? 0;
+    const cCount = categoryCount.get(cat) ?? 0;
+    const dominantPlatform = Math.max(0, ...platformCount.values());
+    const dominantCategory = Math.max(0, ...categoryCount.values());
+
+    if (pCount >= 3 && dominantPlatform >= 3) {
       const hasAlt = scored.some(
         (s) =>
           !pickedIds.has(s.product.id) &&
@@ -139,9 +157,22 @@ export function rankProducts(
       );
       if (hasAlt) continue;
     }
+
+    // Soft rule: avoid 3+ of same category when close alternatives exist
+    if (cCount >= 2 && dominantCategory >= 2) {
+      const hasAltCat = scored.some(
+        (s) =>
+          !pickedIds.has(s.product.id) &&
+          categoryKey(s.product.category) !== cat &&
+          s.score.total >= item.score.total * 0.88,
+      );
+      if (hasAltCat) continue;
+    }
+
     picked.push(item);
     pickedIds.add(item.product.id);
-    platformCount.set(platform, count + 1);
+    platformCount.set(platform, pCount + 1);
+    categoryCount.set(cat, cCount + 1);
   }
 
   // Fill remaining slots by pure score

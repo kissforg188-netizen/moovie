@@ -54,6 +54,28 @@ export default async function AutomationPage() {
         staleDraftDays={settings.staleDraftDays}
       />
 
+      {db.learning ? (
+        <section className="surface rounded-2xl p-5 space-y-2">
+          <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+            Learning จากเย็นล่าสุด
+          </h2>
+          <p className="text-sm text-[var(--ink-soft)]">
+            วันที่แหล่งข้อมูล: {db.learning.sourceDate}
+            {db.learning.preferredChannel
+              ? ` · ช่องทางทดลอง: ${db.learning.preferredChannel}`
+              : ""}
+          </p>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--ink-soft)]">
+            {db.learning.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+          <p className="text-xs text-[var(--ink-soft)]">
+            ใช้ bias อ่อน ๆ ใน Morning เท่านั้น — ไม่โพสต์อัตโนมัติ ไม่การันตีรายได้
+          </p>
+        </section>
+      ) : null}
+
       <div className="flex flex-wrap gap-3 text-xs">
         <a
           href="/api/export?format=md&scope=packs"
@@ -66,6 +88,12 @@ export default async function AutomationPage() {
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >
           Export ตารางวันนี้ (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=approved"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Checklist ที่อนุมัติแล้ว (.md)
         </a>
         <a
           href="/api/export?format=csv&scope=schedule"

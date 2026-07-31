@@ -55,3 +55,6 @@ npm run dev
 - Pause products: `active: false` excludes from morning ranking (`PATCH /api/products/:id`)
 - Draft volume: `settings.maxPostsPerDay` (2|3) via `PATCH /api/settings`
 - Duplicate affiliate URL blocked on create/import
+- Evening learning snapshot: `db.learning` via `src/lib/learning.ts` (soft bias only)
+- Category diversity in `rankProducts` alongside platform mix
+- Approved posting checklist export: `/api/export?format=md&scope=approved`

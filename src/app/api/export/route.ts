@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { todayISO, readDb } from "@/lib/db";
 import {
+  approvedTodayToMarkdown,
   briefsToCsv,
   contentPacksToMarkdown,
   dbToJson,
@@ -20,7 +21,10 @@ export async function GET(request: Request) {
   if (format === "md" || format === "markdown") {
     let md: string;
     let filename = "affiliate-packs.md";
-    if (scope === "today" || scope === "drafts") {
+    if (scope === "approved") {
+      md = approvedTodayToMarkdown(db, todayISO());
+      filename = `affiliate-approved-${todayISO()}.md`;
+    } else if (scope === "today" || scope === "drafts") {
       md = todayDraftsToMarkdown(db, todayISO());
       filename = `affiliate-drafts-${todayISO()}.md`;
     } else {

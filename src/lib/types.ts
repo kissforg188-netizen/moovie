@@ -160,6 +160,21 @@ export interface AutomationSettings {
   updatedAt?: string;
 }
 
+/**
+ * Soft experiment hints from evening metrics → next morning.
+ * Never guarantees income; never auto-publishes.
+ */
+export interface LearningState {
+  updatedAt: string;
+  /** Evening date that produced this learning snapshot. */
+  sourceDate: string;
+  preferredChannel?: ContentChannel;
+  preferredHookIndex?: number;
+  preferredCtaIndex?: number;
+  winnerProductIds: string[];
+  notes: string[];
+}
+
 export interface Database {
   products: Product[];
   contentPacks: ContentPack[];
@@ -171,4 +186,6 @@ export interface Database {
   accounts?: AccountStatus[];
   /** Draft volume and related prefs. */
   settings?: AutomationSettings;
+  /** Last evening learning snapshot for next-day soft bias. */
+  learning?: LearningState;
 }

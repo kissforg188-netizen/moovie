@@ -2,8 +2,13 @@ import assert from "assert";
 import { sanitizeMarketingText } from "../src/lib/compliance";
 import { withDisclosure, AFFILIATE_DISCLOSURE } from "../src/lib/disclosure";
 import { generateContentPack } from "../src/lib/content";
-import { briefsToCsv, contentPackToMarkdown } from "../src/lib/export";
+import {
+  approvedTodayToMarkdown,
+  briefsToCsv,
+  contentPackToMarkdown,
+} from "../src/lib/export";
 import { normalizeImportRow, parseCsv, rowsToProducts } from "../src/lib/import";
+import { buildLearningState, learningRankBoost } from "../src/lib/learning";
 import { rankProducts, scoreProduct } from "../src/lib/scoring";
 import {
   buildDailySchedule,
@@ -424,6 +429,167 @@ function run() {
   assert.ok(md.includes(AFFILIATE_DISCLOSURE));
   assert.ok(md.includes("## Hooks"));
   assert.ok(md.includes(cheapHigh.name));
+
+  // Category diversity: avoid stuffing top N with one category when alternatives exist
+  const sameCatHeavy = [
+    sample({
+      id: "g1",
+      name: "G1",
+      category: "แกเจ็ต",
+      commissionRate: 20,
+      price: 150,
+      videoEase: 5,
+      seasonalScore: 5,
+      painPoints: ["a", "b", "c"],
+      sellingPoints: ["x", "y", "z"],
+    }),
+    sample({
+      id: "g2",
+      name: "G2",
+      category: "แกเจ็ต",
+      commissionRate: 19,
+      price: 160,
+      videoEase: 5,
+      seasonalScore: 5,
+      painPoints: ["a", "b", "c"],
+      sellingPoints: ["x", "y", "z"],
+    }),
+    sample({
+      id: "g3",
+      name: "G3",
+      category: "แกเจ็ต",
+      commissionRate: 18,
+      price: 170,
+      videoEase: 5,
+      seasonalScore: 5,
+      painPoints: ["a", "b", "c"],
+      sellingPoints: ["x", "y", "z"],
+    }),
+    sample({
+      id: "h1",
+      name: "H1",
+      category: "บ้าน",
+      commissionRate: 16,
+      price: 180,
+      videoEase: 5,
+      seasonalScore: 5,
+      painPoints: ["a", "b", "c"],
+      sellingPoints: ["x", "y", "z"],
+    }),
+  ];
+  const catMixed = rankProducts(sameCatHeavy, 3);
+  assert.ok(
+    catMixed.some((r) => r.product.category === "บ้าน"),
+    "ควรดึงหมวดอื่นเข้า Top เมื่อคะแนนใกล้เคียง",
+  );
+
+  // Learning soft boost + evening → morning bias
+  const learning = buildLearningState(
+    [
+      {
+        post: {
+          id: "lp1",
+          date: "2026-07-30",
+          suggestedTime: "10:30",
+          channel: "tiktok",
+          productId: "a",
+          contentPackId: pack.id,
+          hookIndex: 2,
+          ctaIndex: 1,
+          status: "posted",
+          captionPreview: "ok",
+          metrics: {
+            views: 2000,
+            clicks: 100,
+            orders: 5,
+            commissionEarned: 200,
+            recordedAt: new Date().toISOString(),
+          },
+        },
+        productName: "ถูกคอมสูง",
+        ctr: 0.05,
+        ordersPerClick: 0.05,
+        commission: 200,
+        roiPerClick: 2,
+        score: 40,
+      },
+      {
+        post: {
+          id: "lp2",
+          date: "2026-07-30",
+          suggestedTime: "13:00",
+          channel: "facebook_reels",
+          productId: "b",
+          contentPackId: "x",
+          hookIndex: 0,
+          ctaIndex: 0,
+          status: "posted",
+          captionPreview: "weak",
+          metrics: {
+            views: 500,
+            clicks: 5,
+            orders: 0,
+            commissionEarned: 0,
+            recordedAt: new Date().toISOString(),
+          },
+        },
+        productName: "แพงคอมต่ำ",
+        ctr: 0.01,
+        ordersPerClick: 0,
+        commission: 0,
+        roiPerClick: 0,
+        score: 5,
+      },
+    ],
+    "2026-07-30",
+  );
+  assert.equal(learning.preferredChannel, "tiktok");
+  assert.ok(learning.winnerProductIds.includes("a"));
+  assert.ok(learningRankBoost("a", learning) > learningRankBoost("b", learning));
+  assert.equal(learning.preferredHookIndex, 2);
+
+  const learnedSchedule = buildDailySchedule({
+    date: "2026-07-31",
+    ranked: [{ product: cheapHigh, pack }],
+    existing: [],
+    learning,
+  });
+  assert.ok(learnedSchedule.length >= 1);
+  assert.equal(learnedSchedule[0].channel, "tiktok");
+  assert.equal(learnedSchedule[0].hookIndex, 2);
+
+  // Approved checklist export
+  const approvedMd = approvedTodayToMarkdown(
+    {
+      products: [cheapHigh],
+      contentPacks: [pack],
+      schedule: [
+        {
+          id: "ap1",
+          date: "2026-07-31",
+          suggestedTime: "10:30",
+          channel: "tiktok",
+          productId: "a",
+          contentPackId: pack.id,
+          hookIndex: 0,
+          ctaIndex: 0,
+          status: "approved",
+          captionPreview: `caption with ${AFFILIATE_DISCLOSURE}`,
+        },
+      ],
+      briefs: [],
+    },
+    "2026-07-31",
+  );
+  assert.ok(approvedMd.includes("Checklist"));
+  assert.ok(approvedMd.includes(AFFILIATE_DISCLOSURE));
+  assert.ok(approvedMd.includes("ถูกคอมสูง"));
+
+  // Product notes appear in filming checklist
+  const withNotes = generateContentPack(
+    sample({ id: "n1", name: "มีโน้ต", notes: "โชว์การพกในกระเป๋า" }),
+  );
+  assert.ok(withNotes.filmingChecklist.some((c) => c.includes("พกในกระเป๋า")));
 
   console.log("All unit tests passed");
 }

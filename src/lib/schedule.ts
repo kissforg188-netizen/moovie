@@ -2,6 +2,7 @@ import { newId } from "./db";
 import type {
   ContentChannel,
   ContentPack,
+  LearningState,
   Product,
   ScheduledPost,
 } from "./types";
@@ -90,9 +91,12 @@ export function buildDailySchedule(params: {
   maxPosts?: number;
   /** Anti-spam window in days (default 3). */
   cooldownDays?: number;
+  /** Soft bias from last evening learning (optional). */
+  learning?: LearningState | null;
 }): ScheduledPost[] {
   const maxPosts = params.maxPosts ?? 3;
   const cooldownDays = params.cooldownDays ?? 3;
+  const learning = params.learning;
   const slots = slotsForDate(params.date);
 
   const usedToday = new Set(
@@ -127,16 +131,31 @@ export function buildDailySchedule(params: {
   for (const pick of params.ranked) {
     if (posts.length >= maxPosts) break;
 
+    const preferLearnedChannel =
+      learning?.preferredChannel &&
+      learning.winnerProductIds.includes(pick.product.id);
+
     // Prefer unused channels first (platform diversity), then anti-spam keys
     let assigned: { time: string; channel: ContentChannel } | null = null;
     const orderedSlots = [
+      ...(preferLearnedChannel
+        ? slots.filter((s) => s.channel === learning!.preferredChannel)
+        : []),
       ...slots.filter((s) => !usedChannelsToday.has(s.channel)),
       ...slots.filter((s) => usedChannelsToday.has(s.channel)),
     ];
+    // De-dupe while preserving order
+    const seenSlot = new Set<string>();
+    const uniqueSlots = orderedSlots.filter((s) => {
+      const k = `${s.time}:${s.channel}`;
+      if (seenSlot.has(k)) return false;
+      seenSlot.add(k);
+      return true;
+    });
     // Rotate start so morning slot isn't always first product forever
     const rotated = [
-      ...orderedSlots.slice(slotIndex % orderedSlots.length),
-      ...orderedSlots.slice(0, slotIndex % orderedSlots.length),
+      ...uniqueSlots.slice(slotIndex % uniqueSlots.length),
+      ...uniqueSlots.slice(0, slotIndex % uniqueSlots.length),
     ];
 
     for (const slot of rotated) {
@@ -149,11 +168,18 @@ export function buildDailySchedule(params: {
       let ctaIndex = 0;
       let fingerprintOk = false;
       for (let attempt = 0; attempt < pick.pack.hooks.length; attempt++) {
-        hookIndex =
-          (posts.length + (pick.pack.variant ?? 0) + attempt) %
+        const baseHook =
+          learning?.preferredHookIndex != null && attempt === 0
+            ? learning.preferredHookIndex
+            : posts.length + (pick.pack.variant ?? 0) + attempt;
+        const baseCta =
+          learning?.preferredCtaIndex != null && attempt === 0
+            ? learning.preferredCtaIndex
+            : posts.length + (pick.pack.variant ?? 0) + attempt;
+        hookIndex = ((baseHook % pick.pack.hooks.length) + pick.pack.hooks.length) %
           pick.pack.hooks.length;
         ctaIndex =
-          (posts.length + (pick.pack.variant ?? 0) + attempt) %
+          ((baseCta % pick.pack.ctas.length) + pick.pack.ctas.length) %
           pick.pack.ctas.length;
         caption = captionForChannel(
           pick.pack,

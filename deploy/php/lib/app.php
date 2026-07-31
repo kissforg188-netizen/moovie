@@ -123,12 +123,75 @@ function score_product(array $p): array
 
 function rank_products(int $limit = 5): array
 {
-    $out = [];
+    $scored = [];
     foreach (all_products() as $p) {
-        $out[] = ['product' => $p, 'score' => score_product($p)];
+        // Skip paused products when active column/flag exists
+        if (array_key_exists('active', $p) && $p['active'] === false) {
+            continue;
+        }
+        $scored[] = ['product' => $p, 'score' => score_product($p)];
     }
-    usort($out, fn($a, $b) => $b['score']['total'] <=> $a['score']['total']);
-    return array_slice($out, 0, $limit);
+    usort($scored, fn($a, $b) => $b['score']['total'] <=> $a['score']['total']);
+    if (count($scored) <= $limit) {
+        return $scored;
+    }
+
+    $picked = [];
+    $pickedIds = [];
+    $platformCount = [];
+    $categoryCount = [];
+
+    foreach ($scored as $item) {
+        if (count($picked) >= $limit) break;
+        $platform = (string) $item['product']['platform'];
+        $cat = strtolower(trim((string) ($item['product']['category'] ?? 'ทั่วไป'))) ?: 'ทั่วไป';
+        $pCount = $platformCount[$platform] ?? 0;
+        $cCount = $categoryCount[$cat] ?? 0;
+        $dominantPlatform = $platformCount ? max($platformCount) : 0;
+        $dominantCategory = $categoryCount ? max($categoryCount) : 0;
+
+        if ($pCount >= 3 && $dominantPlatform >= 3) {
+            $hasAlt = false;
+            foreach ($scored as $s) {
+                if (isset($pickedIds[$s['product']['id']])) continue;
+                if ($s['product']['platform'] === $platform) continue;
+                if ($s['score']['total'] >= $item['score']['total'] * 0.85) {
+                    $hasAlt = true;
+                    break;
+                }
+            }
+            if ($hasAlt) continue;
+        }
+
+        if ($cCount >= 2 && $dominantCategory >= 2) {
+            $hasAltCat = false;
+            foreach ($scored as $s) {
+                if (isset($pickedIds[$s['product']['id']])) continue;
+                $otherCat = strtolower(trim((string) ($s['product']['category'] ?? 'ทั่วไป'))) ?: 'ทั่วไป';
+                if ($otherCat === $cat) continue;
+                if ($s['score']['total'] >= $item['score']['total'] * 0.88) {
+                    $hasAltCat = true;
+                    break;
+                }
+            }
+            if ($hasAltCat) continue;
+        }
+
+        $picked[] = $item;
+        $pickedIds[$item['product']['id']] = true;
+        $platformCount[$platform] = $pCount + 1;
+        $categoryCount[$cat] = $cCount + 1;
+    }
+
+    foreach ($scored as $item) {
+        if (count($picked) >= $limit) break;
+        if (!isset($pickedIds[$item['product']['id']])) {
+            $picked[] = $item;
+            $pickedIds[$item['product']['id']] = true;
+        }
+    }
+
+    return array_slice($picked, 0, $limit);
 }
 
 function with_disclosure(string $caption): string

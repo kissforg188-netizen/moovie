@@ -95,6 +95,60 @@ export function contentPacksToMarkdown(db: Database): string {
   ].join("\n");
 }
 
+/**
+ * Ready-to-post checklist for approved (or posted) items today.
+ * Still never publishes — user copies caption and posts manually.
+ */
+export function approvedTodayToMarkdown(db: Database, date: string): string {
+  const posts = db.schedule
+    .filter(
+      (s) =>
+        s.date === date && (s.status === "approved" || s.status === "posted"),
+    )
+    .sort((a, b) => a.suggestedTime.localeCompare(b.suggestedTime));
+  const productById = new Map(db.products.map((p) => [p.id, p]));
+  const packById = new Map(db.contentPacks.map((p) => [p.id, p]));
+
+  const blocks = posts.map((post, i) => {
+    const product = productById.get(post.productId);
+    const pack = packById.get(post.contentPackId);
+    return [
+      `## ${i + 1}. ${post.suggestedTime} · ${channelLabel(post.channel)} · ${post.status}`,
+      `สินค้า: ${product?.name ?? post.productId}`,
+      product?.affiliateUrl ? `ลิงก์ affiliate: ${product.affiliateUrl}` : "",
+      "",
+      "### Checklist ก่อนโพสต์",
+      "- [ ] ตรวจว่าไม่ซ้ำกับโพสต์วันก่อน",
+      "- [ ] มี disclosure ในแคปชัน",
+      "- [ ] ไม่ใช้คำโฆษณาเกินจริง / ไม่การันตีรายได้",
+      "- [ ] โพสต์ด้วยมือบนแอปจริงหลัง Approve แล้วเท่านั้น",
+      "",
+      "### Caption (คัดลอกได้)",
+      "```",
+      post.captionPreview,
+      "```",
+      "",
+      pack
+        ? `Hashtags: ${[...pack.hashtagsTh, ...pack.hashtagsEn].join(" ")}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  });
+
+  return [
+    `# Checklist โพสต์ที่อนุมัติแล้ว · ${date}`,
+    "",
+    `> Draft/Approve workflow — ระบบไม่โพสต์ให้อัตโนมัติ`,
+    `> ${INCOME_DISCLAIMER}`,
+    "",
+    blocks.length
+      ? blocks.join("\n\n---\n\n")
+      : "_ยังไม่มีโพสต์สถานะ approved/posted วันนี้ — ไปที่ /calendar เพื่อ Approve draft_",
+    "",
+  ].join("\n");
+}
+
 /** Today's draft captions as a simple filming sheet. */
 export function todayDraftsToMarkdown(db: Database, date: string): string {
   const posts = db.schedule

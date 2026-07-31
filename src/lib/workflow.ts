@@ -6,6 +6,7 @@ import {
 import { generateContentPack } from "./content";
 import { newId, readDb, todayISO, updateDb } from "./db";
 import { INCOME_DISCLAIMER } from "./disclosure";
+import { buildLearningState } from "./learning";
 import { rankProducts } from "./scoring";
 import { buildDailySchedule, expireStaleDrafts } from "./schedule";
 import { currentSeasonHint } from "./seasonality";
@@ -76,7 +77,8 @@ export async function runMorningWorkflow(
         date,
         settings.staleDraftDays,
       );
-      const ranked = rankProducts(db.products, 5, db.schedule);
+      const learning = db.learning;
+      const ranked = rankProducts(db.products, 5, db.schedule, learning);
       const packs: ContentPack[] = [];
       const pairs: {
         product: (typeof ranked)[0]["product"];
@@ -105,6 +107,7 @@ export async function runMorningWorkflow(
         existing: db.schedule,
         maxPosts: settings.maxPostsPerDay,
         cooldownDays: settings.cooldownDays,
+        learning,
       });
       db.schedule.push(...newPosts);
 
@@ -113,6 +116,9 @@ export async function runMorningWorkflow(
         .sort((a, b) => b.product.videoEase - a.product.videoEase)[0];
       const season = currentSeasonHint(new Date(`${date}T12:00:00.000Z`));
       const platforms = [...new Set(ranked.map((r) => r.product.platform))];
+      const categories = [
+        ...new Set(ranked.map((r) => r.product.category || "ทั่วไป")),
+      ];
       const paused = db.products.filter((p) => p.active === false).length;
 
       const checklistHint = videoFirst?.pack.filmingChecklist?.[0]
@@ -132,6 +138,11 @@ export async function runMorningWorkflow(
           ? `ข้าม draft ค้าง ${expiredIds.length} ชิ้น (เก่ากว่า ${settings.staleDraftDays} วัน)`
           : null,
         `กระจายแพลตฟอร์มใน Top: ${platforms.join(", ") || "—"}`,
+        `กระจายหมวดใน Top: ${categories.join(", ") || "—"}`,
+        learning?.sourceDate
+          ? `ใช้ learning จากเย็น ${learning.sourceDate} (ทดลอง ไม่การันตี)`
+          : null,
+        ...(learning?.notes?.slice(0, 2) ?? []),
         `ช่วงฤดูกาล: ${season.label} — หมวดที่สอดคล้องมีโอกาสถูกจัดอันดับสูงขึ้นเล็กน้อย (ทดลอง)`,
         videoFirst
           ? `ควรทำวิดีโอก่อน: ${videoFirst.product.name} — ${videoFirst.pack.videoPriorityNote}`
@@ -212,17 +223,24 @@ export async function runEveningWorkflow(
       const analysis = analyzePosted(todays, db.products);
       const weekly = weeklyProductRollup(db.products, db.schedule, date, 7);
       const weeklyLines = weeklyInsightLines(weekly);
+      const learning = buildLearningState(analysis.performances, date);
+      db.learning = learning;
 
-      const nextFocus = rankProducts(db.products, 3, db.schedule).map(
-        (r) => r.product.name,
-      );
+      const nextFocus = rankProducts(
+        db.products,
+        3,
+        db.schedule,
+        learning,
+      ).map((r) => r.product.name);
 
       const recommendations = [
         ...analysis.recommendations,
         ...weeklyLines,
+        ...learning.notes,
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
+        "Learning ถูกบันทึกเพื่อ bias อ่อน ๆ ใน Morning วันถัดไป — ยังเป็น draft และต้อง Approve ก่อนโพสต์",
       ];
 
       const brief: DailyBrief = {
@@ -269,7 +287,7 @@ export async function getDashboardSnapshot(): Promise<{
 }> {
   const db = await readDb();
   const date = todayISO();
-  const ranked = rankProducts(db.products, 5, db.schedule);
+  const ranked = rankProducts(db.products, 5, db.schedule, db.learning);
   const todaySchedule = db.schedule
     .filter((s) => s.date === date)
     .sort((a, b) => a.suggestedTime.localeCompare(b.suggestedTime));

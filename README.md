@@ -16,7 +16,9 @@
 - ตั้งเป้า draft 2 หรือ 3 ชิ้น/วันได้ที่ `/automation`
 - ตั้ง **cooldown กันสแปม** (2–7 วัน) และ **ข้าม draft ค้าง** อัตโนมัติตอน Morning
 - Content pack มี hook 5 · CTA 3 · มุมขาย 3 · hashtag ไทย/อังกฤษ · filming checklist
-- Export content pack / ตารางวันนี้เป็น **Markdown** พร้อมถ่าย
+- Export content pack / ตารางวันนี้ / **checklist โพสต์ที่อนุมัติแล้ว** เป็น Markdown
+- Evening บันทึก **Learning** (ช่องทาง/hook/CTA/สินค้าที่เวิร์ก) เพื่อ bias อ่อน ๆ ใน Morning วันถัดไป
+- จัดอันดับกระจายทั้งแพลตฟอร์มและ**หมวดหมู่** เพื่อลดโพสต์ซ้ำแนวเดียวกัน
 - ตรวจลิงก์ affiliate ซ้ำตอนเพิ่ม/นำเข้า เพื่อลดสแปม
 - คัดลอกแคปชันจากตารางโพสต์ได้ทันที
 
@@ -89,6 +91,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - CSV สรุปสัปดาห์: `/api/export?format=csv&scope=weekly`
 - Markdown content packs: `/api/export?format=md&scope=packs`
 - Markdown ตารางวันนี้: `/api/export?format=md&scope=today`
+- Markdown checklist ที่อนุมัติแล้ว: `/api/export?format=md&scope=approved`
 
 ## Workflow แนะนำ
 
