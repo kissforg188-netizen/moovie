@@ -11,12 +11,14 @@ export function buildLearningState(
 ): LearningState {
   const notes: string[] = [];
   const winnerProductIds: string[] = [];
+  const underperformerProductIds: string[] = [];
 
   if (performances.length === 0) {
     return {
       updatedAt: new Date().toISOString(),
       sourceDate,
       winnerProductIds: [],
+      underperformerProductIds: [],
       notes: [
         "ยังไม่มีเมตริกพอสำหรับเรียนรู้ — วันถัดไปทดลองโพสต์คุณภาพ 1–2 ชิ้นแล้วกรอกผล",
       ],
@@ -28,6 +30,25 @@ export function buildLearningState(
     if (!winnerProductIds.includes(w.post.productId)) {
       winnerProductIds.push(w.post.productId);
     }
+  }
+
+  // Soft underperformers: bottom scorers clearly below the top (small-n experiment).
+  // Protect only the #1 product so small samples (2 posts) can still mark a weak #2.
+  const topScore = sorted[0]?.score ?? 0;
+  const protectedId = sorted[0]?.post.productId;
+  for (const weak of [...sorted].reverse()) {
+    if (underperformerProductIds.length >= 2) break;
+    if (weak.post.productId === protectedId) continue;
+    if (topScore > 0 && weak.score <= topScore * 0.35) {
+      if (!underperformerProductIds.includes(weak.post.productId)) {
+        underperformerProductIds.push(weak.post.productId);
+      }
+    }
+  }
+  if (underperformerProductIds.length) {
+    notes.push(
+      "สินค้าที่คะแนนอ่อนในชุดข้อมูลนี้ถูกลดน้ำหนักเล็กน้อยวันถัดไป — ลองเปลี่ยนมุมหรือพัก ไม่ใช่ห้ามถาวร",
+    );
   }
 
   const byChannel = new Map<ContentChannel, { n: number; score: number }>();
@@ -88,17 +109,24 @@ export function buildLearningState(
     preferredHookIndex,
     preferredCtaIndex,
     winnerProductIds,
+    underperformerProductIds,
     notes,
   };
 }
 
-/** Soft total-score boost 0–8 for products that won in recent evening learning. */
+/** Soft total-score delta for products from recent evening learning (−4…+8). */
 export function learningRankBoost(
   productId: string,
   learning?: LearningState | null,
 ): number {
-  if (!learning?.winnerProductIds?.length) return 0;
-  const idx = learning.winnerProductIds.indexOf(productId);
-  if (idx === -1) return 0;
-  return Math.max(0, 8 - idx * 2);
+  if (!learning) return 0;
+  // Underperformer penalty wins over winner boost when both appear in small-n samples.
+  if (learning.underperformerProductIds?.includes(productId)) {
+    return -4;
+  }
+  if (learning.winnerProductIds?.length) {
+    const idx = learning.winnerProductIds.indexOf(productId);
+    if (idx !== -1) return Math.max(0, 8 - idx * 2);
+  }
+  return 0;
 }

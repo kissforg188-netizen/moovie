@@ -1,6 +1,10 @@
+import type { ExperimentPlan } from "./experiments";
+import { experimentPlanToMarkdown } from "./experiments";
 import { channelLabel } from "./schedule";
 import type { ContentPack, Database, Product } from "./types";
 import { INCOME_DISCLAIMER } from "./disclosure";
+
+export { experimentPlanToMarkdown };
 
 function csvEscape(value: unknown): string {
   const s = String(value ?? "");
@@ -328,4 +332,9 @@ export function weeklyToCsv(
 
 export function dbToJson(db: Database): string {
   return JSON.stringify(db, null, 2);
+}
+
+/** Re-export helper for API consumers that already hold an ExperimentPlan. */
+export function experimentsToMarkdown(plan: ExperimentPlan): string {
+  return experimentPlanToMarkdown(plan);
 }

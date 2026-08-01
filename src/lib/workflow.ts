@@ -6,10 +6,11 @@ import {
 import { generateContentPack } from "./content";
 import { newId, readDb, todayISO, updateDb } from "./db";
 import { INCOME_DISCLAIMER } from "./disclosure";
+import { buildExperimentPlan } from "./experiments";
 import { buildLearningState } from "./learning";
 import { rankProducts } from "./scoring";
 import { buildDailySchedule, expireStaleDrafts } from "./schedule";
-import { currentSeasonHint } from "./seasonality";
+import { currentSeasonHint, eventProximityBoost } from "./seasonality";
 import { resolveSettings } from "./settings";
 import type { ContentPack, DailyBrief, Database } from "./types";
 import { weeklyInsightLines, weeklyProductRollup } from "./weekly";
@@ -114,7 +115,12 @@ export async function runMorningWorkflow(
       const videoFirst = pairs
         .slice()
         .sort((a, b) => b.product.videoEase - a.product.videoEase)[0];
-      const season = currentSeasonHint(new Date(`${date}T12:00:00.000Z`));
+      const seasonDate = new Date(`${date}T12:00:00.000Z`);
+      const season = currentSeasonHint(seasonDate);
+      const eventBoost = eventProximityBoost(
+        ranked[0]?.product.category ?? "",
+        seasonDate,
+      );
       const platforms = [...new Set(ranked.map((r) => r.product.platform))];
       const categories = [
         ...new Set(ranked.map((r) => r.product.category || "ทั่วไป")),
@@ -128,6 +134,15 @@ export async function runMorningWorkflow(
       const angleHint = videoFirst?.pack.sellingAngles?.[0]
         ? `มุมขายแนะนำตัวแรก: ${videoFirst.pack.sellingAngles[0]}`
         : null;
+
+      const experiment = buildExperimentPlan({
+        date,
+        ranked,
+        packs: pairs.map((p) => p.pack),
+        schedule: db.schedule,
+        products: db.products,
+        learning,
+      });
 
       const recommendations = [
         ranked.length
@@ -144,11 +159,15 @@ export async function runMorningWorkflow(
           : null,
         ...(learning?.notes?.slice(0, 2) ?? []),
         `ช่วงฤดูกาล: ${season.label} — หมวดที่สอดคล้องมีโอกาสถูกจัดอันดับสูงขึ้นเล็กน้อย (ทดลอง)`,
+        eventBoost.label
+          ? `อีเวนต์ใกล้ถึง: ${eventBoost.label} — หมวดของขวัญ/ดูแลได้ soft boost เพิ่ม`
+          : null,
         videoFirst
           ? `ควรทำวิดีโอก่อน: ${videoFirst.product.name} — ${videoFirst.pack.videoPriorityNote}`
           : "ยังไม่มีคิววิดีโอ",
         checklistHint,
         angleHint,
+        ...experiment.lines.slice(0, 3),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -284,6 +303,7 @@ export async function getDashboardSnapshot(): Promise<{
   latestMorning?: DailyBrief;
   latestEvening?: DailyBrief;
   weekly: ReturnType<typeof weeklyProductRollup>;
+  experiment: ReturnType<typeof buildExperimentPlan>;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -298,5 +318,27 @@ export async function getDashboardSnapshot(): Promise<{
     .filter((b) => b.type === "evening")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   const weekly = weeklyProductRollup(db.products, db.schedule, date, 7);
-  return { db, ranked, todaySchedule, latestMorning, latestEvening, weekly };
+  const latestPacks = ranked.map((r) => {
+    const existing = db.contentPacks
+      .filter((p) => p.productId === r.product.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return existing ?? generateContentPack(r.product, { variant: 0 });
+  });
+  const experiment = buildExperimentPlan({
+    date,
+    ranked,
+    packs: latestPacks,
+    schedule: db.schedule,
+    products: db.products,
+    learning: db.learning,
+  });
+  return {
+    db,
+    ranked,
+    todaySchedule,
+    latestMorning,
+    latestEvening,
+    weekly,
+    experiment,
+  };
 }

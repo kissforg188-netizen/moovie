@@ -5,11 +5,13 @@ import {
   briefsToCsv,
   contentPacksToMarkdown,
   dbToJson,
+  experimentsToMarkdown,
   productsToCsv,
   scheduleToCsv,
   todayDraftsToMarkdown,
   weeklyToCsv,
 } from "@/lib/export";
+import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
 export async function GET(request: Request) {
@@ -27,6 +29,10 @@ export async function GET(request: Request) {
     } else if (scope === "today" || scope === "drafts") {
       md = todayDraftsToMarkdown(db, todayISO());
       filename = `affiliate-drafts-${todayISO()}.md`;
+    } else if (scope === "experiments" || scope === "experiment") {
+      const snap = await getDashboardSnapshot();
+      md = experimentsToMarkdown(snap.experiment);
+      filename = `affiliate-experiments-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

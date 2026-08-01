@@ -8,6 +8,7 @@ import {
   contentPackToMarkdown,
 } from "../src/lib/export";
 import { normalizeImportRow, parseCsv, rowsToProducts } from "../src/lib/import";
+import { buildExperimentPlan, experimentPlanToMarkdown } from "../src/lib/experiments";
 import { buildLearningState, learningRankBoost } from "../src/lib/learning";
 import { rankProducts, scoreProduct } from "../src/lib/scoring";
 import {
@@ -16,7 +17,11 @@ import {
   channelLabel,
   expireStaleDrafts,
 } from "../src/lib/schedule";
-import { effectiveSeasonalScore, thaiSeasonBoost } from "../src/lib/seasonality";
+import {
+  effectiveSeasonalScore,
+  eventProximityBoost,
+  thaiSeasonBoost,
+} from "../src/lib/seasonality";
 import {
   normalizeCooldownDays,
   normalizeStaleDraftDays,
@@ -424,6 +429,23 @@ function run() {
   assert.ok(augGift.label.includes("วันแม่"));
   assert.ok(augGift.boost >= 10);
 
+  // Event proximity: closer to Mother's Day → higher soft boost
+  const aug1 = eventProximityBoost("ของขวัญ", new Date("2026-08-01T12:00:00Z"));
+  const aug11 = eventProximityBoost("ของขวัญ", new Date("2026-08-11T12:00:00Z"));
+  assert.ok(aug1.label?.includes("วันแม่"));
+  assert.ok(aug11.boost >= aug1.boost, "ใกล้วันแม่ควรได้ boost สูงกว่าต้นเดือน");
+  const augGiftScore = effectiveSeasonalScore(
+    4,
+    "ของขวัญ",
+    new Date("2026-08-11T12:00:00Z"),
+  );
+  const julyGiftScore = effectiveSeasonalScore(
+    4,
+    "ของขวัญ",
+    new Date("2026-07-11T12:00:00Z"),
+  );
+  assert.ok(augGiftScore > julyGiftScore, "ของขวัญใกล้วันแม่ควร season สูงกว่ากรกฎาคม");
+
   // Markdown content pack export includes disclosure + hooks
   const md = contentPackToMarkdown(pack, cheapHigh);
   assert.ok(md.includes(AFFILIATE_DISCLOSURE));
@@ -545,7 +567,9 @@ function run() {
   );
   assert.equal(learning.preferredChannel, "tiktok");
   assert.ok(learning.winnerProductIds.includes("a"));
+  assert.ok(learning.underperformerProductIds?.includes("b"));
   assert.ok(learningRankBoost("a", learning) > learningRankBoost("b", learning));
+  assert.ok(learningRankBoost("b", learning) < 0, "underperformer ควรได้ soft penalty");
   assert.equal(learning.preferredHookIndex, 2);
 
   const learnedSchedule = buildDailySchedule({
@@ -590,6 +614,45 @@ function run() {
     sample({ id: "n1", name: "มีโน้ต", notes: "โชว์การพกในกระเป๋า" }),
   );
   assert.ok(withNotes.filmingChecklist.some((c) => c.includes("พกในกระเป๋า")));
+
+  // Platform-aware hooks differ between Shopee and TikTok Shop
+  const shopeePack = generateContentPack(
+    sample({ id: "ps", name: "Shopee", platform: "shopee" }),
+    { variant: 0 },
+  );
+  const tiktokPack = generateContentPack(
+    sample({ id: "pt", name: "TikTok", platform: "tiktok_shop" }),
+    { variant: 0 },
+  );
+  assert.notDeepEqual(shopeePack.hooks, tiktokPack.hooks);
+
+  // Experiment plan + markdown export
+  const plan = buildExperimentPlan({
+    date: "2026-08-01",
+    ranked: [{ product: cheapHigh, score: scoreProduct(cheapHigh) }],
+    packs: [pack],
+    schedule: [
+      {
+        id: "exp1",
+        date: "2026-08-01",
+        suggestedTime: "10:30",
+        channel: "tiktok",
+        productId: "a",
+        contentPackId: pack.id,
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "draft",
+        captionPreview: "draft caption",
+      },
+    ],
+    products: [cheapHigh, expensiveLow],
+    learning,
+  });
+  assert.ok(plan.abTests.length >= 1);
+  assert.ok(plan.lines.length >= 2);
+  const planMd = experimentPlanToMarkdown(plan);
+  assert.ok(planMd.includes("แผนทดลอง"));
+  assert.ok(planMd.includes(AFFILIATE_DISCLOSURE) || planMd.includes("ทดลอง"));
 
   console.log("All unit tests passed");
 }

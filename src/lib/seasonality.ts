@@ -131,6 +131,51 @@ export function thaiSeasonBoost(
 }
 
 /**
+ * Extra soft boost when a known gift event is approaching (e.g. Thai Mother's Day Aug 12).
+ * Closer dates get a slightly higher modifier — never claims guaranteed sales.
+ */
+export function eventProximityBoost(
+  category: string,
+  date = new Date(),
+): { boost: number; label: string | null } {
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  const cat = (category || "").toLowerCase();
+
+  // Thai Mother's Day — 12 August
+  if (month === 8 && day >= 1 && day <= 12) {
+    const giftKeys = [
+      "แม่",
+      "ของขวัญ",
+      "สุขภาพ",
+      "บ้าน",
+      "ความงาม",
+      "ครัว",
+      "ผิว",
+      "ดูแล",
+      "ดอกไม้",
+      "นวด",
+    ];
+    const hit = giftKeys.some(
+      (k) => cat.includes(k.toLowerCase()) || k.toLowerCase().includes(cat),
+    );
+    if (!hit) return { boost: 0, label: null };
+    const daysUntil = 12 - day;
+    // day 12 → +10, day 1 → +3
+    const boost = Math.round(3 + 7 * (1 - daysUntil / 12));
+    return {
+      boost: Math.max(3, Math.min(10, boost)),
+      label:
+        daysUntil === 0
+          ? "วันแม่วันนี้ — หมวดของขวัญ/ดูแล"
+          : `ใกล้วันแม่ (อีก ${daysUntil} วัน)`,
+    };
+  }
+
+  return { boost: 0, label: null };
+}
+
+/**
  * Merge manual seasonalScore (1–5) with calendar boost into 0–100 subscore.
  */
 export function effectiveSeasonalScore(
@@ -141,5 +186,6 @@ export function effectiveSeasonalScore(
   const clamped = Math.max(1, Math.min(5, seasonalScore1to5 || 1));
   const base = ((clamped - 1) / 4) * 100;
   const { boost } = thaiSeasonBoost(category, date);
-  return Math.max(0, Math.min(100, base * 0.8 + boost));
+  const { boost: eventBoost } = eventProximityBoost(category, date);
+  return Math.max(0, Math.min(100, base * 0.8 + boost + eventBoost));
 }

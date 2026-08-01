@@ -28,8 +28,16 @@ function rotate<T>(items: T[], offset: number): T[] {
 export function generateHooks(product: Product, variant = 0): string[] {
   const pain = firstPain(product);
   const sell = firstSell(product);
+  const platformHook =
+    product.platform === "tiktok_shop"
+      ? `โชว์ของจริงในคลิปสั้น แล้วค่อยเปิดดูรายละเอียดใน TikTok Shop ได้`
+      : product.platform === "shopee"
+        ? `เปิดดูสเปก/รีวิวบน Shopee ก่อนตัดสินใจ — ตัวเลือกหมวด ${product.category}`
+        : `แชร์ตัวเลือกหมวด ${product.category} ให้ดูสเปกก่อน แล้วค่อยตัดสินใจเอง`;
+  // Keep platform hook inside the first 5 after rotation so packs differ by platform.
   const hooks = [
     `เคยเจอไหม… ${pain}`,
+    platformHook,
     `ถ้ากำลังหาของช่วยเรื่อง${product.category} ลองฟังก่อนตัดสินใจ`,
     `${sell} — ราคาประมาณ ${priceLabel(product.price)}`,
     `ของชิ้นเล็กที่คน${product.targetAudience || "ใช้งานจริง"}พูดถึงบ่อย`,

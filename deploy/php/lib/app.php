@@ -108,6 +108,8 @@ function score_product(array $p): array
     $pain = pain_clarity_score($p);
     $video = scale_1_to_5($p['videoEase']);
     $seasonal = scale_1_to_5($p['seasonalScore']);
+    $event = event_proximity_boost((string) ($p['category'] ?? ''));
+    $seasonal = min(100, $seasonal + (float) $event['boost']);
     $hist = performance_boost($p['id']);
     $base = $commission * 0.25 + $impulse * 0.2 + $pain * 0.25 + $video * 0.15 + $seasonal * 0.15;
     $total = $base * 0.85 + $hist * 0.15;
@@ -223,12 +225,50 @@ function price_label(float $price): string
     return '฿' . number_format($price, 0);
 }
 
+function event_proximity_boost(string $category, ?string $ymd = null): array
+{
+    $ts = $ymd ? strtotime($ymd . ' 12:00:00') : time();
+    $month = (int) date('n', $ts);
+    $day = (int) date('j', $ts);
+    $cat = mb_strtolower($category);
+
+    // Thai Mother's Day — 12 August
+    if ($month === 8 && $day >= 1 && $day <= 12) {
+        $giftKeys = ['แม่', 'ของขวัญ', 'สุขภาพ', 'บ้าน', 'ความงาม', 'ครัว', 'ผิว', 'ดูแล', 'ดอกไม้', 'นวด'];
+        $hit = false;
+        foreach ($giftKeys as $k) {
+            if ($cat !== '' && (str_contains($cat, mb_strtolower($k)) || str_contains(mb_strtolower($k), $cat))) {
+                $hit = true;
+                break;
+            }
+        }
+        if (!$hit) {
+            return ['boost' => 0, 'label' => null];
+        }
+        $daysUntil = 12 - $day;
+        $boost = (int) round(3 + 7 * (1 - $daysUntil / 12));
+        $boost = max(3, min(10, $boost));
+        $label = $daysUntil === 0
+            ? 'วันแม่วันนี้ — หมวดของขวัญ/ดูแล'
+            : "ใกล้วันแม่ (อีก {$daysUntil} วัน)";
+        return ['boost' => $boost, 'label' => $label];
+    }
+
+    return ['boost' => 0, 'label' => null];
+}
+
 function generate_content_pack(array $product, int $variant = 0): array
 {
     $pain = first_pain($product);
     $sell = first_sell($product);
+    $platformHook = match ($product['platform'] ?? 'shopee') {
+        'tiktok_shop' => 'โชว์ของจริงในคลิปสั้น แล้วค่อยเปิดดูรายละเอียดใน TikTok Shop ได้',
+        'facebook' => "แชร์ตัวเลือกหมวด {$product['category']} ให้ดูสเปกก่อน แล้วค่อยตัดสินใจเอง",
+        default => "เปิดดูสเปก/รีวิวบน Shopee ก่อนตัดสินใจ — ตัวเลือกหมวด {$product['category']}",
+    };
     $hooks = rotate_arr([
         "เคยเจอไหม… {$pain}",
+        $platformHook,
         "ถ้ากำลังหาของช่วยเรื่อง{$product['category']} ลองฟังก่อนตัดสินใจ",
         "{$sell} — ราคาประมาณ " . price_label($product['price']),
         "ของชิ้นเล็กที่คน" . ($product['targetAudience'] ?: 'ใช้งานจริง') . "พูดถึงบ่อย",

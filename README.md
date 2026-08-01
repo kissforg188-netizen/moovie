@@ -17,8 +17,11 @@
 - ตั้ง **cooldown กันสแปม** (2–7 วัน) และ **ข้าม draft ค้าง** อัตโนมัติตอน Morning
 - Content pack มี hook 5 · CTA 3 · มุมขาย 3 · hashtag ไทย/อังกฤษ · filming checklist
 - Export content pack / ตารางวันนี้ / **checklist โพสต์ที่อนุมัติแล้ว** เป็น Markdown
-- Evening บันทึก **Learning** (ช่องทาง/hook/CTA/สินค้าที่เวิร์ก) เพื่อ bias อ่อน ๆ ใน Morning วันถัดไป
+- Evening บันทึก **Learning** (ช่องทาง/hook/CTA/สินค้าที่เวิร์ก + soft penalty สินค้าอ่อน) เพื่อ bias อ่อน ๆ ใน Morning วันถัดไป
 - จัดอันดับกระจายทั้งแพลตฟอร์มและ**หมวดหมู่** เพื่อลดโพสต์ซ้ำแนวเดียวกัน
+- **แผนทดลอง (A/B hook)** ทุกเช้า + export Markdown ที่ `/automation`
+- Soft boost **ใกล้วันแม่ (1–12 ส.ค.)** สำหรับหมวดของขวัญ/ดูแล
+- Hook แยกน้ำเสียงตามแพลตฟอร์ม (Shopee / TikTok Shop / Facebook)
 - ตรวจลิงก์ affiliate ซ้ำตอนเพิ่ม/นำเข้า เพื่อลดสแปม
 - คัดลอกแคปชันจากตารางโพสต์ได้ทันที
 

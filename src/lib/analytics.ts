@@ -129,6 +129,16 @@ export function analyzePosted(
     "อย่าโพสต์ซ้ำข้อความเดิมหลายรอบในวันเดียว — คุณภาพสำคัญกว่ารอบโพสต์",
   );
 
+  // Data gaps: posted without metrics — remind user to close the learning loop
+  const postedBare = posts.filter(
+    (p) => p.status === "posted" && !p.metrics,
+  );
+  if (postedBare.length > 0) {
+    recommendations.push(
+      `มี ${postedBare.length} โพสต์ที่ทำเครื่องหมายว่าโพสต์แล้วแต่ยังไม่กรอกเมตริก — กรอกคืนนี้เพื่อให้ Learning วันถัดไปแม่นขึ้น`,
+    );
+  }
+
   const totalCommission = performances.reduce((s, p) => s + p.commission, 0);
   const summary =
     withMetrics.length === 0

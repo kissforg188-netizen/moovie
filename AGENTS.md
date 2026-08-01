@@ -55,6 +55,9 @@ npm run dev
 - Pause products: `active: false` excludes from morning ranking (`PATCH /api/products/:id`)
 - Draft volume: `settings.maxPostsPerDay` (2|3) via `PATCH /api/settings`
 - Duplicate affiliate URL blocked on create/import
-- Evening learning snapshot: `db.learning` via `src/lib/learning.ts` (soft bias only)
+- Evening learning snapshot: `db.learning` via `src/lib/learning.ts` (soft bias + underperformer penalty)
 - Category diversity in `rankProducts` alongside platform mix
 - Approved posting checklist export: `/api/export?format=md&scope=approved`
+- Experiment plan (A/B hooks + data gaps): `src/lib/experiments.ts` · export `/api/export?format=md&scope=experiments`
+- Event proximity boost (Mother's Day Aug 1–12): `eventProximityBoost` in `src/lib/seasonality.ts`
+- Platform-aware hooks in `generateHooks` (Shopee / TikTok Shop / Facebook)

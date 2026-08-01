@@ -15,8 +15,14 @@ import { todayISO } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 export default async function AutomationPage() {
-  const { db, ranked, todaySchedule, latestMorning, latestEvening } =
-    await getDashboardSnapshot();
+  const {
+    db,
+    ranked,
+    todaySchedule,
+    latestMorning,
+    latestEvening,
+    experiment,
+  } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
   const settings = resolveSettings(db);
@@ -64,6 +70,9 @@ export default async function AutomationPage() {
             {db.learning.preferredChannel
               ? ` · ช่องทางทดลอง: ${db.learning.preferredChannel}`
               : ""}
+            {db.learning.underperformerProductIds?.length
+              ? ` · soft penalty สินค้าอ่อน ${db.learning.underperformerProductIds.length} ชิ้น`
+              : ""}
           </p>
           <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--ink-soft)]">
             {db.learning.notes.map((n) => (
@@ -75,6 +84,34 @@ export default async function AutomationPage() {
           </p>
         </section>
       ) : null}
+
+      <section className="surface rounded-2xl p-5 space-y-3">
+        <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+          แผนทดลองวันนี้
+        </h2>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--ink-soft)]">
+          {experiment.lines.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+        {experiment.abTests.length > 0 ? (
+          <div className="space-y-2">
+            {experiment.abTests.map((t) => (
+              <div
+                key={`${t.productName}-${t.channel}`}
+                className="rounded-xl border border-[var(--line)] bg-white/50 px-3 py-2 text-sm"
+              >
+                <p className="font-medium text-[var(--sage-deep)]">
+                  {t.productName} · {t.channel}
+                </p>
+                <p className="mt-1 text-[var(--ink-soft)]">หลัก: {t.primaryHook}</p>
+                <p className="text-[var(--ink-soft)]">สำรอง: {t.alternateHook}</p>
+                <p className="mt-1 text-xs text-[var(--ink-soft)]">{t.note}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       <div className="flex flex-wrap gap-3 text-xs">
         <a
@@ -94,6 +131,12 @@ export default async function AutomationPage() {
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >
           Export Checklist ที่อนุมัติแล้ว (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=experiments"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export แผนทดลอง (.md)
         </a>
         <a
           href="/api/export?format=csv&scope=schedule"

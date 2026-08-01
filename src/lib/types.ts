@@ -172,6 +172,8 @@ export interface LearningState {
   preferredHookIndex?: number;
   preferredCtaIndex?: number;
   winnerProductIds: string[];
+  /** Soft underperformers — mild ranking penalty next morning (experimental). */
+  underperformerProductIds?: string[];
   notes: string[];
 }
 
