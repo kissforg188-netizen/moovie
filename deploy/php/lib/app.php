@@ -596,6 +596,76 @@ SQL);
     ]);
 }
 
+/**
+ * Soft filming priority: ease × rank × expected baht × short-form schedule boost.
+ * Experimental — never claims guaranteed sales.
+ */
+function build_filming_queue(array $ranked, array $pairs, string $date): array
+{
+    $packByProduct = [];
+    foreach ($pairs as $pair) {
+        $packByProduct[$pair['product']['id']] = $pair['pack'];
+    }
+
+    $todayShort = [];
+    $stmt = db()->prepare("SELECT product_id FROM schedule WHERE post_date=? AND status IN ('draft','approved','posted') AND channel IN ('tiktok','facebook_reels')");
+    $stmt->execute([$date]);
+    foreach ($stmt->fetchAll() as $row) {
+        $todayShort[$row['product_id']] = true;
+    }
+
+    $n = max(count($ranked), 1);
+    $items = [];
+    foreach ($ranked as $index => $r) {
+        $p = $r['product'];
+        $pack = $packByProduct[$p['id']] ?? null;
+        $ease = max(1, min(5, (int)$p['videoEase']));
+        $baht = max(0, (float)$p['price'] * (float)$p['commissionRate'] / 100);
+        $rankFit = $n <= 1 ? 100 : (1 - $index / ($n - 1)) * 100;
+        $bahtScore = max(0, min(100, ($baht / 40) * 100));
+        $onToday = isset($todayShort[$p['id']]);
+        $priority = $ease * 20 * 0.4 + $rankFit * 0.3 + $bahtScore * 0.2 + ($onToday ? 10 : 0);
+        $reasons = [];
+        if ($ease >= 4) $reasons[] = 'ถ่ายง่าย';
+        elseif ($ease <= 2) $reasons[] = 'ถ่ายยากกว่า — เตรียมสไลด์/พากย์สั้นก่อน';
+        if ($index === 0) $reasons[] = 'ติด Top ranking';
+        if ($baht >= 20) $reasons[] = 'ค่าคอมคาดหวัง ~฿' . number_format($baht, 0) . '/ชิ้น';
+        if ($onToday) $reasons[] = 'มีคิว short/reels วันนี้';
+        if (!$reasons) $reasons[] = 'ลำดับตามคะแนนรวมทดลอง';
+        $items[] = [
+            'productName' => $p['name'],
+            'priority' => round($priority, 1),
+            'reason' => implode(' · ', $reasons),
+            'videoPriorityNote' => $pack['videoPriorityNote'] ?? 'เตรียมคลิปสั้น pain → สาธิต 1 จุด → CTA + disclosure',
+            'firstChecklist' => $pack['filmingChecklist'][0] ?? null,
+            'sellingAngle' => $pack['sellingAngles'][0] ?? null,
+        ];
+    }
+    usort($items, fn($a, $b) => $b['priority'] <=> $a['priority']);
+    return $items;
+}
+
+/** Flag missing disclosure on today's draft/approved captions. */
+function audit_draft_captions(string $date): array
+{
+    $stmt = db()->prepare("SELECT id, channel, caption_preview, status FROM schedule WHERE post_date=? AND status IN ('draft','approved')");
+    $stmt->execute([$date]);
+    $rows = $stmt->fetchAll();
+    $missing = 0;
+    foreach ($rows as $row) {
+        if (!str_contains((string)$row['caption_preview'], AFFILIATE_DISCLOSURE)) {
+            $missing++;
+        }
+    }
+    if (!$rows) {
+        return ['Compliance: ยังไม่มี draft/approved วันนี้ให้ตรวจ'];
+    }
+    if ($missing === 0) {
+        return ['Compliance: ตรวจ ' . count($rows) . ' แคปชัน — มี disclosure'];
+    }
+    return ["Compliance: พบ {$missing} แคปชันขาด disclosure — แก้ก่อน Approve/โพสต์"];
+}
+
 function run_morning_workflow(?string $date = null): array
 {
     $date = $date ?: today_iso();
@@ -619,12 +689,21 @@ function run_morning_workflow(?string $date = null): array
     $newPosts = build_daily_schedule($date, $pairs, $maxPosts, $cooldown);
     foreach ($newPosts as $p) save_schedule_post($p);
 
-    usort($pairs, fn($a, $b) => $b['product']['videoEase'] <=> $a['product']['videoEase']);
-    $videoFirst = $pairs[0] ?? null;
+    $filmQueue = build_filming_queue($ranked, $pairs, $date);
+    $shootFirst = $filmQueue[0] ?? null;
+    $filmLabelParts = [];
+    foreach (array_slice($filmQueue, 0, 3) as $i => $q) {
+        $filmLabelParts[] = ($i + 1) . ') ' . $q['productName'];
+    }
+    $compliance = audit_draft_captions($date);
+
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
         $expired > 0 ? "ข้าม draft ค้าง {$expired} ชิ้น (เก่ากว่า " . stale_draft_days() . ' วัน)' : null,
-        $videoFirst ? 'ควรทำวิดีโอก่อน: ' . $videoFirst['product']['name'] . ' — ' . $videoFirst['pack']['videoPriorityNote'] : 'ยังไม่มีคิววิดีโอ',
+        $filmLabelParts ? 'คิวถ่ายวิดีโอวันนี้ (ทดลอง): ' . implode(' → ', $filmLabelParts) : 'ยังไม่มีคิววิดีโอ',
+        $shootFirst ? 'ถ่ายก่อน: ' . $shootFirst['productName'] . ' — ' . $shootFirst['reason'] . ' — ' . $shootFirst['videoPriorityNote'] : null,
+        !empty($shootFirst['firstChecklist']) ? 'Checklist ถ่ายวิดีโอ (ตัวแรก): ' . $shootFirst['firstChecklist'] : null,
+        ...$compliance,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",

@@ -3,10 +3,15 @@ import {
   logAutomationFinish,
   logAutomationStart,
 } from "./automation-log";
+import {
+  auditDraftCaptions,
+  productReadinessIssues,
+} from "./compliance";
 import { generateContentPack } from "./content";
 import { dateFromYmd, newId, readDb, todayISO, updateDb } from "./db";
-import { INCOME_DISCLAIMER } from "./disclosure";
+import { AFFILIATE_DISCLOSURE, INCOME_DISCLAIMER } from "./disclosure";
 import { buildExperimentPlan } from "./experiments";
+import { buildFilmingQueue, filmingQueueLines } from "./filming";
 import { buildLearningState } from "./learning";
 import { explainScore, rankProducts } from "./scoring";
 import { buildDailySchedule, expireStaleDrafts } from "./schedule";
@@ -119,9 +124,6 @@ export async function runMorningWorkflow(
       });
       db.schedule.push(...newPosts);
 
-      const videoFirst = pairs
-        .slice()
-        .sort((a, b) => b.product.videoEase - a.product.videoEase)[0];
       const season = currentSeasonHint(seasonDate);
       const eventBoost = eventProximityBoost(
         ranked[0]?.product.category ?? "",
@@ -133,13 +135,18 @@ export async function runMorningWorkflow(
       ];
       const paused = db.products.filter((p) => p.active === false).length;
 
-      const checklistHint = videoFirst?.pack.filmingChecklist?.[0]
-        ? `Checklist ถ่ายวิดีโอ (ตัวแรก): ${videoFirst.pack.filmingChecklist[0]}`
-        : null;
+      const filmingQueue = buildFilmingQueue(
+        ranked,
+        pairs.map((p) => p.pack),
+        [...db.schedule],
+        date,
+      );
+      const filmLines = filmingQueueLines(filmingQueue, 3);
+      const shootFirst = filmingQueue[0];
 
-      const angleHint = videoFirst?.pack.sellingAngles?.[0]
-        ? `มุมขายแนะนำตัวแรก: ${videoFirst.pack.sellingAngles[0]}`
-        : null;
+      const todayForAudit = db.schedule.filter((s) => s.date === date);
+      const compliance = auditDraftCaptions(todayForAudit, AFFILIATE_DISCLOSURE);
+      const readiness = productReadinessIssues(db.products);
 
       const experiment = buildExperimentPlan({
         date,
@@ -173,11 +180,15 @@ export async function runMorningWorkflow(
         eventBoost.label
           ? `อีเวนต์ใกล้ถึง: ${eventBoost.label} — หมวดของขวัญ/ดูแลได้ soft boost เพิ่ม`
           : null,
-        videoFirst
-          ? `ควรทำวิดีโอก่อน: ${videoFirst.product.name} — ${videoFirst.pack.videoPriorityNote}`
-          : "ยังไม่มีคิววิดีโอ",
-        checklistHint,
-        angleHint,
+        ...filmLines,
+        shootFirst?.firstChecklist
+          ? `Checklist ถ่ายวิดีโอ (ตัวแรก): ${shootFirst.firstChecklist}`
+          : null,
+        shootFirst?.sellingAngle
+          ? `มุมขายแนะนำตัวแรก: ${shootFirst.sellingAngle}`
+          : null,
+        ...compliance.summaryLines,
+        ...readiness.slice(0, 2),
         ...experiment.lines.slice(0, 3),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",

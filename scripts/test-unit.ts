@@ -1,12 +1,22 @@
 import assert from "assert";
-import { sanitizeMarketingText } from "../src/lib/compliance";
+import {
+  auditDraftCaptions,
+  productReadinessIssues,
+  sanitizeMarketingText,
+} from "../src/lib/compliance";
 import { withDisclosure, AFFILIATE_DISCLOSURE } from "../src/lib/disclosure";
 import { generateContentPack } from "../src/lib/content";
 import {
   approvedTodayToMarkdown,
   briefsToCsv,
   contentPackToMarkdown,
+  filmingPlanFromDb,
 } from "../src/lib/export";
+import {
+  buildFilmingQueue,
+  filmingQueueLines,
+  filmingQueueToMarkdown,
+} from "../src/lib/filming";
 import { normalizeImportRow, parseCsv, rowsToProducts } from "../src/lib/import";
 import { analyzePosted } from "../src/lib/analytics";
 import { bangkokParts, todayISO } from "../src/lib/db";
@@ -930,6 +940,82 @@ function run() {
     maxPosts: 1,
   });
   assert.equal(timeBiased[0]?.suggestedTime, "19:30");
+
+  // Filming queue prefers easy + high-rank products
+  const filmQueue = buildFilmingQueue(
+    [
+      { product: cheapHigh, score: scoreA },
+      { product: expensiveLow, score: scoreB },
+    ],
+    [pack, generateContentPack(expensiveLow, { variant: 0 })],
+    [
+      {
+        id: "sch-film",
+        date: "2026-08-04",
+        suggestedTime: "10:30",
+        channel: "tiktok",
+        productId: "a",
+        contentPackId: pack.id,
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "draft",
+        captionPreview: withDisclosure("preview"),
+      },
+    ],
+    "2026-08-04",
+  );
+  assert.equal(filmQueue[0]?.productId, "a");
+  assert.ok(filmQueue[0].priority > filmQueue[1].priority);
+  assert.ok(filmQueue[0].onTodaySchedule);
+  const filmLines = filmingQueueLines(filmQueue, 2);
+  assert.ok(filmLines[0].includes("ถูกคอมสูง"));
+  assert.ok(filmingQueueToMarkdown(filmQueue, "2026-08-04").includes("คิวถ่ายวิดีโอ"));
+
+  // Compliance audit catches missing disclosure
+  const audit = auditDraftCaptions(
+    [
+      {
+        id: "d1",
+        channel: "tiktok",
+        captionPreview: "ขายดีอันดับ 1 ต้องซื้อเลย",
+        status: "draft",
+      },
+      {
+        id: "d2",
+        channel: "facebook_post",
+        captionPreview: withDisclosure("แชร์ตัวเลือกนะ"),
+        status: "draft",
+      },
+    ],
+    AFFILIATE_DISCLOSURE,
+  );
+  assert.equal(audit.ok, false);
+  assert.ok(audit.findings.some((f) => f.label === "ขาด disclosure"));
+  assert.ok(audit.findings.some((f) => f.severity === "warn"));
+
+  const readyLines = productReadinessIssues([
+    sample({
+      id: "weak",
+      name: "ข้อมูลไม่ครบ",
+      painPoints: [],
+      sellingPoints: [],
+      targetAudience: "",
+      affiliateUrl: "",
+    }),
+    cheapHigh,
+  ]);
+  assert.ok(readyLines[0].includes("ข้อมูลสินค้าไม่ครบ"));
+
+  const filmMd = filmingPlanFromDb(
+    {
+      products: [cheapHigh, expensiveLow],
+      contentPacks: [pack],
+      schedule: [],
+      briefs: [],
+    },
+    "2026-08-04",
+  );
+  assert.ok(filmMd.includes("ถูกคอมสูง"));
 
   console.log("All unit tests passed");
 }

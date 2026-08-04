@@ -139,6 +139,12 @@ export default async function AutomationPage() {
           Export แผนทดลอง (.md)
         </a>
         <a
+          href="/api/export?format=md&scope=filming"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export คิวถ่ายวิดีโอ (.md)
+        </a>
+        <a
           href="/api/export?format=csv&scope=schedule"
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >

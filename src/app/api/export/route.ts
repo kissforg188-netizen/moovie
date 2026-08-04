@@ -6,6 +6,7 @@ import {
   contentPacksToMarkdown,
   dbToJson,
   experimentsToMarkdown,
+  filmingPlanFromDb,
   productsToCsv,
   scheduleToCsv,
   todayDraftsToMarkdown,
@@ -33,6 +34,9 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = experimentsToMarkdown(snap.experiment);
       filename = `affiliate-experiments-${todayISO()}.md`;
+    } else if (scope === "filming" || scope === "film") {
+      md = filmingPlanFromDb(db, todayISO());
+      filename = `affiliate-filming-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

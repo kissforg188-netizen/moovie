@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: text/plain; charset=utf-8');
-$branch = preg_replace('/[^a-zA-Z0-9._\\/-]/', '', (string)($_GET['branch'] ?? 'cursor/bc-4db0074a-a556-4971-afb1-7c431bc01d8f-d0b1')) ?: 'main';
+$branch = preg_replace('/[^a-zA-Z0-9._\\/-]/', '', (string)($_GET['branch'] ?? 'cursor/affiliate-5bb4')) ?: 'main';
 $b = 'https://raw.githubusercontent.com/kissforg188-netizen/moovie/' . $branch . '/deploy/php/';
 $fs = [
   'guide/index.html','guide/index.php',

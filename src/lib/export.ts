@@ -1,10 +1,18 @@
 import type { ExperimentPlan } from "./experiments";
 import { experimentPlanToMarkdown } from "./experiments";
+import {
+  buildFilmingQueue,
+  filmingQueueToMarkdown,
+  type FilmingQueueItem,
+} from "./filming";
 import { channelLabel } from "./schedule";
+import { rankProducts } from "./scoring";
 import type { ContentPack, Database, Product } from "./types";
 import { INCOME_DISCLAIMER } from "./disclosure";
+import { dateFromYmd } from "./db";
 
-export { experimentPlanToMarkdown };
+export { experimentPlanToMarkdown, filmingQueueToMarkdown };
+export type { FilmingQueueItem };
 
 function csvEscape(value: unknown): string {
   const s = String(value ?? "");
@@ -337,4 +345,23 @@ export function dbToJson(db: Database): string {
 /** Re-export helper for API consumers that already hold an ExperimentPlan. */
 export function experimentsToMarkdown(plan: ExperimentPlan): string {
   return experimentPlanToMarkdown(plan);
+}
+
+/** Build today's filming queue Markdown from the live DB snapshot. */
+export function filmingPlanFromDb(db: Database, date: string): string {
+  const ranked = rankProducts(
+    db.products,
+    5,
+    db.schedule,
+    db.learning,
+    dateFromYmd(date),
+  );
+  const packs = ranked.map((r) => {
+    const existing = db.contentPacks
+      .filter((p) => p.productId === r.product.id)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return existing;
+  }).filter(Boolean) as ContentPack[];
+  const queue = buildFilmingQueue(ranked, packs, db.schedule, date);
+  return filmingQueueToMarkdown(queue, date);
 }

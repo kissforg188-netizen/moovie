@@ -33,6 +33,9 @@
 - จัดอันดับผสม **ค่าคอม% + ค่าคอมคาดหวัง (บาท/ชิ้น)** — ของถูกคอมสูง% ไม่กินทั้งคิว
 - Morning brief อธิบายว่าทำไมสินค้าติด Top (จุดแข็ง + ค่าคอมคาดหวัง)
 - Evening เรียน **ช่วงเวลาโพสต์** ที่คะแนนดีกว่า + soft penalty โพสต์วิวสูงแต่ไม่มียอดสั่ง
+- **คิวถ่ายวิดีโอ** จัดลำดับถ่ายก่อนจากความง่าย × ranking × ค่าคอมคาดหวัง × คิว short/reels วันนี้
+- Morning ตรวจ **compliance** (disclosure + คำโฆษณาเกินจริง) และเตือนสินค้าที่ข้อมูลไม่ครบ
+- Export คิวถ่าย: `/api/export?format=md&scope=filming`
 
 
 ## Production (cPanel / MySQL)
@@ -81,7 +84,8 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 | `npm run seed:demo` | ใส่สินค้าตัวอย่าง 6 ชิ้นสำหรับทดลองในเครื่อง |
 | `npm run workflow:morning` | คัด Top 5 + content pack + ตาราง draft วันนี้ |
 | `npm run workflow:evening` | วิเคราะห์ผลที่กรอก + แนะนำวันถัดไป |
-| `npm run test:unit` | เทสต์ scoring / content / schedule |
+| `npm run workflow:day` | รัน morning แล้วตามด้วย evening (ทดลองครบวัน) |
+| `npm run test:unit` | เทสต์ scoring / content / schedule / filming |
 | `npm run build` | build production |
 
 ## หน้าเว็บ
@@ -104,6 +108,8 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown content packs: `/api/export?format=md&scope=packs`
 - Markdown ตารางวันนี้: `/api/export?format=md&scope=today`
 - Markdown checklist ที่อนุมัติแล้ว: `/api/export?format=md&scope=approved`
+- Markdown แผนทดลอง: `/api/export?format=md&scope=experiments`
+- Markdown คิวถ่ายวิดีโอ: `/api/export?format=md&scope=filming`
 
 ## Workflow แนะนำ
 

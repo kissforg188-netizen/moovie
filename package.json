@@ -11,6 +11,7 @@
     "seed:demo": "node scripts/seed-demo.mjs",
     "workflow:morning": "tsx scripts/morning.ts",
     "workflow:evening": "tsx scripts/evening.ts",
+    "workflow:day": "tsx scripts/morning.ts && tsx scripts/evening.ts",
     "test:unit": "tsx scripts/test-unit.ts"
   },
   "dependencies": {

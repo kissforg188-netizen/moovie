@@ -75,3 +75,104 @@ export function sanitizeMarketingText(input: string): ComplianceResult {
 export function hasAffiliateDisclosure(text: string, disclosure: string): boolean {
   return text.includes(disclosure);
 }
+
+export type DraftAuditSeverity = "error" | "warn";
+
+export interface DraftAuditFinding {
+  postId: string;
+  channel: string;
+  severity: DraftAuditSeverity;
+  label: string;
+  detail: string;
+}
+
+/**
+ * Audit scheduled captions for missing disclosure / leftover overclaim language.
+ * Does not auto-post; flags issues for the human approver.
+ */
+export function auditDraftCaptions(
+  posts: { id: string; channel: string; captionPreview: string; status: string }[],
+  disclosure: string,
+): { ok: boolean; findings: DraftAuditFinding[]; summaryLines: string[] } {
+  const findings: DraftAuditFinding[] = [];
+  const active = posts.filter((p) => p.status === "draft" || p.status === "approved");
+
+  for (const post of active) {
+    const caption = post.captionPreview || "";
+    if (!hasAffiliateDisclosure(caption, disclosure)) {
+      findings.push({
+        postId: post.id,
+        channel: post.channel,
+        severity: "error",
+        label: "ขาด disclosure",
+        detail: "แคปชันยังไม่มีข้อความ affiliate disclosure",
+      });
+    }
+    const sanitized = sanitizeMarketingText(caption);
+    for (const issue of sanitized.issues) {
+      findings.push({
+        postId: post.id,
+        channel: post.channel,
+        severity: "warn",
+        label: issue.label,
+        detail: `พบถ้อยคำเสี่ยง: “${issue.sample}”`,
+      });
+    }
+  }
+
+  const errors = findings.filter((f) => f.severity === "error").length;
+  const warns = findings.filter((f) => f.severity === "warn").length;
+  const summaryLines: string[] = [];
+  if (active.length === 0) {
+    summaryLines.push("Compliance: ยังไม่มี draft/approved วันนี้ให้ตรวจ");
+  } else if (findings.length === 0) {
+    summaryLines.push(
+      `Compliance: ตรวจ ${active.length} แคปชัน — มี disclosure และไม่พบคำโฆษณาเกินจริง`,
+    );
+  } else {
+    summaryLines.push(
+      `Compliance: พบปัญหา ${errors} ขาด disclosure · ${warns} คำเตือนโฆษณา — แก้ก่อน Approve/โพสต์`,
+    );
+    for (const f of findings.slice(0, 3)) {
+      summaryLines.push(`- [${f.severity}] ${f.channel}: ${f.label} — ${f.detail}`);
+    }
+  }
+
+  return { ok: errors === 0, findings, summaryLines };
+}
+
+/** Soft readiness checks so morning ranking inputs stay useful. */
+export function productReadinessIssues(products: {
+  id: string;
+  name: string;
+  active?: boolean;
+  painPoints: string[];
+  sellingPoints: string[];
+  affiliateUrl: string;
+  targetAudience: string;
+}[]): string[] {
+  const lines: string[] = [];
+  const active = products.filter((p) => p.active !== false);
+  let weak = 0;
+  for (const p of active) {
+    const pains = p.painPoints.filter((x) => x.trim().length > 0);
+    const sells = p.sellingPoints.filter((x) => x.trim().length > 0);
+    const missing: string[] = [];
+    if (pains.length === 0) missing.push("pain point");
+    if (sells.length === 0) missing.push("จุดขาย");
+    if (!p.affiliateUrl.trim()) missing.push("ลิงก์ affiliate");
+    if (p.targetAudience.trim().length < 4) missing.push("กลุ่มเป้าหมาย");
+    if (missing.length > 0) {
+      weak += 1;
+      if (lines.length < 3) {
+        lines.push(`สินค้า “${p.name}” ข้อมูลไม่ครบ: ${missing.join(", ")}`);
+      }
+    }
+  }
+  if (weak > 0) {
+    lines.unshift(
+      `ข้อมูลสินค้าไม่ครบ ${weak}/${active.length} ชิ้น — เติม pain/จุดขายก่อนสร้างคอนเทนต์จะคมขึ้น`,
+    );
+  }
+  return lines;
+}

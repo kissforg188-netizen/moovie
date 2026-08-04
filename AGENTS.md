@@ -68,3 +68,7 @@ npm run dev
 - Ranking blends commission% + expected baht (`expectedCommissionScore` in `src/lib/scoring.ts`)
 - Morning brief uses `explainScore` for Top pick transparency
 - Evening learning may set `preferredTime` + `vanityProductIds` (soft schedule/rank bias)
+- Filming queue: `src/lib/filming.ts` · export `/api/export?format=md&scope=filming`
+- Morning compliance audit + product readiness: `auditDraftCaptions` / `productReadinessIssues` in `src/lib/compliance.ts`
+- `npm run workflow:day` runs morning then evening for local end-to-end checks
+- PHP pull default branch tip: `cursor/affiliate-5bb4`
