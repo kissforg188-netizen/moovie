@@ -70,5 +70,8 @@ npm run dev
 - Evening learning may set `preferredTime` + `vanityProductIds` (soft schedule/rank bias)
 - Filming queue: `src/lib/filming.ts` · export `/api/export?format=md&scope=filming`
 - Morning compliance audit + product readiness: `auditDraftCaptions` / `productReadinessIssues` in `src/lib/compliance.ts`
+- Hard Approve gate: `evaluateApproveGate` in `src/lib/approve.ts` (disclosure + overclaim); bulk skips non-compliant
+- Regenerate draft caption: `POST /api/schedule/:id/regenerate` (`src/lib/regenerate.ts`)
+- Evening soft pause suggestions: `src/lib/pause-suggestions.ts` (never auto-pauses)
 - `npm run workflow:day` runs morning then evening for local end-to-end checks
-- PHP pull default branch tip: `cursor/affiliate-5bb4`
+- PHP pull default branch tip: `cursor/affiliate-3d46`
