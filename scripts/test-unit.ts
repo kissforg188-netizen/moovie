@@ -1,4 +1,5 @@
 import assert from "assert";
+import { evaluateApproveGate } from "../src/lib/approve";
 import {
   auditDraftCaptions,
   productReadinessIssues,
@@ -6,6 +7,11 @@ import {
 } from "../src/lib/compliance";
 import { withDisclosure, AFFILIATE_DISCLOSURE } from "../src/lib/disclosure";
 import { generateContentPack } from "../src/lib/content";
+import {
+  buildPauseSuggestions,
+  pauseSuggestionLines,
+} from "../src/lib/pause-suggestions";
+import { regenerateScheduledDraft } from "../src/lib/regenerate";
 import {
   approvedTodayToMarkdown,
   briefsToCsv,
@@ -1016,6 +1022,98 @@ function run() {
     "2026-08-04",
   );
   assert.ok(filmMd.includes("ถูกคอมสูง"));
+
+  // Approve gate blocks missing disclosure / overclaim
+  const gateBad = evaluateApproveGate("ขายดีอันดับ 1 ต้องซื้อเลย");
+  assert.equal(gateBad.ok, false);
+  assert.ok(gateBad.errors.some((e) => e.includes("disclosure")));
+  const gateGood = evaluateApproveGate(withDisclosure("แชร์ตัวเลือกนะ"));
+  assert.equal(gateGood.ok, true);
+
+  // Regenerate draft creates a new pack + keeps draft status
+  const regenDb = {
+    products: [cheapHigh],
+    contentPacks: [pack],
+    schedule: [
+      {
+        id: "regen1",
+        date: "2026-08-05",
+        suggestedTime: "10:30",
+        channel: "tiktok" as const,
+        productId: cheapHigh.id,
+        contentPackId: pack.id,
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "draft" as const,
+        captionPreview: withDisclosure("เก่า"),
+      },
+    ],
+    briefs: [],
+  };
+  const regen = regenerateScheduledDraft(regenDb, "regen1");
+  assert.equal(regen.ok, true);
+  assert.equal(regenDb.schedule[0].status, "draft");
+  assert.notEqual(regenDb.schedule[0].contentPackId, pack.id);
+  assert.ok((regenDb.contentPacks.length ?? 0) >= 2);
+  assert.ok(
+    evaluateApproveGate(regenDb.schedule[0].captionPreview).ok,
+    "regenerated caption must pass approve gate",
+  );
+
+  // Pause suggestions are soft-only (never auto-pause)
+  const pause = buildPauseSuggestions({
+    products: [cheapHigh],
+    schedule: [
+      {
+        id: "p1",
+        date: "2026-08-01",
+        suggestedTime: "10:30",
+        channel: "tiktok",
+        productId: cheapHigh.id,
+        contentPackId: pack.id,
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "posted",
+        captionPreview: withDisclosure("a"),
+        metrics: {
+          views: 5000,
+          clicks: 30,
+          orders: 0,
+          commissionEarned: 0,
+          recordedAt: "2026-08-01T12:00:00.000Z",
+        },
+      },
+      {
+        id: "p2",
+        date: "2026-08-02",
+        suggestedTime: "10:30",
+        channel: "facebook_reels",
+        productId: cheapHigh.id,
+        contentPackId: pack.id,
+        hookIndex: 1,
+        ctaIndex: 1,
+        status: "posted",
+        captionPreview: withDisclosure("b"),
+        metrics: {
+          views: 4000,
+          clicks: 25,
+          orders: 0,
+          commissionEarned: 0,
+          recordedAt: "2026-08-02T12:00:00.000Z",
+        },
+      },
+    ],
+    learning: {
+      updatedAt: "2026-08-02T20:00:00.000Z",
+      sourceDate: "2026-08-02",
+      winnerProductIds: [],
+      underperformerProductIds: [cheapHigh.id],
+      vanityProductIds: [cheapHigh.id],
+      notes: [],
+    },
+  });
+  assert.ok(pause.some((s) => s.productId === cheapHigh.id));
+  assert.ok(pauseSuggestionLines(pause)[0].includes("พักชั่วคราว"));
 
   console.log("All unit tests passed");
 }

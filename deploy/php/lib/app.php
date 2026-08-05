@@ -645,6 +645,36 @@ function build_filming_queue(array $ranked, array $pairs, string $date): array
     return $items;
 }
 
+/** Soft overclaim patterns — mirrors Next.js compliance gate. */
+function overclaim_patterns(): array
+{
+    return [
+        ['pattern' => '/รับประกันรายได้|การันตีรายได้|รายได้ชัวร์|รวยแน่|รวยแน่นอน/ui', 'label' => 'เคลมรายได้แน่นอน'],
+        ['pattern' => '/ขายดีอันดับ\s*1|ขายดีที่สุด|ที่ดีที่สุด|เบอร์หนึ่งแน่นอน/ui', 'label' => 'คำโฆษณาเกินจริง'],
+        ['pattern' => '/ต้องซื้อเลย|รีบซื้อด่วน!!!+|หมดแล้วหมดเลย!!!+|โอกาสสุดท้าย!!!+/ui', 'label' => 'เร่งซื้อแบบสแปม'],
+        ['pattern' => '/หายห่วง\s*100%|ได้ผล\s*100%|ชัวร์\s*100%/ui', 'label' => 'รับประกันผลเกินจริง'],
+        ['pattern' => '/ฟรี!!!+|ถูกที่สุดในโลก|ถูกที่สุดแน่นอน/ui', 'label' => 'ราคาเกินจริง'],
+    ];
+}
+
+/**
+ * Hard gate before Approve — never auto-publishes.
+ * @return array{ok:bool,errors:string[]}
+ */
+function evaluate_approve_gate(string $caption): array
+{
+    $errors = [];
+    if (!str_contains($caption, AFFILIATE_DISCLOSURE)) {
+        $errors[] = 'ขาด affiliate disclosure — สร้างแคปชันใหม่หรือแก้ก่อน Approve';
+    }
+    foreach (overclaim_patterns() as $rule) {
+        if (preg_match($rule['pattern'], $caption, $m)) {
+            $errors[] = 'พบถ้อยคำเสี่ยง (' . $rule['label'] . '): “' . ($m[0] ?? $rule['label']) . '”';
+        }
+    }
+    return ['ok' => count($errors) === 0, 'errors' => $errors];
+}
+
 /** Flag missing disclosure on today's draft/approved captions. */
 function audit_draft_captions(string $date): array
 {
@@ -652,18 +682,81 @@ function audit_draft_captions(string $date): array
     $stmt->execute([$date]);
     $rows = $stmt->fetchAll();
     $missing = 0;
+    $warns = 0;
     foreach ($rows as $row) {
-        if (!str_contains((string)$row['caption_preview'], AFFILIATE_DISCLOSURE)) {
-            $missing++;
+        $gate = evaluate_approve_gate((string)$row['caption_preview']);
+        if (!$gate['ok']) {
+            foreach ($gate['errors'] as $err) {
+                if (str_contains($err, 'disclosure')) $missing++;
+                else $warns++;
+            }
         }
     }
     if (!$rows) {
         return ['Compliance: ยังไม่มี draft/approved วันนี้ให้ตรวจ'];
     }
-    if ($missing === 0) {
-        return ['Compliance: ตรวจ ' . count($rows) . ' แคปชัน — มี disclosure'];
+    if ($missing === 0 && $warns === 0) {
+        return ['Compliance: ตรวจ ' . count($rows) . ' แคปชัน — มี disclosure และไม่พบคำโฆษณาเกินจริง'];
     }
-    return ["Compliance: พบ {$missing} แคปชันขาด disclosure — แก้ก่อน Approve/โพสต์"];
+    return ["Compliance: พบปัญหา disclosure/คำโฆษณา — แก้ก่อน Approve/โพสต์ (ขาด disclosure ~{$missing} · คำเตือน ~{$warns})"];
+}
+
+/**
+ * Rebuild draft caption with a new content pack variant.
+ * Never publishes; skipped posts revive as draft.
+ * @return array{ok:bool,message?:string,error?:string,packId?:string}
+ */
+function regenerate_schedule_draft(string $id): array
+{
+    $stmt = db()->prepare('SELECT * FROM schedule WHERE id=?');
+    $stmt->execute([$id]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'ไม่พบโพสต์ในตาราง'];
+    }
+    $status = (string)$row['status'];
+    if ($status === 'posted') {
+        return ['ok' => false, 'error' => 'โพสต์แล้ว — ไม่สร้างแคปชันทับของเก่า'];
+    }
+    if ($status === 'approved') {
+        return ['ok' => false, 'error' => 'อนุมัติแล้ว — ข้ามก่อนถ้าต้องการสร้างแคปชันใหม่'];
+    }
+
+    $product = get_product((string)$row['product_id']);
+    if (!$product) {
+        return ['ok' => false, 'error' => 'ไม่พบสินค้าของโพสต์นี้'];
+    }
+    if (isset($product['active']) && (int)$product['active'] === 0) {
+        return ['ok' => false, 'error' => 'สินค้าถูกพักไว้ — เปิดใช้งานก่อนสร้างแคปชันใหม่'];
+    }
+
+    $countStmt = db()->prepare('SELECT COUNT(*) FROM content_packs WHERE product_id=?');
+    $countStmt->execute([$product['id']]);
+    $prior = (int)$countStmt->fetchColumn();
+    $oldVariant = 0;
+    if (!empty($row['content_pack_id'])) {
+        $old = db()->prepare('SELECT variant FROM content_packs WHERE id=?');
+        $old->execute([$row['content_pack_id']]);
+        $oldVariant = (int)($old->fetchColumn() ?: 0);
+    }
+    $variant = $oldVariant + $prior + 1;
+    $pack = generate_content_pack($product, $variant);
+    save_content_pack($pack);
+
+    $hookIndex = $variant % max(1, count($pack['hooks']));
+    $ctaIndex = $variant % max(1, count($pack['ctas']));
+    $caption = caption_for_channel($pack, (string)$row['channel'], $hookIndex, $ctaIndex);
+
+    $upd = db()->prepare(
+        "UPDATE schedule SET content_pack_id=?, hook_index=?, cta_index=?, caption_preview=?, status='draft', approved_at=NULL WHERE id=?"
+    );
+    $upd->execute([$pack['id'], $hookIndex, $ctaIndex, $caption, $id]);
+
+    return [
+        'ok' => true,
+        'packId' => $pack['id'],
+        'message' => "สร้างแคปชันใหม่แล้ว (variant {$variant}) — ยังเป็น draft ต้อง Approve ก่อนโพสต์ด้วยมือ",
+    ];
 }
 
 function run_morning_workflow(?string $date = null): array
@@ -783,6 +876,8 @@ function run_evening_workflow(?string $date = null): array
     $analysis = analyze_posted($date);
     $next = rank_products(3);
     $recs = $analysis['recs'];
+    $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
+    $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));
     }

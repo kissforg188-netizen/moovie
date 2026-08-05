@@ -29,7 +29,7 @@ function daysBetween(a: string, b: string): number {
   return Math.floor(ms / (24 * 60 * 60 * 1000));
 }
 
-function captionForChannel(
+export function captionForChannel(
   pack: ContentPack,
   channel: ContentChannel,
   hookIndex: number,

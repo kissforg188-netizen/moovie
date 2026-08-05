@@ -238,16 +238,38 @@ function auto_generate_drafts(?string $date = null): array
 function approve_selected_drafts(array $ids): array
 {
     $ok = 0;
+    $skippedGate = 0;
+    $blockedSamples = [];
+    $fetch = db()->prepare("SELECT id, status, caption_preview FROM schedule WHERE id=?");
     $stmt = db()->prepare("UPDATE schedule SET status='approved', approved_at=? WHERE id=? AND status IN ('draft','generated','pending')");
     foreach ($ids as $id) {
         $id = trim((string)$id);
         if ($id === '') continue;
+        $fetch->execute([$id]);
+        $row = $fetch->fetch();
+        if (!$row) continue;
+        if (!in_array((string)$row['status'], ['draft', 'generated', 'pending'], true)) {
+            continue;
+        }
+        $gate = evaluate_approve_gate((string)$row['caption_preview']);
+        if (!$gate['ok']) {
+            $skippedGate++;
+            if (count($blockedSamples) < 3) {
+                $blockedSamples[] = $gate['errors'][0] ?? 'ไม่ผ่าน compliance';
+            }
+            continue;
+        }
         $stmt->execute([date('Y-m-d H:i:s'), $id]);
         $ok += $stmt->rowCount() > 0 ? 1 : 0;
     }
+    $message = $skippedGate > 0
+        ? "อนุมัติแล้ว {$ok} ชิ้น · ข้าม {$skippedGate} ชิ้นที่ไม่ผ่าน disclosure/คำโฆษณา — โพสต์ด้วยมือเท่านั้น"
+        : "อนุมัติแล้ว {$ok} ชิ้น — โพสต์ด้วยมือเท่านั้น ระบบไม่โพสต์อัตโนมัติ";
     return [
         'approved' => $ok,
-        'message' => 'อนุมัติแล้ว ' . $ok . ' ชิ้น — โพสต์ด้วยมือเท่านั้น ระบบไม่โพสต์อัตโนมัติ',
+        'skippedGate' => $skippedGate,
+        'blockedSamples' => $blockedSamples,
+        'message' => $message,
     ];
 }
 

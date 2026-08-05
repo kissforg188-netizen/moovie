@@ -13,6 +13,10 @@ import { AFFILIATE_DISCLOSURE, INCOME_DISCLAIMER } from "./disclosure";
 import { buildExperimentPlan } from "./experiments";
 import { buildFilmingQueue, filmingQueueLines } from "./filming";
 import { buildLearningState } from "./learning";
+import {
+  buildPauseSuggestions,
+  pauseSuggestionLines,
+} from "./pause-suggestions";
 import { explainScore, rankProducts } from "./scoring";
 import { buildDailySchedule, expireStaleDrafts } from "./schedule";
 import { currentSeasonHint, eventProximityBoost } from "./seasonality";
@@ -267,6 +271,13 @@ export async function runEveningWorkflow(
       const learning = buildLearningState(analysis.performances, date);
       db.learning = learning;
 
+      const pauseSuggestions = buildPauseSuggestions({
+        products: db.products,
+        schedule: db.schedule,
+        learning,
+      });
+      const pauseLines = pauseSuggestionLines(pauseSuggestions);
+
       const nextFocus = rankProducts(
         db.products,
         3,
@@ -279,10 +290,12 @@ export async function runEveningWorkflow(
         ...analysis.recommendations,
         ...weeklyLines,
         ...learning.notes,
+        ...pauseLines,
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
         "Learning ถูกบันทึกเพื่อ bias อ่อน ๆ ใน Morning วันถัดไป — ยังเป็น draft และต้อง Approve ก่อนโพสต์",
+        "แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์",
       ];
 
       const brief: DailyBrief = {

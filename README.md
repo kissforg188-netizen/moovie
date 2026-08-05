@@ -36,6 +36,9 @@
 - **คิวถ่ายวิดีโอ** จัดลำดับถ่ายก่อนจากความง่าย × ranking × ค่าคอมคาดหวัง × คิว short/reels วันนี้
 - Morning ตรวจ **compliance** (disclosure + คำโฆษณาเกินจริง) และเตือนสินค้าที่ข้อมูลไม่ครบ
 - Export คิวถ่าย: `/api/export?format=md&scope=filming`
+- **Approve gate**: ขาด disclosure หรือมีคำโฆษณาเกินจริง = Approve ไม่ได้ (ทั้งชิ้นเดียวและ bulk)
+- **สร้างแคปชันใหม่** จากตารางโพสต์ (variant ใหม่) — ยังเป็น draft ต้อง Approve ก่อน
+- Evening แนะนำสินค้าที่ควร**พักชั่วคราว**จากผลจริง (ไม่พักอัตโนมัติ)
 
 
 ## Production (cPanel / MySQL)

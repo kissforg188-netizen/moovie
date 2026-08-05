@@ -33,6 +33,17 @@ export function ScheduleActions({
     router.refresh();
   }
 
+  async function regenerate() {
+    setBusy(true);
+    const res = await fetch(`/api/schedule/${id}/regenerate`, {
+      method: "POST",
+    });
+    const data = await res.json();
+    setBusy(false);
+    setMsg(data.message ?? data.error ?? "");
+    router.refresh();
+  }
+
   async function markPosted() {
     setBusy(true);
     const res = await fetch(`/api/schedule/${id}/mark-posted`, {
@@ -46,7 +57,18 @@ export function ScheduleActions({
 
   if (status === "skipped") {
     return (
-      <p className="text-xs text-[var(--ink-soft)]">ข้ามแล้ว (ไม่โพสต์)</p>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-[var(--ink-soft)]">ข้ามแล้ว (ไม่โพสต์)</p>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={regenerate}
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-xs hover:bg-[var(--mist)]"
+        >
+          สร้างแคปชันใหม่ (กลับเป็น draft)
+        </button>
+        {msg && <p className="text-xs text-[var(--ink-soft)]">{msg}</p>}
+      </div>
     );
   }
 
@@ -62,6 +84,14 @@ export function ScheduleActions({
               className="rounded-md bg-[var(--sage-deep)] px-3 py-1.5 text-xs text-white hover:bg-[var(--sage)]"
             >
               Approve draft
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={regenerate}
+              className="rounded-md border border-[var(--line)] px-3 py-1.5 text-xs hover:bg-[var(--mist)]"
+            >
+              สร้างแคปชันใหม่
             </button>
             <button
               type="button"

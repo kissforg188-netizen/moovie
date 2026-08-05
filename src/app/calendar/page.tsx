@@ -2,6 +2,8 @@ import { BulkApproveButton } from "@/components/BulkApproveButton";
 import { CopyCaptionButton } from "@/components/CopyCaptionButton";
 import { ScheduleActions } from "@/components/ScheduleActions";
 import { WorkflowButtons } from "@/components/WorkflowButtons";
+import { evaluateApproveGate } from "@/lib/approve";
+import { AFFILIATE_DISCLOSURE } from "@/lib/disclosure";
 import { readDb, todayISO } from "@/lib/db";
 import { channelLabel } from "@/lib/schedule";
 import { resolveSettings } from "@/lib/settings";
@@ -25,7 +27,8 @@ export default async function CalendarPage() {
           ก่อนโพสต์ด้วยมือ
         </p>
         <p className="mt-1 text-xs text-[var(--coral)]">
-          ระบบไม่โพสต์อัตโนมัติไปยัง TikTok หรือ Facebook
+          ระบบไม่โพสต์อัตโนมัติไปยัง TikTok หรือ Facebook · Approve ถูกบล็อกถ้าขาด
+          disclosure หรือมีคำโฆษณาเกินจริง
         </p>
       </div>
 
@@ -44,6 +47,10 @@ export default async function CalendarPage() {
           posts.map((post) => {
             const product = db.products.find((p) => p.id === post.productId);
             const pack = db.contentPacks.find((p) => p.id === post.contentPackId);
+            const gate =
+              post.status === "draft"
+                ? evaluateApproveGate(post.captionPreview, AFFILIATE_DISCLOSURE)
+                : null;
             return (
               <article key={post.id} className="surface rounded-2xl p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -54,6 +61,19 @@ export default async function CalendarPage() {
                     <p className="text-sm text-[var(--ink-soft)]">
                       {product?.name ?? "สินค้า"} · status: {post.status}
                     </p>
+                    {gate && !gate.ok && (
+                      <p className="mt-1 text-xs text-[var(--coral)]">
+                        ยัง Approve ไม่ได้: {gate.errors[0]}
+                        {gate.errors.length > 1
+                          ? ` (+${gate.errors.length - 1})`
+                          : ""}
+                      </p>
+                    )}
+                    {gate?.ok && (
+                      <p className="mt-1 text-xs text-[var(--sage)]">
+                        ผ่าน compliance — พร้อม Approve (ยังไม่โพสต์อัตโนมัติ)
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-start gap-2">
                     <CopyCaptionButton text={post.captionPreview} />

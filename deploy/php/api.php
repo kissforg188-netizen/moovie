@@ -104,7 +104,24 @@ try {
         $id = (string)($body['id'] ?? '');
         $result = approve_selected_drafts([$id]);
         $job = automation_log_start('approve_draft', 'Approve draft ' . $id);
-        automation_log_finish($job, 'success', $result['message'], $result);
+        $ok = ($result['approved'] ?? 0) > 0;
+        automation_log_finish($job, $ok ? 'success' : 'failed', $result['message'], $result);
+        if (!$ok) {
+            json_response(['ok' => false, 'error' => $result['message']] + $result, 400);
+        }
+        json_response(['ok' => true] + $result);
+    }
+
+    if ($method === 'POST' && $action === 'regenerate') {
+        $body = json_decode(file_get_contents('php://input') ?: '{}', true) ?: [];
+        $id = (string)($body['id'] ?? '');
+        $job = automation_log_start('regenerate_draft', 'สร้างแคปชันใหม่ ' . $id);
+        $result = regenerate_schedule_draft($id);
+        if (!($result['ok'] ?? false)) {
+            automation_log_finish($job, 'failed', $result['error'] ?? 'regenerate failed', $result);
+            json_response(['ok' => false, 'error' => $result['error'] ?? 'สร้างแคปชันใหม่ไม่สำเร็จ'] + $result, 400);
+        }
+        automation_log_finish($job, 'success', $result['message'] ?? 'ok', $result);
         json_response(['ok' => true] + $result);
     }
 
