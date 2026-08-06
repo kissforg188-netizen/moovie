@@ -11,6 +11,14 @@ import {
   buildPauseSuggestions,
   pauseSuggestionLines,
 } from "../src/lib/pause-suggestions";
+import {
+  detectPlatformFromUrl,
+  platformLabelTh,
+} from "../src/lib/platform-detect";
+import {
+  buildPostingPack,
+  postingPacksToMarkdown,
+} from "../src/lib/posting-pack";
 import { regenerateScheduledDraft } from "../src/lib/regenerate";
 import {
   approvedTodayToMarkdown,
@@ -1114,6 +1122,60 @@ function run() {
   });
   assert.ok(pause.some((s) => s.productId === cheapHigh.id));
   assert.ok(pauseSuggestionLines(pause)[0].includes("พักชั่วคราว"));
+
+  // Platform detect from affiliate URLs
+  assert.equal(detectPlatformFromUrl("https://shopee.co.th/product/1"), "shopee");
+  assert.equal(detectPlatformFromUrl("https://s.shp.ee/abc"), "shopee");
+  assert.equal(
+    detectPlatformFromUrl("https://shop.tiktok.com/view/product/1"),
+    "tiktok_shop",
+  );
+  assert.equal(
+    detectPlatformFromUrl("https://www.facebook.com/commerce/1"),
+    "facebook",
+  );
+  assert.equal(detectPlatformFromUrl("https://example.com/x"), null);
+  assert.equal(platformLabelTh("tiktok_shop"), "TikTok Shop");
+
+  // Import falls back to URL detect when platform omitted
+  const importedFromUrl = normalizeImportRow({
+    name: "จากลิงก์",
+    affiliateUrl: "https://vt.tiktok.com/ZSxxxx/",
+    price: 120,
+    commissionRate: 15,
+  });
+  assert.equal(importedFromUrl?.platform, "tiktok_shop");
+
+  // Posting pack: draft is preview-only; approved + disclosure is ready
+  const postDraft = {
+    id: "sch-pack",
+    date: "2026-08-06",
+    suggestedTime: "10:30",
+    channel: "tiktok" as const,
+    productId: cheapHigh.id,
+    contentPackId: pack.id,
+    hookIndex: 0,
+    ctaIndex: 0,
+    status: "draft" as const,
+    captionPreview: withDisclosure("ช่วยเลือกของชิ้นนี้"),
+  };
+  const previewPack = buildPostingPack(postDraft, cheapHigh, pack);
+  assert.equal(previewPack.readyToCopy, false);
+  assert.ok(previewPack.text.includes("Approve"));
+  assert.ok(previewPack.complianceOk);
+
+  const approvedPack = buildPostingPack(
+    { ...postDraft, status: "approved" },
+    cheapHigh,
+    pack,
+  );
+  assert.equal(approvedPack.readyToCopy, true);
+  assert.ok(approvedPack.text.includes(cheapHigh.affiliateUrl));
+  assert.ok(approvedPack.text.includes("Caption"));
+
+  const mdPacks = postingPacksToMarkdown([approvedPack], "2026-08-06");
+  assert.ok(mdPacks.includes("Posting Packs"));
+  assert.ok(mdPacks.includes("ไม่โพสต์อัตโนมัติ"));
 
   console.log("All unit tests passed");
 }

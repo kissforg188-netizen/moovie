@@ -675,6 +675,114 @@ function evaluate_approve_gate(string $caption): array
     return ['ok' => count($errors) === 0, 'errors' => $errors];
 }
 
+/**
+ * Ready-to-copy posting pack for manual publish after Approve.
+ * @return array{text:string,readyToCopy:bool,complianceOk:bool,productName:string,status:string}
+ */
+function build_posting_pack(string $scheduleId): array
+{
+    $stmt = db()->prepare('SELECT s.*, p.name AS product_name, p.affiliate_url, p.platform FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.id=?');
+    $stmt->execute([$scheduleId]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        return ['ok' => false, 'error' => 'ไม่พบตารางโพสต์'];
+    }
+
+    $pack = null;
+    if (!empty($row['content_pack_id'])) {
+        $pstmt = db()->prepare('SELECT * FROM content_packs WHERE id=?');
+        $pstmt->execute([$row['content_pack_id']]);
+        $packRow = $pstmt->fetch();
+        $pack = $packRow ? map_pack($packRow) : null;
+    }
+
+    $caption = (string)$row['caption_preview'];
+    $gate = evaluate_approve_gate($caption);
+    $status = (string)$row['status'];
+    $notes = $gate['ok']
+        ? ['ผ่าน disclosure + ไม่พบคำโฆษณาเกินจริงในแคปชัน']
+        : $gate['errors'];
+    if ($status === 'draft') {
+        $notes[] = 'ยังเป็น draft — ต้อง Approve ก่อนโพสต์จริง (ระบบไม่โพสต์ให้อัตโนมัติ)';
+    } elseif ($status === 'skipped') {
+        $notes[] = 'โพสต์นี้ถูกข้ามแล้ว — ไม่ควรโพสต์';
+    }
+    $ready = in_array($status, ['approved', 'posted'], true) && $gate['ok'];
+
+    $hookIndex = (int)($row['hook_index'] ?? 0);
+    $ctaIndex = (int)($row['cta_index'] ?? 0);
+    $hook = $pack['hooks'][$hookIndex] ?? ($pack['hooks'][0] ?? '');
+    $cta = $pack['ctas'][$ctaIndex] ?? ($pack['ctas'][0] ?? '');
+    $hashtags = $pack
+        ? array_merge(array_slice($pack['hashtagsTh'] ?? [], 0, 5), array_slice($pack['hashtagsEn'] ?? [], 0, 4))
+        : [];
+    $channel = (string)$row['channel'];
+    $isShort = in_array($channel, ['tiktok', 'facebook_reels'], true);
+
+    $lines = [
+        '📦 Posting Pack · ' . $row['suggested_time'] . ' · ' . channel_label($channel),
+        'สินค้า: ' . ($row['product_name'] ?? $row['product_id']),
+        'สถานะ: ' . $status . ($ready ? ' · พร้อมคัดลอกไปโพสต์มือ' : ''),
+        '',
+        '— Checklist ก่อนโพสต์ —',
+    ];
+    foreach ($notes as $n) {
+        $lines[] = '• ' . $n;
+    }
+    $lines[] = '- [ ] ไม่โพสต์ซ้ำช่องทางเดิมในวันเดียวกันแบบไร้คุณภาพ';
+    $lines[] = '- [ ] มี disclosure ในแคปชัน';
+    $lines[] = '- [ ] ไม่การันตีรายได้ / ไม่ใช้คำโฆษณาเกินจริง';
+    $lines[] = '';
+    if (!empty($row['affiliate_url'])) {
+        $lines[] = 'ลิงก์ affiliate:';
+        $lines[] = $row['affiliate_url'];
+        $lines[] = '';
+    }
+    if ($hook !== '') $lines[] = 'Hook: ' . $hook;
+    if ($cta !== '') $lines[] = 'CTA: ' . $cta;
+    if ($hook !== '' || $cta !== '') $lines[] = '';
+
+    if ($isShort && $pack) {
+        $scenes = $pack['tiktokScript']['scenes'] ?? [];
+        if ($scenes) {
+            $lines[] = 'สคริปต์สั้น:';
+            foreach ($scenes as $s) {
+                $lines[] = '  [' . ($s['time'] ?? '') . '] ' . ($s['line'] ?? '');
+            }
+            $lines[] = '';
+        }
+        $checks = $pack['filmingChecklist'] ?? [];
+        if ($checks) {
+            $lines[] = 'เช็คลิสต์ถ่าย:';
+            foreach ($checks as $c) {
+                $lines[] = '- [ ] ' . $c;
+            }
+            $lines[] = '';
+        }
+    }
+
+    $lines[] = '— Caption (คัดลอกทั้งก้อน) —';
+    $lines[] = $caption;
+    $lines[] = '';
+    if ($hashtags) {
+        $lines[] = 'Hashtags:';
+        $lines[] = implode(' ', $hashtags);
+        $lines[] = '';
+    }
+    $lines[] = 'หมายเหตุ: ' . INCOME_DISCLAIMER;
+
+    return [
+        'ok' => true,
+        'scheduleId' => $scheduleId,
+        'status' => $status,
+        'productName' => (string)($row['product_name'] ?? $row['product_id']),
+        'complianceOk' => $gate['ok'],
+        'readyToCopy' => $ready,
+        'text' => implode("\n", $lines),
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
 /** Flag missing disclosure on today's draft/approved captions. */
 function audit_draft_captions(string $date): array
 {

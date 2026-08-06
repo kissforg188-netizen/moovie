@@ -167,6 +167,7 @@ $futureAdapters = future_affiliate_adapters();
               <h3><?= h($s['product_name'] ?? $s['product_id']) ?></h3>
             </div>
             <div class="actions">
+              <button class="btn small" data-posting-pack="<?= h($s['id']) ?>">คัดลอก Posting Pack</button>
               <?php if ($s['status']==='draft'): ?>
                 <button class="btn primary small" data-approve="<?= h($s['id']) ?>">Approve</button>
               <?php endif; ?>

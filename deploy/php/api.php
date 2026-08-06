@@ -177,6 +177,23 @@ try {
         json_response(['ok' => true] + run_generate_drafts_job());
     }
 
+    if ($method === 'GET' && $action === 'posting_pack') {
+        $id = (string)($_GET['id'] ?? '');
+        if ($id === '') {
+            json_response(['error' => 'ต้องระบุ id'], 400);
+        }
+        $pack = build_posting_pack($id);
+        if (!($pack['ok'] ?? false)) {
+            json_response(['ok' => false, 'error' => $pack['error'] ?? 'ไม่พบตารางโพสต์'], 404);
+        }
+        if (($_GET['format'] ?? '') === 'text') {
+            header('Content-Type: text/plain; charset=utf-8');
+            echo $pack['text'];
+            exit;
+        }
+        json_response(['ok' => true, 'pack' => $pack]);
+    }
+
     if ($method === 'GET' && $action === 'export') {
         $format = $_GET['format'] ?? 'json';
         $scope = $_GET['scope'] ?? 'all';

@@ -88,6 +88,45 @@ document.querySelectorAll("[data-approve]").forEach((btn) => {
   });
 });
 
+document.querySelectorAll("[data-posting-pack]").forEach((btn) => {
+  btn.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      const res = await fetch(
+        `api.php?action=posting_pack&id=${encodeURIComponent(btn.dataset.postingPack)}`,
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "โหลดไม่สำเร็จ");
+      await navigator.clipboard.writeText(data.pack?.text || "");
+      toast(
+        data.pack?.readyToCopy
+          ? "คัดลอก Posting Pack แล้ว — ไปโพสต์ด้วยมือได้"
+          : "คัดลอกพรีวิวแล้ว (ยังต้อง Approve ก่อนโพสต์จริง)",
+      );
+    } catch (e) {
+      toast(e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+});
+
+const affiliateUrlInput = document.querySelector('#productForm [name="affiliateUrl"]');
+const platformSelect = document.querySelector('#productForm [name="platform"]');
+if (affiliateUrlInput && platformSelect) {
+  affiliateUrlInput.addEventListener("change", () => {
+    const url = (affiliateUrlInput.value || "").toLowerCase();
+    let detected = null;
+    if (/shopee\.|shp\.ee/.test(url)) detected = "shopee";
+    else if (/tiktok/.test(url)) detected = "tiktok_shop";
+    else if (/facebook|fb\.com|fb\.me|instagram/.test(url)) detected = "facebook";
+    if (detected) {
+      platformSelect.value = detected;
+      toast("ตรวจจับแพลตฟอร์ม: " + detected);
+    }
+  });
+}
+
 document.querySelectorAll("[data-posted]").forEach((btn) => {
   btn.addEventListener("click", async () => {
     await api("mark_posted", { id: btn.dataset.posted });

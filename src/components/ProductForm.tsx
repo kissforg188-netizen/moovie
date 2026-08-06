@@ -2,11 +2,30 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import {
+  detectPlatformFromUrl,
+  platformLabelTh,
+} from "@/lib/platform-detect";
+import type { Platform } from "@/lib/types";
 
 export function ProductForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [platform, setPlatform] = useState<Platform>("shopee");
+  const [detectNote, setDetectNote] = useState("");
+
+  function onUrlChange(value: string) {
+    const detected = detectPlatformFromUrl(value);
+    if (detected) {
+      setPlatform(detected);
+      setDetectNote(`ตรวจจับอัตโนมัติ: ${platformLabelTh(detected)}`);
+    } else if (value.trim()) {
+      setDetectNote("ยังตรวจแพลตฟอร์มจากลิงก์ไม่ได้ — เลือกเองได้");
+    } else {
+      setDetectNote("");
+    }
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -15,7 +34,7 @@ export function ProductForm() {
     const form = new FormData(e.currentTarget);
     const payload = {
       name: String(form.get("name") ?? ""),
-      platform: String(form.get("platform") ?? "shopee"),
+      platform,
       affiliateUrl: String(form.get("affiliateUrl") ?? ""),
       price: Number(form.get("price") ?? 0),
       commissionRate: Number(form.get("commissionRate") ?? 0),
@@ -39,6 +58,8 @@ export function ProductForm() {
       return;
     }
     e.currentTarget.reset();
+    setPlatform("shopee");
+    setDetectNote("");
     setMessage("บันทึกสินค้าแล้ว");
     router.refresh();
   }
@@ -57,11 +78,22 @@ export function ProductForm() {
       </label>
       <label className="text-sm">
         แพลตฟอร์ม
-        <select name="platform" className={field} defaultValue="shopee">
+        <select
+          name="platform"
+          className={field}
+          value={platform}
+          onChange={(e) => {
+            setPlatform(e.target.value as Platform);
+            setDetectNote("เลือกด้วยมือแล้ว");
+          }}
+        >
           <option value="shopee">Shopee</option>
           <option value="tiktok_shop">TikTok Shop</option>
           <option value="facebook">Facebook (ลิงก์ภายนอก)</option>
         </select>
+        {detectNote && (
+          <span className="mt-1 block text-xs text-[var(--ink-soft)]">{detectNote}</span>
+        )}
       </label>
       <label className="text-sm md:col-span-2">
         ลิงก์ Affiliate *
@@ -69,7 +101,8 @@ export function ProductForm() {
           name="affiliateUrl"
           required
           className={field}
-          placeholder="https://..."
+          placeholder="วางลิงก์ Shopee / TikTok / Facebook…"
+          onChange={(e) => onUrlChange(e.target.value)}
         />
       </label>
       <label className="text-sm">

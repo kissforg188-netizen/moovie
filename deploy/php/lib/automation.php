@@ -80,6 +80,33 @@ function ui_status(string $status): string
     };
 }
 
+function detect_platform_from_url(string $rawUrl): ?string
+{
+    $url = strtolower(trim($rawUrl));
+    if ($url === '') return null;
+    if (preg_match('/shopee\.(co\.th|vn|sg|com\.my|co\.id|ph|tw|com)/', $url)
+        || preg_match('/s\.shopee\./', $url)
+        || str_contains($url, 'shp.ee/')
+        || str_contains($url, 'affiliate.shopee.')) {
+        return 'shopee';
+    }
+    if (str_contains($url, 'tiktok.com')
+        || str_contains($url, 'vt.tiktok.com')
+        || str_contains($url, 'shop.tiktok.com')
+        || str_contains($url, 'tiktokglobalshop.com')
+        || str_contains($url, 'affiliate.tiktok.com')) {
+        return 'tiktok_shop';
+    }
+    if (str_contains($url, 'facebook.com')
+        || str_contains($url, 'fb.com/')
+        || str_contains($url, 'fb.me/')
+        || str_contains($url, 'm.me/')
+        || str_contains($url, 'instagram.com')) {
+        return 'facebook';
+    }
+    return null;
+}
+
 function normalize_import_row(array $row): ?array
 {
     $name = trim((string)($row['name'] ?? $row['ชื่อ'] ?? ''));
@@ -87,11 +114,16 @@ function normalize_import_row(array $row): ?array
     if ($name === '' || $url === '') {
         return null;
     }
-    $platform = strtolower(trim((string)($row['platform'] ?? $row['แพลตฟอร์ม'] ?? 'shopee')));
-    if (!in_array($platform, ['shopee', 'tiktok_shop', 'facebook'], true)) {
-        if (str_contains($platform, 'tiktok')) $platform = 'tiktok_shop';
-        elseif (str_contains($platform, 'face')) $platform = 'facebook';
-        else $platform = 'shopee';
+    $platformRaw = $row['platform'] ?? $row['แพลตฟอร์ม'] ?? null;
+    if ($platformRaw === null || trim((string)$platformRaw) === '') {
+        $platform = detect_platform_from_url($url) ?? 'shopee';
+    } else {
+        $platform = strtolower(trim((string)$platformRaw));
+        if (!in_array($platform, ['shopee', 'tiktok_shop', 'facebook'], true)) {
+            if (str_contains($platform, 'tiktok')) $platform = 'tiktok_shop';
+            elseif (str_contains($platform, 'face')) $platform = 'facebook';
+            else $platform = detect_platform_from_url($url) ?? 'shopee';
+        }
     }
 
     $selling = $row['sellingPoints'] ?? $row['selling_points'] ?? $row['จุดขาย'] ?? [];

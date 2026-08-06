@@ -1,5 +1,6 @@
 import { BulkApproveButton } from "@/components/BulkApproveButton";
 import { CopyCaptionButton } from "@/components/CopyCaptionButton";
+import { CopyPostingPackButton } from "@/components/CopyPostingPackButton";
 import { ScheduleActions } from "@/components/ScheduleActions";
 import { WorkflowButtons } from "@/components/WorkflowButtons";
 import { evaluateApproveGate } from "@/lib/approve";
@@ -77,6 +78,12 @@ export default async function CalendarPage() {
                   </div>
                   <div className="flex flex-wrap items-start gap-2">
                     <CopyCaptionButton text={post.captionPreview} />
+                    <CopyPostingPackButton
+                      scheduleId={post.id}
+                      readyHint={
+                        post.status === "approved" || post.status === "posted"
+                      }
+                    />
                     <ScheduleActions id={post.id} status={post.status} />
                   </div>
                 </div>

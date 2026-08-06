@@ -145,6 +145,12 @@ export default async function AutomationPage() {
           Export คิวถ่ายวิดีโอ (.md)
         </a>
         <a
+          href="/api/export?format=md&scope=posting"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Posting Packs (.md)
+        </a>
+        <a
           href="/api/export?format=csv&scope=schedule"
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >

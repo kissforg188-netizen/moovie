@@ -1,4 +1,5 @@
 import { newId } from "./db";
+import { detectPlatformFromUrl } from "./platform-detect";
 import type { Platform, Product } from "./types";
 
 type RawRow = Record<string, unknown>;
@@ -96,9 +97,15 @@ export function normalizeImportRow(row: RawRow): Omit<
     pick(row, ["painPoints", "pain_points", "pain", "ปัญหา"]),
   );
 
+  const platformRaw = pick(row, ["platform", "แพลตฟอร์ม"]);
+  const platform =
+    platformRaw !== undefined && String(platformRaw).trim() !== ""
+      ? normalizePlatform(platformRaw)
+      : detectPlatformFromUrl(affiliateUrl) ?? "shopee";
+
   return {
     name,
-    platform: normalizePlatform(pick(row, ["platform", "แพลตฟอร์ม"])),
+    platform,
     affiliateUrl,
     price: Number(pick(row, ["price", "ราคา"]) ?? 0) || 0,
     commissionRate:

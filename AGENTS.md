@@ -74,4 +74,6 @@ npm run dev
 - Regenerate draft caption: `POST /api/schedule/:id/regenerate` (`src/lib/regenerate.ts`)
 - Evening soft pause suggestions: `src/lib/pause-suggestions.ts` (never auto-pauses)
 - `npm run workflow:day` runs morning then evening for local end-to-end checks
-- PHP pull default branch tip: `cursor/affiliate-3d46`
+- Posting Pack (copy-ready after Approve): `src/lib/posting-pack.ts` · `GET /api/schedule/:id/posting-pack` · export `/api/export?format=md&scope=posting`
+- Platform auto-detect from affiliate URL: `src/lib/platform-detect.ts` (manual form + import)
+- PHP pull default branch tip: `cursor/affiliate-1982`

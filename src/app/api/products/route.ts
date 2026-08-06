@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getManualAdapter } from "@/lib/adapters";
 import { newId, readDb, updateDb } from "@/lib/db";
+import { detectPlatformFromUrl } from "@/lib/platform-detect";
 import { scoreProduct } from "@/lib/scoring";
 import type { Platform, Product } from "@/lib/types";
 
@@ -27,13 +28,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const platform = (body.platform ?? "shopee") as Platform;
+  const rawUrl = String(body.affiliateUrl ?? "").trim();
+  const platform = (body.platform ??
+    detectPlatformFromUrl(rawUrl) ??
+    "shopee") as Platform;
   const adapterPlatform =
     platform === "tiktok_shop" ? "tiktok_shop" : "shopee";
   const adapter = getManualAdapter(adapterPlatform);
   const url = adapter.normalizeLink
-    ? adapter.normalizeLink(body.affiliateUrl)
-    : body.affiliateUrl.trim();
+    ? adapter.normalizeLink(rawUrl)
+    : rawUrl;
 
   const existing = await readDb();
   const dup = existing.products.find(

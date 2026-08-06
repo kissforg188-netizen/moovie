@@ -12,6 +12,10 @@ import {
   todayDraftsToMarkdown,
   weeklyToCsv,
 } from "@/lib/export";
+import {
+  postingPacksForDate,
+  postingPacksToMarkdown,
+} from "@/lib/posting-pack";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -37,6 +41,10 @@ export async function GET(request: Request) {
     } else if (scope === "filming" || scope === "film") {
       md = filmingPlanFromDb(db, todayISO());
       filename = `affiliate-filming-${todayISO()}.md`;
+    } else if (scope === "posting" || scope === "posting-packs") {
+      const packs = postingPacksForDate(db, todayISO());
+      md = postingPacksToMarkdown(packs, todayISO());
+      filename = `affiliate-posting-packs-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

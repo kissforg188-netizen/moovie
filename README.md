@@ -36,6 +36,8 @@
 - **คิวถ่ายวิดีโอ** จัดลำดับถ่ายก่อนจากความง่าย × ranking × ค่าคอมคาดหวัง × คิว short/reels วันนี้
 - Morning ตรวจ **compliance** (disclosure + คำโฆษณาเกินจริง) และเตือนสินค้าที่ข้อมูลไม่ครบ
 - Export คิวถ่าย: `/api/export?format=md&scope=filming`
+- **Posting Pack**: คัดลอกชุดโพสต์พร้อมลิงก์/แคปชัน/checklist หลัง Approve (`/api/schedule/:id/posting-pack`)
+- วางลิงก์ affiliate แล้วระบบช่วยจับแพลตฟอร์ม (Shopee / TikTok Shop / Facebook)
 - **Approve gate**: ขาด disclosure หรือมีคำโฆษณาเกินจริง = Approve ไม่ได้ (ทั้งชิ้นเดียวและ bulk)
 - **สร้างแคปชันใหม่** จากตารางโพสต์ (variant ใหม่) — ยังเป็น draft ต้อง Approve ก่อน
 - Evening แนะนำสินค้าที่ควร**พักชั่วคราว**จากผลจริง (ไม่พักอัตโนมัติ)
@@ -113,6 +115,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown checklist ที่อนุมัติแล้ว: `/api/export?format=md&scope=approved`
 - Markdown แผนทดลอง: `/api/export?format=md&scope=experiments`
 - Markdown คิวถ่ายวิดีโอ: `/api/export?format=md&scope=filming`
+- Markdown Posting Packs: `/api/export?format=md&scope=posting`
 
 ## Workflow แนะนำ
 
