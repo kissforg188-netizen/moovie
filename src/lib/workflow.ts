@@ -3,6 +3,7 @@ import {
   logAutomationFinish,
   logAutomationStart,
 } from "./automation-log";
+import { qualityBriefLines } from "./caption-quality";
 import {
   auditDraftCaptions,
   productReadinessIssues,
@@ -192,6 +193,7 @@ export async function runMorningWorkflow(
           ? `มุมขายแนะนำตัวแรก: ${shootFirst.sellingAngle}`
           : null,
         ...compliance.summaryLines,
+        ...qualityBriefLines(todayForAudit, db.products),
         ...readiness.slice(0, 2),
         ...experiment.lines.slice(0, 3),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,

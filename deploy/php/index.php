@@ -159,12 +159,15 @@ $futureAdapters = future_affiliate_adapters();
       <?php if (!$todaySchedule): ?>
         <div class="card">ยังไม่มีคิววันนี้ — กดรัน Morning ที่แดชบอร์ด</div>
       <?php endif; ?>
-      <?php foreach ($todaySchedule as $s): ?>
+      <?php foreach ($todaySchedule as $s):
+        $q = score_caption_quality((string)$s['caption_preview'], (string)$s['channel']);
+      ?>
         <article class="card schedule-card">
           <div class="row-between">
             <div>
               <p class="muted"><?= h($s['suggested_time']) ?> · <?= h(channel_label($s['channel'])) ?> · <span class="badge status-<?= h(ui_status($s['status'])) ?>"><?= h(ui_status($s['status'])) ?></span></p>
               <h3><?= h($s['product_name'] ?? $s['product_id']) ?></h3>
+              <p class="muted">คุณภาพแคปชัน: <?= h($q['grade']) ?> (<?= (int)$q['score'] ?>/100) — <?= h($q['label']) ?><?php if (!empty($q['tips'][0])): ?> · <?= h($q['tips'][0]) ?><?php endif; ?></p>
             </div>
             <div class="actions">
               <button class="btn small" data-posting-pack="<?= h($s['id']) ?>">คัดลอก Posting Pack</button>

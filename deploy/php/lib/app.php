@@ -676,6 +676,140 @@ function evaluate_approve_gate(string $caption): array
 }
 
 /**
+ * Soft caption quality for human draft review (0–100). Never auto-publishes.
+ * @return array{score:int,grade:string,tips:string[],label:string}
+ */
+function score_caption_quality(string $caption, string $channel = 'unknown'): array
+{
+    $text = trim($caption);
+    $tips = [];
+    $score = 40;
+    if ($text === '') {
+        return [
+            'score' => 0,
+            'grade' => 'D',
+            'tips' => ['ยังไม่มีแคปชัน'],
+            'label' => 'ต้องแก้ — อย่า Approve จนกว่าจะผ่าน',
+        ];
+    }
+
+    $len = mb_strlen($text);
+    $ranges = [
+        'tiktok' => [80, 500],
+        'facebook_reels' => [60, 400],
+        'facebook_group' => [120, 900],
+        'facebook_post' => [100, 800],
+    ];
+    [$min, $max] = $ranges[$channel] ?? [80, 700];
+
+    if (str_contains($text, AFFILIATE_DISCLOSURE)) {
+        $score += 22;
+    } else {
+        $score -= 25;
+        $tips[] = 'เพิ่ม disclosure ก่อน Approve';
+    }
+
+    $gate = evaluate_approve_gate($text);
+    $overclaim = 0;
+    foreach ($gate['errors'] as $err) {
+        if (!str_contains($err, 'disclosure')) {
+            $overclaim++;
+        }
+    }
+    if ($overclaim === 0 && str_contains($text, AFFILIATE_DISCLOSURE)) {
+        $score += 12;
+    } elseif ($overclaim > 0) {
+        $score -= min(30, $overclaim * 12);
+        $tips[] = 'ลดถ้อยคำโฆษณาเกินจริง';
+    }
+
+    if (preg_match('/ช่วยเลือก|ลองดู|เหมาะกับ|ถ้าสนใจ|อาจช่วย|สำหรับคนที่|เช็คราคา|ดูรายละเอียด/u', $text)) {
+        $score += 10;
+    } else {
+        $tips[] = 'เติมน้ำเสียงช่วยเลือกของ';
+    }
+    if (preg_match('/รีบซื้อ|ต้องซื้อ|ด่วน|หมดแล้ว|โอกาสสุดท้าย|รวย|การันตี|รับประกันรายได้/u', $text)) {
+        $score -= 15;
+        $tips[] = 'เลี่ยงคำเร่งซื้อ/สแปม';
+    }
+    if (preg_match('/ลิงก์ใน|ลิงก์ใต้|ดูรายละเอียด|เปิดดู|ลองเทียบ|เช็คราคา|bio|ตะกร้า|โปรไฟล์/u', $text)) {
+        $score += 8;
+    } else {
+        $tips[] = 'เพิ่ม CTA อ่อน ๆ';
+    }
+
+    if ($len >= $min && $len <= $max) {
+        $score += 10;
+    } elseif ($len < $min) {
+        $score -= 8;
+        $tips[] = "แคปชันสั้นไป (เป้า {$min}–{$max} ตัวอักษร)";
+    } else {
+        $score -= 6;
+        $tips[] = "แคปชันยาวไป — ตัดให้เหลือ ~{$max} ตัวอักษร";
+    }
+
+    if (in_array($channel, ['tiktok', 'facebook_reels'], true)) {
+        preg_match_all('/#[\w\x{0E00}-\x{0E7F}]+/u', $text, $m);
+        $tags = count($m[0] ?? []);
+        if ($tags >= 3 && $tags <= 12) {
+            $score += 6;
+        } elseif ($tags === 0) {
+            $tips[] = 'เพิ่ม hashtag ไทย/อังกฤษ 3–8 ตัว';
+        } elseif ($tags > 12) {
+            $score -= 4;
+            $tips[] = 'hashtag เยอะเกิน';
+        }
+    }
+
+    $score = max(0, min(100, (int)round($score)));
+    $grade = $score >= 85 ? 'A' : ($score >= 70 ? 'B' : ($score >= 50 ? 'C' : 'D'));
+    $labels = [
+        'A' => 'ดีมาก — พร้อมรีวิว Approve',
+        'B' => 'ใช้ได้ — ปรับเล็กน้อยจะคมขึ้น',
+        'C' => 'ปานกลาง — แนะนำแก้ก่อน Approve',
+        'D' => 'ต้องแก้ — อย่า Approve จนกว่าจะผ่าน',
+    ];
+    return [
+        'score' => $score,
+        'grade' => $grade,
+        'tips' => array_slice($tips, 0, 4),
+        'label' => $labels[$grade],
+    ];
+}
+
+/** Morning brief lines for caption quality of today's drafts. */
+function quality_brief_lines(string $date): array
+{
+    $stmt = db()->prepare("SELECT s.caption_preview, s.channel, s.status, p.name AS product_name FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date=? AND s.status IN ('draft','approved')");
+    $stmt->execute([$date]);
+    $rows = $stmt->fetchAll();
+    if (!$rows) {
+        return ['คุณภาพแคปชัน: ยังไม่มี draft วันนี้ให้ตรวจ'];
+    }
+    $scores = [];
+    $weak = 0;
+    $best = null;
+    foreach ($rows as $row) {
+        $q = score_caption_quality((string)$row['caption_preview'], (string)$row['channel']);
+        $scores[] = $q['score'];
+        if ($q['grade'] === 'C' || $q['grade'] === 'D') {
+            $weak++;
+        }
+        if ($best === null || $q['score'] > $best['score']) {
+            $best = ['score' => $q['score'], 'grade' => $q['grade'], 'name' => $row['product_name'] ?? 'draft', 'tip' => $q['tips'][0] ?? ''];
+        }
+    }
+    $avg = (int)round(array_sum($scores) / max(count($scores), 1));
+    $lines = ["คุณภาพแคปชันวันนี้: เฉลี่ย {$avg}/100 · ควรแก้ก่อน {$weak}/" . count($rows) . ' ชิ้น'];
+    if ($best && $best['grade'] === 'A') {
+        $lines[] = 'ชิ้นที่พร้อม Approve ก่อน: ' . $best['name'] . " ({$best['score']}/100)";
+    } elseif ($best && ($best['grade'] === 'C' || $best['grade'] === 'D') && $best['tip']) {
+        $lines[] = 'คุณภาพแคปชัน “' . $best['name'] . "”: {$best['grade']} ({$best['score']}/100) · {$best['tip']}";
+    }
+    return $lines;
+}
+
+/**
  * Ready-to-copy posting pack for manual publish after Approve.
  * @return array{text:string,readyToCopy:bool,complianceOk:bool,productName:string,status:string}
  */
@@ -897,6 +1031,7 @@ function run_morning_workflow(?string $date = null): array
         $filmLabelParts[] = ($i + 1) . ') ' . $q['productName'];
     }
     $compliance = audit_draft_captions($date);
+    $qualityLines = quality_brief_lines($date);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -905,6 +1040,7 @@ function run_morning_workflow(?string $date = null): array
         $shootFirst ? 'ถ่ายก่อน: ' . $shootFirst['productName'] . ' — ' . $shootFirst['reason'] . ' — ' . $shootFirst['videoPriorityNote'] : null,
         !empty($shootFirst['firstChecklist']) ? 'Checklist ถ่ายวิดีโอ (ตัวแรก): ' . $shootFirst['firstChecklist'] : null,
         ...$compliance,
+        ...$qualityLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",

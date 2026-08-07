@@ -76,4 +76,5 @@ npm run dev
 - `npm run workflow:day` runs morning then evening for local end-to-end checks
 - Posting Pack (copy-ready after Approve): `src/lib/posting-pack.ts` · `GET /api/schedule/:id/posting-pack` · export `/api/export?format=md&scope=posting`
 - Platform auto-detect from affiliate URL: `src/lib/platform-detect.ts` (manual form + import)
-- PHP pull default branch tip: `cursor/affiliate-1982`
+- PHP pull default branch tip: `cursor/affiliate-d51c`
+- Caption quality score (draft review): `src/lib/caption-quality.ts` — shown on `/calendar`, morning brief lines

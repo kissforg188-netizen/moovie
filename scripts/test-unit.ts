@@ -1,6 +1,10 @@
 import assert from "assert";
 import { evaluateApproveGate } from "../src/lib/approve";
 import {
+  qualityBriefLines,
+  scoreCaptionQuality,
+} from "../src/lib/caption-quality";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -1176,6 +1180,42 @@ function run() {
   const mdPacks = postingPacksToMarkdown([approvedPack], "2026-08-06");
   assert.ok(mdPacks.includes("Posting Packs"));
   assert.ok(mdPacks.includes("ไม่โพสต์อัตโนมัติ"));
+
+  // Caption quality: disclosure + soft tone scores higher than spammy overclaim
+  const goodCaption = withDisclosure(
+    "ช่วยเลือกพัดตั้งโต๊ะเงียบ ๆ ถ้าสนใจลองเปิดดูรายละเอียดก่อนตัดสินใจ #ของใช้ในบ้าน #รีวิวสั้น",
+  );
+  const goodQ = scoreCaptionQuality(goodCaption, "tiktok");
+  assert.ok(goodQ.score >= 70, `expected good caption >=70 got ${goodQ.score}`);
+  assert.ok(goodQ.grade === "A" || goodQ.grade === "B");
+
+  const badCaption = "รวยแน่!!! ต้องซื้อเลย รับประกันรายได้";
+  const badQ = scoreCaptionQuality(badCaption, "tiktok");
+  assert.ok(badQ.score < goodQ.score);
+  assert.ok(badQ.tips.some((t) => /disclosure|โฆษณา|เร่งซื้อ|สแปม|ช่วยเลือก/i.test(t)));
+
+  const emptyQ = scoreCaptionQuality("", "facebook_post");
+  assert.equal(emptyQ.score, 0);
+  assert.equal(emptyQ.grade, "D");
+
+  const qLines = qualityBriefLines(
+    [
+      {
+        captionPreview: goodCaption,
+        channel: "tiktok",
+        productId: cheapHigh.id,
+        status: "draft",
+      },
+      {
+        captionPreview: badCaption,
+        channel: "facebook_post",
+        productId: expensiveLow.id,
+        status: "draft",
+      },
+    ],
+    [cheapHigh, expensiveLow],
+  );
+  assert.ok(qLines[0].includes("คุณภาพแคปชันวันนี้"));
 
   console.log("All unit tests passed");
 }

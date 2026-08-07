@@ -4,6 +4,10 @@ import { CopyPostingPackButton } from "@/components/CopyPostingPackButton";
 import { ScheduleActions } from "@/components/ScheduleActions";
 import { WorkflowButtons } from "@/components/WorkflowButtons";
 import { evaluateApproveGate } from "@/lib/approve";
+import {
+  qualityLabelTh,
+  scoreCaptionQuality,
+} from "@/lib/caption-quality";
 import { AFFILIATE_DISCLOSURE } from "@/lib/disclosure";
 import { readDb, todayISO } from "@/lib/db";
 import { channelLabel } from "@/lib/schedule";
@@ -52,6 +56,10 @@ export default async function CalendarPage() {
               post.status === "draft"
                 ? evaluateApproveGate(post.captionPreview, AFFILIATE_DISCLOSURE)
                 : null;
+            const quality = scoreCaptionQuality(
+              post.captionPreview,
+              post.channel,
+            );
             return (
               <article key={post.id} className="surface rounded-2xl p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -61,6 +69,17 @@ export default async function CalendarPage() {
                     </p>
                     <p className="text-sm text-[var(--ink-soft)]">
                       {product?.name ?? "สินค้า"} · status: {post.status}
+                    </p>
+                    <p
+                      className={`mt-1 text-xs ${
+                        quality.grade === "A" || quality.grade === "B"
+                          ? "text-[var(--sage)]"
+                          : "text-[var(--coral)]"
+                      }`}
+                    >
+                      คุณภาพแคปชัน: {quality.grade} ({quality.score}/100) —{" "}
+                      {qualityLabelTh(quality.grade)}
+                      {quality.tips[0] ? ` · ${quality.tips[0]}` : ""}
                     </p>
                     {gate && !gate.ok && (
                       <p className="mt-1 text-xs text-[var(--coral)]">
