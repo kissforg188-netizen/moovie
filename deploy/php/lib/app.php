@@ -777,6 +777,146 @@ function score_caption_quality(string $caption, string $channel = 'unknown'): ar
     ];
 }
 
+/**
+ * Daily Action Digest — human checklist before Approve / evening metrics.
+ * Never auto-publishes.
+ * @return array{date:string,summary:string,counts:array,actions:array<int,array>,lines:array<int,string>,disclaimer:string}
+ */
+function build_daily_digest(?string $date = null): array
+{
+    $date = $date ?: today_iso();
+    $yesterday = date('Y-m-d', strtotime($date . ' -1 day'));
+
+    $stmt = db()->prepare("SELECT s.*, p.name AS product_name FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date=? ORDER BY s.suggested_time");
+    $stmt->execute([$date]);
+    $today = $stmt->fetchAll() ?: [];
+
+    $stmt2 = db()->prepare("SELECT s.*, p.name AS product_name FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.status='posted' AND s.post_date IN (?,?)");
+    $stmt2->execute([$date, $yesterday]);
+    $recentPosted = $stmt2->fetchAll() ?: [];
+
+    $drafts = array_values(array_filter($today, fn($s) => in_array($s['status'], ['draft', 'generated', 'pending'], true)));
+    $approved = array_values(array_filter($today, fn($s) => $s['status'] === 'approved'));
+    $blocked = [];
+    foreach ($drafts as $s) {
+        $gate = evaluate_approve_gate((string)$s['caption_preview']);
+        if (!$gate['ok']) {
+            $blocked[] = $s + ['_gate' => $gate];
+        }
+    }
+
+    $missing = [];
+    foreach ($recentPosted as $s) {
+        $views = (int)($s['views'] ?? 0);
+        $clicks = (int)($s['clicks'] ?? 0);
+        $orders = (int)($s['orders_count'] ?? 0);
+        $comm = (float)($s['commission_earned'] ?? 0);
+        $notes = trim((string)($s['metrics_notes'] ?? ''));
+        // Treat all-zero with no notes as not filled
+        if ($views === 0 && $clicks === 0 && $orders === 0 && $comm <= 0 && $notes === '') {
+            $missing[] = $s;
+        }
+    }
+
+    $activeProducts = 0;
+    $pausedProducts = 0;
+    foreach (all_products() as $p) {
+        $paused = array_key_exists('active', $p)
+            && ($p['active'] === false || $p['active'] === 0 || $p['active'] === '0');
+        if ($paused) {
+            $pausedProducts++;
+        } else {
+            $activeProducts++;
+        }
+    }
+
+    $actions = [];
+    if (!$today) {
+        $actions[] = [
+            'priority' => 'now',
+            'title' => 'รัน Morning Automation',
+            'detail' => 'ยังไม่มี draft วันนี้ — รัน Morning เพื่อคัดสินค้า + สร้างตาราง draft (ยังไม่โพสต์จริง)',
+        ];
+    }
+    foreach (array_slice($blocked, 0, 5) as $s) {
+        $err = $s['_gate']['errors'][0] ?? 'ไม่ผ่านเกณฑ์ Approve';
+        $actions[] = [
+            'priority' => 'now',
+            'title' => 'แก้แคปชันก่อน Approve · ' . ($s['product_name'] ?? ''),
+            'detail' => channel_label((string)$s['channel']) . ' ' . ($s['suggested_time'] ?? '') . ' — ' . $err,
+        ];
+    }
+    foreach (array_slice($drafts, 0, 5) as $s) {
+        $gate = evaluate_approve_gate((string)$s['caption_preview']);
+        if (!$gate['ok']) {
+            continue;
+        }
+        $q = score_caption_quality((string)$s['caption_preview'], (string)$s['channel']);
+        $actions[] = [
+            'priority' => ($q['grade'] === 'C' || $q['grade'] === 'D') ? 'soon' : 'now',
+            'title' => 'ตรวจ draft เกรด ' . $q['grade'] . ' · ' . ($s['product_name'] ?? ''),
+            'detail' => channel_label((string)$s['channel']) . ' ' . ($s['suggested_time'] ?? '') . ' · คะแนน ' . $q['score'] . '/100',
+        ];
+    }
+    foreach (array_slice($approved, 0, 5) as $s) {
+        $actions[] = [
+            'priority' => 'soon',
+            'title' => 'โพสต์ด้วยมือแล้วกดยืนยัน · ' . ($s['product_name'] ?? ''),
+            'detail' => channel_label((string)$s['channel']) . ' แนะนำ ' . ($s['suggested_time'] ?? '') . ' — ระบบไม่โพสต์ให้อัตโนมัติ',
+        ];
+    }
+    foreach (array_slice($missing, 0, 5) as $s) {
+        $actions[] = [
+            'priority' => 'soon',
+            'title' => 'กรอกผลโพสต์ · ' . ($s['product_name'] ?? ''),
+            'detail' => ($s['post_date'] ?? '') . ' ' . channel_label((string)$s['channel']) . ' — ใส่ views/clicks/orders/ค่าคอม ที่หน้า Results',
+        ];
+    }
+    if (!$actions) {
+        $actions[] = [
+            'priority' => 'later',
+            'title' => 'คิววันนี้เรียบร้อย',
+            'detail' => 'ไม่มี draft ค้าง / ไม่มีผลที่ต้องกรอก',
+        ];
+    }
+
+    $counts = [
+        'draftPending' => count($drafts),
+        'approveBlocked' => count($blocked),
+        'approvedWaitingPost' => count($approved),
+        'missingMetrics' => count($missing),
+        'activeProducts' => $activeProducts,
+        'pausedProducts' => $pausedProducts,
+    ];
+    $parts = ["วันนี้ draft {$counts['draftPending']}"];
+    if ($counts['approveBlocked']) {
+        $parts[] = "บล็อก Approve {$counts['approveBlocked']}";
+    }
+    if ($counts['approvedWaitingPost']) {
+        $parts[] = "รอโพสต์มือ {$counts['approvedWaitingPost']}";
+    }
+    if ($counts['missingMetrics']) {
+        $parts[] = "รอกรอกผล {$counts['missingMetrics']}";
+    }
+    $summary = implode(' · ', $parts);
+
+    $lines = ["Digest {$date}: {$summary}", "สินค้า active {$activeProducts} · พัก {$pausedProducts}"];
+    foreach (array_slice($actions, 0, 12) as $a) {
+        $tag = $a['priority'] === 'now' ? 'ตอนนี้' : ($a['priority'] === 'soon' ? 'ถัดไป' : 'ภายหลัง');
+        $lines[] = "[{$tag}] {$a['title']} — {$a['detail']}";
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'summary' => $summary,
+        'counts' => $counts,
+        'actions' => $actions,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
 /** Morning brief lines for caption quality of today's drafts. */
 function quality_brief_lines(string $date): array
 {

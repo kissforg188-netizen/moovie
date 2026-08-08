@@ -28,6 +28,7 @@ $autoLogs = list_automation_logs(40);
 $statusCounts = automation_status_counts();
 $adapters = active_affiliate_adapters();
 $futureAdapters = future_affiliate_adapters();
+$digest = build_daily_digest($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -233,6 +234,27 @@ $futureAdapters = future_affiliate_adapters();
         <article><p>Approved</p><strong><?= (int)$statusCounts['approved'] ?></strong></article>
         <article><p>Posted</p><strong><?= (int)$statusCounts['posted'] ?></strong></article>
         <article><p>Failed</p><strong><?= (int)$statusCounts['failed'] ?></strong></article>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Daily Action Digest</h2>
+        <p class="muted"><?= h($digest['summary']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>Draft รอตรวจ</p><strong><?= (int)$digest['counts']['draftPending'] ?></strong></article>
+          <article><p>บล็อก Approve</p><strong><?= (int)$digest['counts']['approveBlocked'] ?></strong></article>
+          <article><p>รอโพสต์มือ</p><strong><?= (int)$digest['counts']['approvedWaitingPost'] ?></strong></article>
+          <article><p>รอกรอกผล</p><strong><?= (int)$digest['counts']['missingMetrics'] ?></strong></article>
+        </div>
+        <ol>
+          <?php foreach (array_slice($digest['actions'], 0, 8) as $a): ?>
+            <li>
+              <strong>[<?= h($a['priority'] === 'now' ? 'ตอนนี้' : ($a['priority'] === 'soon' ? 'ถัดไป' : 'ภายหลัง')) ?>]</strong>
+              <?= h($a['title']) ?>
+              <div class="muted"><?= h($a['detail']) ?></div>
+            </li>
+          <?php endforeach; ?>
+        </ol>
+        <p class="note"><?= h($digest['disclaimer']) ?></p>
       </section>
 
       <section class="card">

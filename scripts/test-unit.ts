@@ -5,6 +5,10 @@ import {
   scoreCaptionQuality,
 } from "../src/lib/caption-quality";
 import {
+  buildDailyDigest,
+  dailyDigestToMarkdown,
+} from "../src/lib/daily-digest";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -1216,6 +1220,63 @@ function run() {
     [cheapHigh, expensiveLow],
   );
   assert.ok(qLines[0].includes("คุณภาพแคปชันวันนี้"));
+
+  // Daily Action Digest: pending drafts + blocked approve + missing metrics
+  const digestDb = {
+    products: [cheapHigh, expensiveLow],
+    contentPacks: [],
+    schedule: [
+      {
+        id: "sched_digest_ok",
+        date: "2026-08-08",
+        suggestedTime: "10:00",
+        channel: "tiktok" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack_x",
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "draft" as const,
+        captionPreview: goodCaption,
+      },
+      {
+        id: "sched_digest_bad",
+        date: "2026-08-08",
+        suggestedTime: "12:00",
+        channel: "facebook_post" as const,
+        productId: expensiveLow.id,
+        contentPackId: "pack_y",
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "draft" as const,
+        captionPreview: badCaption,
+      },
+      {
+        id: "sched_digest_posted",
+        date: "2026-08-07",
+        suggestedTime: "18:00",
+        channel: "facebook_reels" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack_z",
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "posted" as const,
+        captionPreview: goodCaption,
+        postedAt: "2026-08-07T11:00:00.000Z",
+      },
+    ],
+    briefs: [],
+    automationLogs: [],
+  };
+  const digest = buildDailyDigest(digestDb as never, "2026-08-08");
+  assert.equal(digest.counts.draftPending, 2);
+  assert.ok(digest.counts.approveBlocked >= 1);
+  assert.ok(digest.counts.missingMetrics >= 1);
+  assert.ok(digest.actions.some((a) => a.id.startsWith("blocked-")));
+  assert.ok(digest.actions.some((a) => a.id.startsWith("metrics-")));
+  assert.ok(digest.lines.some((l) => /Digest 2026-08-08/.test(l)));
+  const digestMd = dailyDigestToMarkdown(digest);
+  assert.ok(digestMd.includes("Daily Action Digest"));
+  assert.ok(digestMd.includes("ไม่โพสต์อัตโนมัติ") || digestMd.includes(AFFILIATE_DISCLOSURE) || digestMd.includes("ทดลอง"));
 
   console.log("All unit tests passed");
 }

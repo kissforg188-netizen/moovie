@@ -24,6 +24,7 @@ import { currentSeasonHint, eventProximityBoost } from "./seasonality";
 import { resolveSettings } from "./settings";
 import type { ContentPack, DailyBrief, Database } from "./types";
 import { weeklyInsightLines, weeklyProductRollup } from "./weekly";
+import { buildDailyDigest, type DailyDigest } from "./daily-digest";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -196,6 +197,7 @@ export async function runMorningWorkflow(
         ...qualityBriefLines(todayForAudit, db.products),
         ...readiness.slice(0, 2),
         ...experiment.lines.slice(0, 3),
+        ...buildDailyDigest(db, date).lines.slice(0, 6),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -342,6 +344,7 @@ export async function getDashboardSnapshot(): Promise<{
   latestEvening?: DailyBrief;
   weekly: ReturnType<typeof weeklyProductRollup>;
   experiment: ReturnType<typeof buildExperimentPlan>;
+  digest: DailyDigest;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -376,6 +379,7 @@ export async function getDashboardSnapshot(): Promise<{
     products: db.products,
     learning: db.learning,
   });
+  const digest = buildDailyDigest(db, date);
   return {
     db,
     ranked,
@@ -384,5 +388,6 @@ export async function getDashboardSnapshot(): Promise<{
     latestEvening,
     weekly,
     experiment,
+    digest,
   };
 }

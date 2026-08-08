@@ -98,7 +98,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
 - `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (login status, morning/evening, import CSV/JSON, bulk approve, logs)
+- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
 - `/calendar` ตารางโพสต์วันนี้ + Approve / ข้าม
 - `/results` กรอก views/clicks/orders/ค่าคอม + ดูวิเคราะห์
@@ -117,6 +117,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown แผนทดลอง: `/api/export?format=md&scope=experiments`
 - Markdown คิวถ่ายวิดีโอ: `/api/export?format=md&scope=filming`
 - Markdown Posting Packs: `/api/export?format=md&scope=posting`
+- Markdown Daily Action Digest: `/api/export?format=md&scope=digest`
 
 ## Workflow แนะนำ
 

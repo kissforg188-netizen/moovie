@@ -22,6 +22,7 @@ export default async function AutomationPage() {
     latestMorning,
     latestEvening,
     experiment,
+    digest,
   } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
@@ -51,6 +52,61 @@ export default async function AutomationPage() {
       </section>
 
       <LoginStatusPanel initialAccounts={accounts} />
+
+      <section className="surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Daily Action Digest
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">{digest.summary}</p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href={`/api/export?format=md&scope=digest`}
+          >
+            Export Markdown
+          </a>
+        </div>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">Draft รอตรวจ</p>
+            <p className="text-xl text-[var(--sage-deep)]">{digest.counts.draftPending}</p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">บล็อก Approve</p>
+            <p className="text-xl text-[var(--sage-deep)]">{digest.counts.approveBlocked}</p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">รอโพสต์มือ</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {digest.counts.approvedWaitingPost}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">รอกรอกผล</p>
+            <p className="text-xl text-[var(--sage-deep)]">{digest.counts.missingMetrics}</p>
+          </div>
+        </div>
+        <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--ink-soft)]">
+          {digest.actions.slice(0, 8).map((a) => (
+            <li key={a.id}>
+              <span className="text-[var(--sage-deep)]">
+                [{a.priority === "now" ? "ตอนนี้" : a.priority === "soon" ? "ถัดไป" : "ภายหลัง"}]
+              </span>{" "}
+              {a.href ? (
+                <Link className="underline underline-offset-2" href={a.href}>
+                  {a.title}
+                </Link>
+              ) : (
+                a.title
+              )}
+              <p className="mt-0.5 text-xs">{a.detail}</p>
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-[var(--ink-soft)]">{digest.disclaimer}</p>
+      </section>
 
       <WorkflowButtons />
 
