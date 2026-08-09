@@ -1360,22 +1360,27 @@ function run() {
       notes: ["ทดสอบ learning"],
     },
   };
-  const plan = buildTomorrowPlan(tomorrowDb as never, "2026-08-08");
-  assert.equal(plan.tomorrowDate, "2026-08-09");
-  assert.ok(plan.picks.length >= 1);
-  assert.ok(plan.picks.length <= 3);
-  assert.ok(plan.checklist.length >= 2);
-  assert.ok(plan.channelTips.some((c) => c.channel === "tiktok"));
+  const tomorrowPlan = buildTomorrowPlan(tomorrowDb as never, "2026-08-08");
+  assert.equal(tomorrowPlan.tomorrowDate, "2026-08-09");
+  assert.ok(tomorrowPlan.picks.length >= 1);
+  assert.ok(tomorrowPlan.picks.length <= 3);
+  assert.ok(tomorrowPlan.checklist.length >= 2);
+  assert.ok(tomorrowPlan.channelTips.some((c) => c.channel === "tiktok"));
   // cheapHigh appears 3x in cooldown window → fatigue warning or recentPostCount
   assert.ok(
-    plan.fatigueWarnings.some((w) => w.includes(cheapHigh.name)) ||
-      plan.picks.some((p) => p.productId === cheapHigh.id && p.recentPostCount >= 3),
+    tomorrowPlan.fatigueWarnings.some((w) => w.includes(cheapHigh.name)) ||
+      tomorrowPlan.picks.some(
+        (p) => p.productId === cheapHigh.id && p.recentPostCount >= 3,
+      ),
   );
-  assert.ok(plan.lines.some((l) => /Tomorrow Plan/.test(l)));
-  const planMd = tomorrowPlanToMarkdown(plan);
-  assert.ok(planMd.includes("Tomorrow Plan"));
-  assert.ok(planMd.includes("ไม่โพสต์อัตโนมัติ") || planMd.includes("ทดลอง"));
-  assert.ok(planMd.includes("Checklist") || planMd.includes("ถ่าย"));
+  assert.ok(tomorrowPlan.lines.some((l) => /Tomorrow Plan/.test(l)));
+  const tomorrowPlanMd = tomorrowPlanToMarkdown(tomorrowPlan);
+  assert.ok(tomorrowPlanMd.includes("Tomorrow Plan"));
+  assert.ok(
+    tomorrowPlanMd.includes("ไม่โพสต์อัตโนมัติ") ||
+      tomorrowPlanMd.includes("ทดลอง"),
+  );
+  assert.ok(tomorrowPlanMd.includes("Checklist") || tomorrowPlanMd.includes("ถ่าย"));
 
   console.log("All unit tests passed");
 }
