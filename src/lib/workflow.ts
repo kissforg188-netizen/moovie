@@ -25,6 +25,11 @@ import { resolveSettings } from "./settings";
 import type { ContentPack, DailyBrief, Database } from "./types";
 import { weeklyInsightLines, weeklyProductRollup } from "./weekly";
 import { buildDailyDigest, type DailyDigest } from "./daily-digest";
+import {
+  buildTomorrowPlan,
+  tomorrowPlanLines,
+  type TomorrowPlan,
+} from "./tomorrow-plan";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -290,11 +295,14 @@ export async function runEveningWorkflow(
         dateFromYmd(date),
       ).map((r) => r.product.name);
 
+      const tomorrowPlan = buildTomorrowPlan(db, date);
+
       const recommendations = [
         ...analysis.recommendations,
         ...weeklyLines,
         ...learning.notes,
         ...pauseLines,
+        ...tomorrowPlanLines(tomorrowPlan, 6),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -345,6 +353,7 @@ export async function getDashboardSnapshot(): Promise<{
   weekly: ReturnType<typeof weeklyProductRollup>;
   experiment: ReturnType<typeof buildExperimentPlan>;
   digest: DailyDigest;
+  tomorrowPlan: TomorrowPlan;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -380,6 +389,7 @@ export async function getDashboardSnapshot(): Promise<{
     learning: db.learning,
   });
   const digest = buildDailyDigest(db, date);
+  const tomorrowPlan = buildTomorrowPlan(db, date);
   return {
     db,
     ranked,
@@ -389,5 +399,6 @@ export async function getDashboardSnapshot(): Promise<{
     weekly,
     experiment,
     digest,
+    tomorrowPlan,
   };
 }

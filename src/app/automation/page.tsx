@@ -23,6 +23,7 @@ export default async function AutomationPage() {
     latestEvening,
     experiment,
     digest,
+    tomorrowPlan,
   } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
@@ -106,6 +107,57 @@ export default async function AutomationPage() {
           ))}
         </ol>
         <p className="text-xs text-[var(--ink-soft)]">{digest.disclaimer}</p>
+      </section>
+
+      <section className="surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Tomorrow Plan
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              {tomorrowPlan.summary}
+            </p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href={`/api/export?format=md&scope=tomorrow`}
+          >
+            Export Markdown
+          </a>
+        </div>
+        {tomorrowPlan.picks.length === 0 ? (
+          <p className="text-sm text-[var(--ink-soft)]">
+            ยังไม่มีสินค้าพอจัดแผน — เพิ่มของที่ /products แล้วรัน Evening
+          </p>
+        ) : (
+          <ol className="list-decimal space-y-3 pl-5 text-sm text-[var(--ink-soft)]">
+            {tomorrowPlan.picks.map((p) => (
+              <li key={p.productId}>
+                <span className="text-[var(--sage-deep)]">{p.productName}</span>
+                {p.filmFirst ? " · ถ่ายก่อน" : ""}
+                <p className="mt-0.5 text-xs">{p.reason}</p>
+                <p className="mt-0.5 text-xs">
+                  Hook: {p.suggestedHook}
+                </p>
+                <p className="mt-0.5 text-xs">มุมขาย: {p.suggestedAngle}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+        {tomorrowPlan.fatigueWarnings.length > 0 ? (
+          <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+            {tomorrowPlan.fatigueWarnings.map((w) => (
+              <li key={w}>กันสแปม: {w}</li>
+            ))}
+          </ul>
+        ) : null}
+        <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+          {tomorrowPlan.checklist.slice(0, 5).map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+        <p className="text-xs text-[var(--ink-soft)]">{tomorrowPlan.disclaimer}</p>
       </section>
 
       <WorkflowButtons />

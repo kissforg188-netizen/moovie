@@ -29,6 +29,7 @@ $statusCounts = automation_status_counts();
 $adapters = active_affiliate_adapters();
 $futureAdapters = future_affiliate_adapters();
 $digest = build_daily_digest($date);
+$tomorrowPlan = build_tomorrow_plan($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -255,6 +256,38 @@ $digest = build_daily_digest($date);
           <?php endforeach; ?>
         </ol>
         <p class="note"><?= h($digest['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Tomorrow Plan · <?= h($tomorrowPlan['tomorrowDate']) ?></h2>
+        <p class="muted"><?= h($tomorrowPlan['summary']) ?></p>
+        <?php if (!$tomorrowPlan['picks']): ?>
+          <p class="muted">ยังไม่มีสินค้าพอจัดแผน — เพิ่มของแล้วรัน Evening</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach ($tomorrowPlan['picks'] as $pick): ?>
+              <li>
+                <strong><?= h($pick['productName']) ?></strong><?= !empty($pick['filmFirst']) ? ' · ถ่ายก่อน' : '' ?>
+                <div class="muted"><?= h($pick['reason']) ?></div>
+                <div class="muted">Hook: <?= h($pick['suggestedHook']) ?></div>
+                <div class="muted">มุมขาย: <?= h($pick['suggestedAngle']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if (!empty($tomorrowPlan['fatigueWarnings'])): ?>
+          <ul>
+            <?php foreach ($tomorrowPlan['fatigueWarnings'] as $w): ?>
+              <li class="muted">กันสแปม: <?= h($w) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($tomorrowPlan['checklist'], 0, 5) as $c): ?>
+            <li class="muted"><?= h($c) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <p class="note"><?= h($tomorrowPlan['disclaimer']) ?></p>
       </section>
 
       <section class="card">

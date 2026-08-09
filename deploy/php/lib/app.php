@@ -917,6 +917,161 @@ function build_daily_digest(?string $date = null): array
     ];
 }
 
+/**
+ * Tomorrow Plan — evening counterpart to Daily Action Digest.
+ * Actionable picks + fatigue warnings; never auto-publishes.
+ * @return array{date:string,tomorrowDate:string,summary:string,picks:array,channelTips:array,fatigueWarnings:array,filmingOrder:array,checklist:array,lines:array,disclaimer:string}
+ */
+function build_tomorrow_plan(?string $date = null): array
+{
+    $date = $date ?: today_iso();
+    $tomorrow = date('Y-m-d', strtotime($date . ' +1 day'));
+    $cooldown = 3;
+    $windowStart = date('Y-m-d', strtotime($date . ' -' . ($cooldown - 1) . ' day'));
+    $maxPosts = 3;
+
+    $ranked = rank_products(8);
+    $fatigueWarnings = [];
+    $fatigued = [];
+    $stmt = db()->prepare(
+        "SELECT product_id, COUNT(*) AS n FROM schedule
+         WHERE post_date BETWEEN ? AND ?
+           AND status IN ('draft','generated','pending','approved','posted')
+         GROUP BY product_id"
+    );
+    $stmt->execute([$windowStart, $date]);
+    $countsByProduct = [];
+    foreach ($stmt->fetchAll() ?: [] as $row) {
+        $countsByProduct[$row['product_id']] = (int)$row['n'];
+    }
+
+    $productsById = [];
+    foreach (all_products() as $p) {
+        $productsById[$p['id']] = $p;
+        $paused = array_key_exists('active', $p)
+            && ($p['active'] === false || $p['active'] === 0 || $p['active'] === '0');
+        if ($paused) {
+            continue;
+        }
+        $n = $countsByProduct[$p['id']] ?? 0;
+        if ($n >= 3) {
+            $fatigued[$p['id']] = true;
+            $fatigueWarnings[] = $p['name'] . ": ถูกจัดคิว/โพสต์ {$n} ครั้งใน {$cooldown} วัน — แนะนำพักหมุนของชิ้นอื่น (กันสแปม)";
+        }
+    }
+
+    $picks = [];
+    foreach ($ranked as $row) {
+        if (count($picks) >= 3) {
+            break;
+        }
+        $p = $row['product'];
+        $pid = $p['id'];
+        if (!empty($fatigued[$pid]) && $picks) {
+            continue;
+        }
+        $pain = '';
+        if (!empty($p['pain_points'])) {
+            $decoded = is_string($p['pain_points']) ? decode_list($p['pain_points']) : (array)$p['pain_points'];
+            $pain = (string)($decoded[0] ?? '');
+        }
+        $sell = '';
+        if (!empty($p['selling_points'])) {
+            $decoded = is_string($p['selling_points']) ? decode_list($p['selling_points']) : (array)$p['selling_points'];
+            $sell = (string)($decoded[0] ?? '');
+        }
+        $reasons = [];
+        if ((float)($p['video_ease'] ?? 3) >= 4) {
+            $reasons[] = 'ถ่ายคลิปสั้นง่าย';
+        }
+        $price = (float)($p['price'] ?? 0);
+        if ($price > 0 && $price <= 499) {
+            $reasons[] = 'ราคาใกล้ impulse buy';
+        }
+        if ($pain !== '') {
+            $reasons[] = 'pain point ชัด';
+        }
+        if (!empty($fatigued[$pid])) {
+            $reasons[] = 'ใกล้ล้า — ใช้มุมใหม่หรือพักถ้ามีตัวเลือกอื่น';
+        }
+        if (!$reasons) {
+            $reasons[] = 'คะแนนจัดอันดับสูงในชุดข้อมูลตอนนี้';
+        }
+        $hook = $pain !== '' ? "เคยเจอไหม… {$pain}" : 'ลองดูสเปกก่อนตัดสินใจ';
+        $angle = $sell !== '' ? $sell : 'ช่วยเปรียบเทียบสเปกให้เลือกของที่เหมาะ';
+        $picks[] = [
+            'productId' => $pid,
+            'productName' => $p['name'],
+            'platform' => $p['platform'] ?? 'shopee',
+            'reason' => implode(' · ', $reasons),
+            'suggestedAngle' => $angle,
+            'suggestedHook' => $hook,
+            'filmFirst' => count($picks) === 0,
+            'recentPostCount' => $countsByProduct[$pid] ?? 0,
+        ];
+    }
+
+    $channelTips = [
+        ['channel' => 'tiktok', 'label' => channel_label('tiktok'), 'tip' => 'คลิป 15–30 วินาที โชว์ของจริง + เปิดด้วย hook แล้วปิดด้วย disclosure'],
+        ['channel' => 'facebook_reels', 'label' => channel_label('facebook_reels'), 'tip' => 'แนวช่วยเลือกของ สั้น กระชับ ไม่ขายแข็ง'],
+        ['channel' => 'facebook_post', 'label' => channel_label('facebook_post'), 'tip' => 'แคปชันยาวขึ้นได้เล็กน้อย แต่ต้องมี disclosure ทุกครั้ง'],
+    ];
+
+    $filmingOrder = [];
+    foreach ($picks as $i => $pick) {
+        $filmingOrder[] = ($i + 1) . '. ' . $pick['productName'] . ' — ' . $pick['reason'] . ' · มุม: ' . $pick['suggestedAngle'];
+    }
+
+    $checklist = [];
+    if ($picks) {
+        $names = implode(', ', array_map(fn($p) => $p['productName'], $picks));
+        $checklist[] = "เตรียมถ่าย/ตัดคลิปสำหรับ: {$names}";
+        $checklist[] = 'เช้าวันถัดไปรัน Morning เพื่อสร้าง draft ใหม่ — ยังไม่โพสต์จริง';
+    } else {
+        $checklist[] = 'เพิ่มสินค้า affiliate อย่างน้อย 1 ชิ้นก่อนรัน Morning';
+    }
+    $checklist[] = "เป้าโพสต์วันถัดไปไม่เกิน {$maxPosts} ชิ้น · คูลดาวน์ product+channel {$cooldown} วัน";
+    $checklist[] = 'ตรวจ disclosure + ไม่ใช้คำโฆษณาเกินจริง ก่อนกด Approve ทุกชิ้น';
+    if ($fatigueWarnings) {
+        $checklist[] = 'มีสินค้าใกล้ล้า — หมุนหมวด/มุมขาย อย่าโพสต์ซ้ำไร้คุณภาพ';
+    }
+
+    $summary = $picks
+        ? 'แผน ' . $tomorrow . ': โฟกัส ' . count($picks) . ' สินค้า · ถ่ายก่อน ' . $picks[0]['productName']
+        : 'แผน ' . $tomorrow . ': ยังไม่มีสินค้าพอจัดแผน — เพิ่มของแล้วรัน Morning';
+
+    $lines = ["Tomorrow Plan {$date} → {$tomorrow}: {$summary}"];
+    foreach ($picks as $i => $p) {
+        $lines[] = ($i + 1) . ". {$p['productName']} ({$p['platform']}) — {$p['reason']} · hook: {$p['suggestedHook']}";
+    }
+    foreach ($fatigueWarnings as $w) {
+        $lines[] = 'พักหมุน: ' . $w;
+    }
+    foreach ($channelTips as $c) {
+        $lines[] = "ช่องทาง {$c['label']}: {$c['tip']}";
+    }
+    foreach ($filmingOrder as $f) {
+        $lines[] = 'ถ่าย: ' . $f;
+    }
+    foreach ($checklist as $c) {
+        $lines[] = 'เช็ค: ' . $c;
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'tomorrowDate' => $tomorrow,
+        'summary' => $summary,
+        'picks' => $picks,
+        'channelTips' => $channelTips,
+        'fatigueWarnings' => $fatigueWarnings,
+        'filmingOrder' => $filmingOrder,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
 /** Morning brief lines for caption quality of today's drafts. */
 function quality_brief_lines(string $date): array
 {
@@ -1259,7 +1414,11 @@ function run_evening_workflow(?string $date = null): array
     $date = $date ?: today_iso();
     $analysis = analyze_posted($date);
     $next = rank_products(3);
+    $tomorrow = build_tomorrow_plan($date);
     $recs = $analysis['recs'];
+    foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if ($next) {

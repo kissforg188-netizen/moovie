@@ -9,6 +9,10 @@ import {
   dailyDigestToMarkdown,
 } from "../src/lib/daily-digest";
 import {
+  buildTomorrowPlan,
+  tomorrowPlanToMarkdown,
+} from "../src/lib/tomorrow-plan";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -1277,6 +1281,101 @@ function run() {
   const digestMd = dailyDigestToMarkdown(digest);
   assert.ok(digestMd.includes("Daily Action Digest"));
   assert.ok(digestMd.includes("ไม่โพสต์อัตโนมัติ") || digestMd.includes(AFFILIATE_DISCLOSURE) || digestMd.includes("ทดลอง"));
+
+  // Tomorrow Plan — evening actionable picks + fatigue + markdown
+  const midProduct = sample({
+    id: "p_mid",
+    name: "สินค้ากลาง",
+    price: 299,
+    commissionRate: 10,
+    videoEase: 4,
+    painPoints: ["ของรกโต๊ะ"],
+    sellingPoints: ["เก็บของง่าย"],
+  });
+  const tomorrowDb = {
+    ...digestDb,
+    products: [cheapHigh, expensiveLow, midProduct],
+    settings: { maxPostsPerDay: 3 as const, cooldownDays: 3, staleDraftDays: 5 },
+    schedule: [
+      ...((digestDb as { schedule: ScheduledPost[] }).schedule ?? []),
+      {
+        id: "sched_tmr_1",
+        date: "2026-08-06",
+        suggestedTime: "10:30",
+        channel: "tiktok" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack_a",
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "posted" as const,
+        captionPreview: goodCaption,
+        metrics: {
+          views: 1200,
+          clicks: 40,
+          orders: 2,
+          commissionEarned: 80,
+          recordedAt: "2026-08-06T12:00:00.000Z",
+        },
+      },
+      {
+        id: "sched_tmr_2",
+        date: "2026-08-07",
+        suggestedTime: "13:00",
+        channel: "facebook_reels" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack_a",
+        hookIndex: 1,
+        ctaIndex: 0,
+        status: "posted" as const,
+        captionPreview: goodCaption,
+        metrics: {
+          views: 800,
+          clicks: 20,
+          orders: 1,
+          commissionEarned: 40,
+          recordedAt: "2026-08-07T12:00:00.000Z",
+        },
+      },
+      {
+        id: "sched_tmr_3",
+        date: "2026-08-08",
+        suggestedTime: "19:30",
+        channel: "facebook_post" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack_a",
+        hookIndex: 2,
+        ctaIndex: 1,
+        status: "draft" as const,
+        captionPreview: goodCaption,
+      },
+    ],
+    learning: {
+      updatedAt: "2026-08-08T12:00:00.000Z",
+      sourceDate: "2026-08-08",
+      winnerProductIds: [cheapHigh.id],
+      underperformerProductIds: [expensiveLow.id],
+      vanityProductIds: [],
+      preferredChannel: "tiktok" as const,
+      preferredHookIndex: 1,
+      notes: ["ทดสอบ learning"],
+    },
+  };
+  const plan = buildTomorrowPlan(tomorrowDb as never, "2026-08-08");
+  assert.equal(plan.tomorrowDate, "2026-08-09");
+  assert.ok(plan.picks.length >= 1);
+  assert.ok(plan.picks.length <= 3);
+  assert.ok(plan.checklist.length >= 2);
+  assert.ok(plan.channelTips.some((c) => c.channel === "tiktok"));
+  // cheapHigh appears 3x in cooldown window → fatigue warning or recentPostCount
+  assert.ok(
+    plan.fatigueWarnings.some((w) => w.includes(cheapHigh.name)) ||
+      plan.picks.some((p) => p.productId === cheapHigh.id && p.recentPostCount >= 3),
+  );
+  assert.ok(plan.lines.some((l) => /Tomorrow Plan/.test(l)));
+  const planMd = tomorrowPlanToMarkdown(plan);
+  assert.ok(planMd.includes("Tomorrow Plan"));
+  assert.ok(planMd.includes("ไม่โพสต์อัตโนมัติ") || planMd.includes("ทดลอง"));
+  assert.ok(planMd.includes("Checklist") || planMd.includes("ถ่าย"));
 
   console.log("All unit tests passed");
 }

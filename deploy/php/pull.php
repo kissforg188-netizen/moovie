@@ -2,7 +2,7 @@
 declare(strict_types=1);
 header('Content-Type: text/plain; charset=utf-8');
 // Default branch for raw sync — override with ?branch=...
-$branch = preg_replace('/[^a-zA-Z0-9._\\/-]/', '', (string)($_GET['branch'] ?? 'cursor/affiliate-7181')) ?: 'main';
+$branch = preg_replace('/[^a-zA-Z0-9._\\/-]/', '', (string)($_GET['branch'] ?? 'cursor/affiliate-ccd9')) ?: 'main';
 $base = 'https://raw.githubusercontent.com/kissforg188-netizen/moovie/' . $branch . '/deploy/php/';
 $files = [
   'api.php','index.php','install.php','config.example.php','.htaccess',

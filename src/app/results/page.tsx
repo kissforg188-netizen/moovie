@@ -4,6 +4,7 @@ import { analyzePosted } from "@/lib/analytics";
 import { INCOME_DISCLAIMER } from "@/lib/disclosure";
 import { readDb, todayISO } from "@/lib/db";
 import { channelLabel } from "@/lib/schedule";
+import { buildTomorrowPlan } from "@/lib/tomorrow-plan";
 import { weeklyInsightLines, weeklyProductRollup } from "@/lib/weekly";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export default async function ResultsPage() {
   );
   const weekly = weeklyProductRollup(db.products, db.schedule, date, 7);
   const weeklyLines = weeklyInsightLines(weekly);
+  const tomorrowPlan = buildTomorrowPlan(db, date);
 
   return (
     <div className="space-y-8">
@@ -141,6 +143,50 @@ export default async function ResultsPage() {
             ))}
           </ul>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="brand-mark text-3xl text-[var(--sage-deep)]">
+            Tomorrow Plan · {tomorrowPlan.tomorrowDate}
+          </h2>
+          <a
+            href="/api/export?format=md&scope=tomorrow"
+            className="text-xs text-[var(--sage)] hover:underline"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-sm text-[var(--ink-soft)]">{tomorrowPlan.summary}</p>
+        {tomorrowPlan.picks.length === 0 ? (
+          <p className="surface rounded-2xl p-5 text-sm text-[var(--ink-soft)]">
+            ยังไม่มีสินค้าพอจัดแผนวันถัดไป
+          </p>
+        ) : (
+          <div className="grid gap-3">
+            {tomorrowPlan.picks.map((p) => (
+              <article key={p.productId} className="surface rounded-2xl p-4">
+                <h3 className="font-medium">
+                  {p.productName}
+                  {p.filmFirst ? " · ถ่ายก่อน" : ""}
+                </h3>
+                <p className="text-sm text-[var(--ink-soft)]">{p.reason}</p>
+                <p className="mt-1 text-xs text-[var(--ink-soft)]">
+                  Hook: {p.suggestedHook}
+                </p>
+                <p className="text-xs text-[var(--ink-soft)]">
+                  มุมขาย: {p.suggestedAngle}
+                </p>
+              </article>
+            ))}
+          </div>
+        )}
+        <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+          {tomorrowPlan.checklist.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+        <p className="text-xs text-[var(--ink-soft)]">{tomorrowPlan.disclaimer}</p>
       </section>
     </div>
   );

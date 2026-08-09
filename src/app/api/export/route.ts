@@ -17,6 +17,7 @@ import {
   postingPacksToMarkdown,
 } from "@/lib/posting-pack";
 import { dailyDigestToMarkdown } from "@/lib/daily-digest";
+import { tomorrowPlanToMarkdown } from "@/lib/tomorrow-plan";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -50,6 +51,10 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = dailyDigestToMarkdown(snap.digest);
       filename = `affiliate-digest-${todayISO()}.md`;
+    } else if (scope === "tomorrow" || scope === "tomorrow-plan") {
+      const snap = await getDashboardSnapshot();
+      md = tomorrowPlanToMarkdown(snap.tomorrowPlan);
+      filename = `affiliate-tomorrow-${snap.tomorrowPlan.tomorrowDate}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }
