@@ -30,6 +30,7 @@ $adapters = active_affiliate_adapters();
 $futureAdapters = future_affiliate_adapters();
 $digest = build_daily_digest($date);
 $tomorrowPlan = build_tomorrow_plan($date);
+$approveQueue = build_approve_queue($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -256,6 +257,36 @@ $tomorrowPlan = build_tomorrow_plan($date);
           <?php endforeach; ?>
         </ol>
         <p class="note"><?= h($digest['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Approve Priority Queue</h2>
+        <p class="muted"><?= h($approveQueue['summary']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>พร้อม Approve</p><strong><?= (int)$approveQueue['counts']['ready'] ?></strong></article>
+          <article><p>ควรแก้ก่อน</p><strong><?= (int)$approveQueue['counts']['fixFirst'] ?></strong></article>
+          <article><p>บล็อก</p><strong><?= (int)$approveQueue['counts']['blocked'] ?></strong></article>
+          <article><p>Draft ทั้งหมด</p><strong><?= (int)$approveQueue['counts']['total'] ?></strong></article>
+        </div>
+        <?php if (!$approveQueue['items']): ?>
+          <p class="muted">ยังไม่มี draft ในคิว — รัน Morning แล้วกลับมาตรวจ</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($approveQueue['items'], 0, 6) as $item): ?>
+              <li>
+                <strong>[<?= h($item['band'] === 'ready' ? 'พร้อม' : ($item['band'] === 'fix_first' ? 'แก้ก่อน' : 'บล็อก')) ?>]</strong>
+                <?= h($item['suggestedTime']) ?> · <?= h($item['productName']) ?>
+                <div class="muted"><?= h($item['channelLabelTh']) ?> · ลำดับ <?= h((string)$item['priority']) ?>/100 · คุณภาพ <?= h($item['qualityGrade']) ?></div>
+                <div class="muted"><?= h($item['nextAction']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=approve-queue">Export คิว Approve (.md)</a>
+          <a class="btn" href="?page=calendar">ไปตารางโพสต์</a>
+        </div>
+        <p class="note"><?= h($approveQueue['disclaimer']) ?></p>
       </section>
 
       <section class="card fade-up">

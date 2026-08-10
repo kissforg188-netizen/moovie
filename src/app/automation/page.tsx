@@ -24,6 +24,7 @@ export default async function AutomationPage() {
     experiment,
     digest,
     tomorrowPlan,
+    approveQueue,
   } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
@@ -107,6 +108,83 @@ export default async function AutomationPage() {
           ))}
         </ol>
         <p className="text-xs text-[var(--ink-soft)]">{digest.disclaimer}</p>
+      </section>
+
+      <section className="surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Approve Priority Queue
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              {approveQueue.summary}
+            </p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href="/api/export?format=md&scope=approve-queue"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">พร้อม Approve</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {approveQueue.counts.ready}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">ควรแก้ก่อน</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {approveQueue.counts.fixFirst}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">บล็อก</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {approveQueue.counts.blocked}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">Draft ทั้งหมด</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {approveQueue.counts.total}
+            </p>
+          </div>
+        </div>
+        {approveQueue.items.length === 0 ? (
+          <p className="text-sm text-[var(--ink-soft)]">
+            ยังไม่มี draft ในคิว — รัน Morning แล้วกลับมาตรวจที่นี่หรือที่{" "}
+            <Link className="underline underline-offset-2" href="/calendar">
+              ตารางโพสต์
+            </Link>
+          </p>
+        ) : (
+          <ol className="list-decimal space-y-3 pl-5 text-sm text-[var(--ink-soft)]">
+            {approveQueue.items.slice(0, 6).map((item) => (
+              <li key={item.scheduleId}>
+                <span className="text-[var(--sage-deep)]">
+                  [
+                  {item.band === "ready"
+                    ? "พร้อม"
+                    : item.band === "fix_first"
+                      ? "แก้ก่อน"
+                      : "บล็อก"}
+                  ] {item.suggestedTime} · {item.productName}
+                </span>
+                <p className="mt-0.5 text-xs">
+                  {item.channelLabelTh} · ลำดับ {item.priority}/100 · คุณภาพ{" "}
+                  {item.qualityGrade}
+                </p>
+                <p className="mt-0.5 text-xs">{item.nextAction}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="text-xs text-[var(--ink-soft)]">
+          {approveQueue.disclaimer}
+        </p>
       </section>
 
       <section className="surface rounded-2xl p-5 space-y-4">
@@ -257,6 +335,12 @@ export default async function AutomationPage() {
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >
           Export Posting Packs (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=approve-queue"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export คิว Approve (.md)
         </a>
         <a
           href="/api/export?format=csv&scope=schedule"

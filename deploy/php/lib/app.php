@@ -1072,6 +1072,193 @@ function build_tomorrow_plan(?string $date = null): array
     ];
 }
 
+/** Soft review-order score for Approve Priority Queue (never auto-publishes). */
+function score_approve_priority(array $input): float
+{
+    $gateOk = !empty($input['gateOk']);
+    $qualityScore = (float)($input['qualityScore'] ?? 0);
+    $qualityGrade = (string)($input['qualityGrade'] ?? 'D');
+    $expectedBahtScore = (float)($input['expectedBahtScore'] ?? 0);
+    $videoEase = (float)($input['videoEase'] ?? 3);
+    $channel = (string)($input['channel'] ?? 'facebook_post');
+    $suggestedTime = (string)($input['suggestedTime'] ?? '12:00');
+
+    $score = 0.0;
+    $score += min(40.0, $expectedBahtScore * 0.35);
+    $score += min(35.0, $qualityScore * 0.35);
+
+    $shortForm = in_array($channel, ['tiktok', 'facebook_reels'], true);
+    if ($shortForm) {
+        $score += min(12.0, max(0.0, $videoEase) * 2.2);
+    } else {
+        $score += 4.0;
+    }
+
+    $hour = (int)substr($suggestedTime, 0, 2);
+    $score += max(0.0, 10.0 - abs($hour - 10) * 0.8);
+
+    if (!$gateOk) {
+        $score *= 0.35;
+    } elseif ($qualityGrade === 'C') {
+        $score *= 0.75;
+    } elseif ($qualityGrade === 'D') {
+        $score *= 0.55;
+    }
+
+    return round(max(0.0, min(100.0, $score)), 1);
+}
+
+/**
+ * Approve Priority Queue — order today's drafts for human review.
+ * @return array{date:string,summary:string,counts:array,items:array,lines:array,disclaimer:string}
+ */
+function build_approve_queue(?string $date = null): array
+{
+    $date = $date ?: today_iso();
+    $stmt = db()->prepare("SELECT s.*, p.name AS product_name, p.price, p.commission_rate, p.video_ease FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date=? AND s.status IN ('draft','generated','pending') ORDER BY s.suggested_time");
+    $stmt->execute([$date]);
+    $rows = $stmt->fetchAll() ?: [];
+
+    $bandRank = ['ready' => 0, 'fix_first' => 1, 'blocked' => 2];
+    $items = [];
+    foreach ($rows as $row) {
+        $caption = (string)$row['caption_preview'];
+        $channel = (string)$row['channel'];
+        $gate = evaluate_approve_gate($caption);
+        $quality = score_caption_quality($caption, $channel);
+        $gateOk = !empty($gate['ok']);
+        $grade = (string)$quality['grade'];
+        $band = !$gateOk ? 'blocked' : (($grade === 'C' || $grade === 'D') ? 'fix_first' : 'ready');
+        $price = (float)($row['price'] ?? 0);
+        $rate = (float)($row['commission_rate'] ?? 0);
+        $expectedBaht = max(0.0, $price) * max(0.0, $rate) / 100.0;
+        $expectedBahtScore = expected_commission_score($price, $rate);
+        $priority = score_approve_priority([
+            'gateOk' => $gateOk,
+            'qualityScore' => (float)$quality['score'],
+            'qualityGrade' => $grade,
+            'expectedBahtScore' => $expectedBahtScore,
+            'videoEase' => (float)($row['video_ease'] ?? 3),
+            'channel' => $channel,
+            'suggestedTime' => (string)$row['suggested_time'],
+        ]);
+        $channelLabel = channel_label($channel);
+        $productName = (string)($row['product_name'] ?? $row['product_id']);
+        $bahtLabel = $expectedBaht > 0
+            ? 'คอมคาดการณ์ ~฿' . (string)(int)round($expectedBaht) . '/ชิ้น'
+            : 'ยังไม่ครบราคา/คอม';
+
+        if ($band === 'blocked') {
+            $reason = "บล็อก Approve · {$channelLabel} · คุณภาพ {$grade} ({$quality['score']}) · {$bahtLabel}";
+            $nextAction = $gate['errors'][0] ?? 'แก้ disclosure / คำโฆษณาก่อน Approve';
+        } elseif ($band === 'fix_first') {
+            $reason = "ควรปรับแคปชันก่อน · {$channelLabel} · {$grade} · {$bahtLabel}";
+            $tip = $quality['tips'][0] ?? '';
+            $nextAction = $tip !== ''
+                ? 'ปรับแคปชัน: ' . $tip
+                : 'ปรับน้ำเสียง/ความยาวแล้วค่อย Approve';
+        } else {
+            $reason = "พร้อมตรวจ Approve · {$channelLabel} · {$grade} · {$bahtLabel}";
+            $nextAction = 'Approve ได้ — แล้วยังต้องโพสต์ด้วยมือ (ระบบไม่โพสต์ให้อัตโนมัติ)';
+        }
+
+        $items[] = [
+            'scheduleId' => (string)$row['id'],
+            'productId' => (string)$row['product_id'],
+            'productName' => $productName,
+            'channel' => $channel,
+            'channelLabelTh' => $channelLabel,
+            'suggestedTime' => (string)$row['suggested_time'],
+            'status' => (string)$row['status'],
+            'gateOk' => $gateOk,
+            'gateErrors' => $gate['errors'] ?? [],
+            'qualityGrade' => $grade,
+            'qualityScore' => (int)$quality['score'],
+            'priority' => $priority,
+            'band' => $band,
+            'reason' => $reason,
+            'nextAction' => $nextAction,
+            'href' => '?page=calendar',
+            'expectedBaht' => $expectedBaht,
+        ];
+    }
+
+    usort($items, function ($a, $b) use ($bandRank) {
+        $bandDiff = ($bandRank[$a['band']] ?? 9) - ($bandRank[$b['band']] ?? 9);
+        if ($bandDiff !== 0) return $bandDiff;
+        if ($b['priority'] != $a['priority']) {
+            return $b['priority'] <=> $a['priority'];
+        }
+        return strcmp($a['suggestedTime'], $b['suggestedTime']);
+    });
+
+    $counts = [
+        'ready' => count(array_filter($items, fn($i) => $i['band'] === 'ready')),
+        'fixFirst' => count(array_filter($items, fn($i) => $i['band'] === 'fix_first')),
+        'blocked' => count(array_filter($items, fn($i) => $i['band'] === 'blocked')),
+        'total' => count($items),
+    ];
+
+    $summary = $counts['total'] === 0
+        ? "คิว Approve {$date}: ยังไม่มี draft — รัน Morning ก่อน"
+        : "คิว Approve {$date}: พร้อม {$counts['ready']} · ควรแก้ {$counts['fixFirst']} · บล็อก {$counts['blocked']} (ไม่โพสต์อัตโนมัติ)";
+
+    $lines = ["Approve Queue {$date}: {$summary}"];
+    foreach (array_slice($items, 0, 5) as $item) {
+        $tag = $item['band'] === 'ready' ? 'พร้อม' : ($item['band'] === 'fix_first' ? 'แก้ก่อน' : 'บล็อก');
+        $lines[] = "[{$tag}] {$item['suggestedTime']} {$item['productName']} · {$item['channelLabelTh']} · ลำดับ {$item['priority']} · {$item['nextAction']}";
+    }
+    if ($counts['ready'] > 0) {
+        $first = null;
+        foreach ($items as $item) {
+            if ($item['band'] === 'ready') {
+                $first = $item;
+                break;
+            }
+        }
+        if ($first) {
+            $lines[] = "เริ่ม Approve จาก: {$first['productName']} ({$first['suggestedTime']} · {$first['channelLabelTh']})";
+        }
+    } elseif ($counts['blocked'] > 0 || $counts['fixFirst'] > 0) {
+        $lines[] = 'ยังไม่มีชิ้นพร้อม Approve — กดสร้างแคปชันใหม่หรือแก้ disclosure ก่อน';
+    }
+    $lines[] = 'ทุกชิ้นยังเป็น draft จนกว่าคุณจะ Approve แล้วโพสต์ด้วยมือ';
+
+    return [
+        'date' => $date,
+        'summary' => $summary,
+        'counts' => $counts,
+        'items' => $items,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function approve_queue_to_markdown(array $queue): string
+{
+    $rows = [];
+    foreach ($queue['items'] as $idx => $i) {
+        $n = $idx + 1;
+        $gate = !empty($i['gateOk']) ? 'ผ่าน' : 'ไม่ผ่าน';
+        $rows[] = "{$n}. **[{$i['band']}]** {$i['suggestedTime']} · {$i['productName']} · {$i['channelLabelTh']}\n"
+            . "   ลำดับ {$i['priority']}/100 · คุณภาพ {$i['qualityGrade']} ({$i['qualityScore']}) · gate {$gate}\n"
+            . "   {$i['reason']}\n"
+            . "   ทำต่อ: {$i['nextAction']}";
+    }
+    if (!$rows) {
+        $rows[] = '_(ยังไม่มี draft วันนี้)_';
+    }
+    return "# Approve Priority Queue · {$queue['date']}\n\n"
+        . $queue['summary'] . "\n\n"
+        . "- พร้อม Approve: {$queue['counts']['ready']}\n"
+        . "- ควรแก้แคปชันก่อน: {$queue['counts']['fixFirst']}\n"
+        . "- บล็อก (disclosure/คำโฆษณา): {$queue['counts']['blocked']}\n\n"
+        . "## ลำดับแนะนำให้ตรวจ\n"
+        . implode("\n", $rows) . "\n\n"
+        . "> ระบบไม่โพสต์อัตโนมัติ — Approve แล้วต้องโพสต์ด้วยมือ\n\n"
+        . $queue['disclaimer'] . "\n";
+}
+
 /** Morning brief lines for caption quality of today's drafts. */
 function quality_brief_lines(string $date): array
 {
@@ -1327,6 +1514,8 @@ function run_morning_workflow(?string $date = null): array
     }
     $compliance = audit_draft_captions($date);
     $qualityLines = quality_brief_lines($date);
+    $approveQueue = build_approve_queue($date);
+    $approveLines = array_slice($approveQueue['lines'], 0, 5);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -1336,6 +1525,7 @@ function run_morning_workflow(?string $date = null): array
         !empty($shootFirst['firstChecklist']) ? 'Checklist ถ่ายวิดีโอ (ตัวแรก): ' . $shootFirst['firstChecklist'] : null,
         ...$compliance,
         ...$qualityLines,
+        ...$approveLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",

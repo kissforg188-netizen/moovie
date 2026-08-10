@@ -1,6 +1,11 @@
 import assert from "assert";
 import { evaluateApproveGate } from "../src/lib/approve";
 import {
+  approveQueueToMarkdown,
+  buildApproveQueue,
+  scoreApprovePriority,
+} from "../src/lib/approve-queue";
+import {
   qualityBriefLines,
   scoreCaptionQuality,
 } from "../src/lib/caption-quality";
@@ -1381,6 +1386,47 @@ function run() {
       tomorrowPlanMd.includes("ทดลอง"),
   );
   assert.ok(tomorrowPlanMd.includes("Checklist") || tomorrowPlanMd.includes("ถ่าย"));
+
+  // Approve Priority Queue — ready before blocked; never auto-publish
+  const readyPriority = scoreApprovePriority({
+    gateOk: true,
+    qualityScore: 90,
+    qualityGrade: "A",
+    expectedBahtScore: 85,
+    videoEase: 5,
+    channel: "tiktok",
+    suggestedTime: "10:00",
+  });
+  const blockedPriority = scoreApprovePriority({
+    gateOk: false,
+    qualityScore: 90,
+    qualityGrade: "A",
+    expectedBahtScore: 85,
+    videoEase: 5,
+    channel: "tiktok",
+    suggestedTime: "10:00",
+  });
+  assert.ok(readyPriority > blockedPriority);
+
+  const approveQueue = buildApproveQueue(tomorrowDb as never, "2026-08-08");
+  assert.ok(approveQueue.counts.total >= 2);
+  assert.ok(approveQueue.counts.ready >= 1);
+  assert.ok(approveQueue.counts.blocked >= 1);
+  assert.equal(approveQueue.items[0].band, "ready");
+  assert.ok(
+    approveQueue.items.some((i) => i.band === "blocked"),
+  );
+  // Ready items should appear before blocked
+  const firstBlockedIdx = approveQueue.items.findIndex((i) => i.band === "blocked");
+  const firstReadyIdx = approveQueue.items.findIndex((i) => i.band === "ready");
+  assert.ok(firstReadyIdx >= 0 && firstReadyIdx < firstBlockedIdx);
+  assert.ok(approveQueue.lines.some((l) => /Approve Queue/.test(l)));
+  const approveQueueMd = approveQueueToMarkdown(approveQueue);
+  assert.ok(approveQueueMd.includes("Approve Priority Queue"));
+  assert.ok(
+    approveQueueMd.includes("ไม่โพสต์อัตโนมัติ") ||
+      approveQueueMd.includes("ทดลอง"),
+  );
 
   console.log("All unit tests passed");
 }

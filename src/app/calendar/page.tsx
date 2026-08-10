@@ -1,9 +1,11 @@
+import Link from "next/link";
 import { BulkApproveButton } from "@/components/BulkApproveButton";
 import { CopyCaptionButton } from "@/components/CopyCaptionButton";
 import { CopyPostingPackButton } from "@/components/CopyPostingPackButton";
 import { ScheduleActions } from "@/components/ScheduleActions";
 import { WorkflowButtons } from "@/components/WorkflowButtons";
 import { evaluateApproveGate } from "@/lib/approve";
+import { buildApproveQueue } from "@/lib/approve-queue";
 import {
   qualityLabelTh,
   scoreCaptionQuality,
@@ -19,9 +21,13 @@ export default async function CalendarPage() {
   const db = await readDb();
   const date = todayISO();
   const settings = resolveSettings(db);
+  const approveQueue = buildApproveQueue(db, date);
   const posts = db.schedule
     .filter((s) => s.date === date)
     .sort((a, b) => a.suggestedTime.localeCompare(b.suggestedTime));
+  const queueOrder = new Map(
+    approveQueue.items.map((item, index) => [item.scheduleId, index + 1]),
+  );
 
   return (
     <div className="space-y-8">
@@ -38,6 +44,57 @@ export default async function CalendarPage() {
       </div>
 
       <WorkflowButtons />
+
+      <section className="surface rounded-2xl p-5 space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Approve Priority Queue
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              {approveQueue.summary}
+            </p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href="/api/export?format=md&scope=approve-queue"
+          >
+            Export Markdown
+          </a>
+        </div>
+        {approveQueue.items.length === 0 ? (
+          <p className="text-sm text-[var(--ink-soft)]">
+            ยังไม่มี draft ในคิว — รัน Morning ก่อน
+          </p>
+        ) : (
+          <ol className="list-decimal space-y-2 pl-5 text-sm text-[var(--ink-soft)]">
+            {approveQueue.items.map((item) => (
+              <li key={item.scheduleId}>
+                <span className="text-[var(--sage-deep)]">
+                  [
+                  {item.band === "ready"
+                    ? "พร้อม"
+                    : item.band === "fix_first"
+                      ? "แก้ก่อน"
+                      : "บล็อก"}
+                  ] {item.suggestedTime} · {item.productName}
+                </span>
+                <span className="text-xs">
+                  {" "}
+                  · {item.channelLabelTh} · ลำดับ {item.priority}/100
+                </span>
+                <p className="mt-0.5 text-xs">{item.nextAction}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+        <p className="text-xs text-[var(--ink-soft)]">
+          ดูรายละเอียดเพิ่มที่{" "}
+          <Link className="underline underline-offset-2" href="/automation">
+            ศูนย์อัตโนมัติ
+          </Link>
+        </p>
+      </section>
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -60,12 +117,14 @@ export default async function CalendarPage() {
               post.captionPreview,
               post.channel,
             );
+            const queueRank = queueOrder.get(post.id);
             return (
               <article key={post.id} className="surface rounded-2xl p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-lg font-medium">
                       {post.suggestedTime} · {channelLabel(post.channel)}
+                      {queueRank ? ` · คิวตรวจ #${queueRank}` : ""}
                     </p>
                     <p className="text-sm text-[var(--ink-soft)]">
                       {product?.name ?? "สินค้า"} · status: {post.status}

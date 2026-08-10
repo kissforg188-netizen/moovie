@@ -16,6 +16,7 @@ import {
   postingPacksForDate,
   postingPacksToMarkdown,
 } from "@/lib/posting-pack";
+import { approveQueueToMarkdown } from "@/lib/approve-queue";
 import { dailyDigestToMarkdown } from "@/lib/daily-digest";
 import { tomorrowPlanToMarkdown } from "@/lib/tomorrow-plan";
 import { getDashboardSnapshot } from "@/lib/workflow";
@@ -55,6 +56,14 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = tomorrowPlanToMarkdown(snap.tomorrowPlan);
       filename = `affiliate-tomorrow-${snap.tomorrowPlan.tomorrowDate}.md`;
+    } else if (
+      scope === "approve-queue" ||
+      scope === "approve" ||
+      scope === "queue"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = approveQueueToMarkdown(snap.approveQueue);
+      filename = `affiliate-approve-queue-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

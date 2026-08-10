@@ -198,6 +198,18 @@ try {
         $format = $_GET['format'] ?? 'json';
         $scope = $_GET['scope'] ?? 'all';
         $job = automation_log_start('export', 'Export ' . $format . '/' . $scope);
+        if ($format === 'md' || $format === 'markdown') {
+            header('Content-Type: text/markdown; charset=utf-8');
+            if (in_array($scope, ['approve-queue', 'approve', 'queue'], true)) {
+                $queue = build_approve_queue(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-approve-queue-'.today_iso().'.md"');
+                echo approve_queue_to_markdown($queue);
+                automation_log_finish($job, 'success', 'exported md approve-queue');
+                exit;
+            }
+            automation_log_finish($job, 'failed', 'unknown md scope');
+            json_response(['error' => 'unknown markdown scope'], 400);
+        }
         if ($format === 'csv') {
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="export-'.$scope.'.csv"');
