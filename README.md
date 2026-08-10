@@ -98,9 +98,9 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
 - `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Tomorrow Plan, login status, morning/evening, import CSV/JSON, bulk approve, logs)
+- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Tomorrow Plan, login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
-- `/calendar` ตารางโพสต์วันนี้ + Approve / ข้าม
+- `/calendar` ตารางโพสต์วันนี้ + คิว Approve + Approve / ข้าม
 - `/results` กรอก views/clicks/orders/ค่าคอม + ดูวิเคราะห์
 - `/guide` คู่มือการใช้งาน
 
@@ -119,6 +119,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown Posting Packs: `/api/export?format=md&scope=posting`
 - Markdown Daily Action Digest: `/api/export?format=md&scope=digest`
 - Markdown Tomorrow Plan: `/api/export?format=md&scope=tomorrow`
+- Markdown Approve Priority Queue: `/api/export?format=md&scope=approve-queue`
 
 ## Workflow แนะนำ
 
