@@ -5,6 +5,7 @@ import { INCOME_DISCLAIMER } from "@/lib/disclosure";
 import { readDb, todayISO } from "@/lib/db";
 import { channelLabel } from "@/lib/schedule";
 import { buildTomorrowPlan } from "@/lib/tomorrow-plan";
+import { buildWinnerPlaybook } from "@/lib/winner-playbook";
 import { weeklyInsightLines, weeklyProductRollup } from "@/lib/weekly";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,7 @@ export default async function ResultsPage() {
   const weekly = weeklyProductRollup(db.products, db.schedule, date, 7);
   const weeklyLines = weeklyInsightLines(weekly);
   const tomorrowPlan = buildTomorrowPlan(db, date);
+  const winnerPlaybook = buildWinnerPlaybook(db, date);
 
   return (
     <div className="space-y-8">
@@ -187,6 +189,73 @@ export default async function ResultsPage() {
           ))}
         </ul>
         <p className="text-xs text-[var(--ink-soft)]">{tomorrowPlan.disclaimer}</p>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="brand-mark text-3xl text-[var(--sage-deep)]">
+            Winner Playbook
+          </h2>
+          <a
+            href="/api/export?format=md&scope=playbook"
+            className="text-xs text-[var(--sage)] hover:underline"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-sm text-[var(--ink-soft)]">{winnerPlaybook.summary}</p>
+        <div className="grid gap-3 md:grid-cols-2">
+          <article className="surface rounded-2xl p-4">
+            <h3 className="font-medium">Keep doing</h3>
+            {winnerPlaybook.keepDoing.length === 0 ? (
+              <p className="mt-2 text-xs text-[var(--ink-soft)]">
+                ยังไม่มี keep — กรอกผลหลังโพสต์ก่อน
+              </p>
+            ) : (
+              <ul className="mt-2 list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+                {winnerPlaybook.keepDoing.map((k) => (
+                  <li key={k.productId}>
+                    <span className="text-[var(--ink)]">{k.productName}</span>
+                    <br />
+                    {k.why}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+          <article className="surface rounded-2xl p-4">
+            <h3 className="font-medium">Stop / พัก</h3>
+            {winnerPlaybook.stopOrPause.length === 0 ? (
+              <p className="mt-2 text-xs text-[var(--ink-soft)]">
+                ยังไม่มีคำแนะนำพัก
+              </p>
+            ) : (
+              <ul className="mt-2 list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+                {winnerPlaybook.stopOrPause.map((s) => (
+                  <li key={s.productId}>
+                    <span className="text-[var(--ink)]">{s.productName}</span>
+                    <br />
+                    {s.why}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </div>
+        <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+          {winnerPlaybook.hookTips.slice(0, 2).map((t) => (
+            <li key={t}>Hook: {t}</li>
+          ))}
+          {winnerPlaybook.ctaTips.slice(0, 2).map((t) => (
+            <li key={t}>CTA: {t}</li>
+          ))}
+          {winnerPlaybook.experiments.map((e) => (
+            <li key={e.title}>
+              ทดลอง: {e.title} — {e.detail}
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-[var(--ink-soft)]">{winnerPlaybook.disclaimer}</p>
       </section>
     </div>
   );

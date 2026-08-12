@@ -35,6 +35,11 @@ import {
   tomorrowPlanLines,
   type TomorrowPlan,
 } from "./tomorrow-plan";
+import {
+  buildWinnerPlaybook,
+  winnerPlaybookLines,
+  type WinnerPlaybook,
+} from "./winner-playbook";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -209,6 +214,7 @@ export async function runMorningWorkflow(
         ...experiment.lines.slice(0, 3),
         ...buildDailyDigest(db, date).lines.slice(0, 6),
         ...approveQueueLines(buildApproveQueue(db, date), 5),
+        ...winnerPlaybookLines(buildWinnerPlaybook(db, date), 4),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -302,6 +308,7 @@ export async function runEveningWorkflow(
       ).map((r) => r.product.name);
 
       const tomorrowPlan = buildTomorrowPlan(db, date);
+      const playbook = buildWinnerPlaybook(db, date);
 
       const recommendations = [
         ...analysis.recommendations,
@@ -309,6 +316,7 @@ export async function runEveningWorkflow(
         ...learning.notes,
         ...pauseLines,
         ...tomorrowPlanLines(tomorrowPlan, 6),
+        ...winnerPlaybookLines(playbook, 6),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -361,6 +369,7 @@ export async function getDashboardSnapshot(): Promise<{
   digest: DailyDigest;
   tomorrowPlan: TomorrowPlan;
   approveQueue: ApproveQueue;
+  winnerPlaybook: WinnerPlaybook;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -398,6 +407,7 @@ export async function getDashboardSnapshot(): Promise<{
   const digest = buildDailyDigest(db, date);
   const tomorrowPlan = buildTomorrowPlan(db, date);
   const approveQueue = buildApproveQueue(db, date);
+  const winnerPlaybook = buildWinnerPlaybook(db, date);
   return {
     db,
     ranked,
@@ -409,5 +419,6 @@ export async function getDashboardSnapshot(): Promise<{
     digest,
     tomorrowPlan,
     approveQueue,
+    winnerPlaybook,
   };
 }

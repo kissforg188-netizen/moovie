@@ -19,6 +19,7 @@ import {
 import { approveQueueToMarkdown } from "@/lib/approve-queue";
 import { dailyDigestToMarkdown } from "@/lib/daily-digest";
 import { tomorrowPlanToMarkdown } from "@/lib/tomorrow-plan";
+import { winnerPlaybookToMarkdown } from "@/lib/winner-playbook";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -64,6 +65,14 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = approveQueueToMarkdown(snap.approveQueue);
       filename = `affiliate-approve-queue-${todayISO()}.md`;
+    } else if (
+      scope === "playbook" ||
+      scope === "winner-playbook" ||
+      scope === "winners"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = winnerPlaybookToMarkdown(snap.winnerPlaybook);
+      filename = `affiliate-winner-playbook-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

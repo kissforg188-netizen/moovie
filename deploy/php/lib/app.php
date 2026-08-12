@@ -1259,6 +1259,262 @@ function approve_queue_to_markdown(array $queue): string
         . $queue['disclaimer'] . "\n";
 }
 
+/**
+ * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
+ * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
+ */
+function build_winner_playbook(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $stmt = db()->prepare("SELECT s.*, p.name AS product_name, p.active FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date BETWEEN ? AND ? AND s.metrics_at IS NOT NULL");
+    $stmt->execute([$from, $date]);
+    $rows = $stmt->fetchAll() ?: [];
+
+    $byProduct = [];
+    $byChannel = [];
+    $byHook = [];
+    $byCta = [];
+    $byTime = [];
+    foreach ($rows as $r) {
+        $pid = (string)$r['product_id'];
+        $views = max((int)$r['views'], 0);
+        $clicks = max((int)$r['clicks'], 0);
+        $orders = max((int)$r['orders_count'], 0);
+        $commission = max((float)$r['commission_earned'], 0);
+        $ctr = $views > 0 ? $clicks / $views : 0;
+        $opc = $clicks > 0 ? $orders / $clicks : 0;
+        $score = $ctr * 40 + $opc * 30 + min($commission / 100, 1) * 30;
+        if (!isset($byProduct[$pid])) {
+            $byProduct[$pid] = [
+                'productId' => $pid,
+                'productName' => (string)($r['product_name'] ?? $pid),
+                'posts' => 0,
+                'orders' => 0,
+                'commission' => 0.0,
+                'ctrSum' => 0.0,
+                'scoreSum' => 0.0,
+                'active' => (int)($r['active'] ?? 1) === 1,
+            ];
+        }
+        $byProduct[$pid]['posts']++;
+        $byProduct[$pid]['orders'] += $orders;
+        $byProduct[$pid]['commission'] += $commission;
+        $byProduct[$pid]['ctrSum'] += $ctr;
+        $byProduct[$pid]['scoreSum'] += $score;
+
+        $ch = (string)$r['channel'];
+        if (!isset($byChannel[$ch])) $byChannel[$ch] = ['n' => 0, 'score' => 0.0];
+        $byChannel[$ch]['n']++;
+        $byChannel[$ch]['score'] += $score;
+
+        $hook = (int)$r['hook_index'];
+        if (!isset($byHook[$hook])) $byHook[$hook] = ['n' => 0, 'score' => 0.0];
+        $byHook[$hook]['n']++;
+        $byHook[$hook]['score'] += $score;
+
+        $cta = (int)$r['cta_index'];
+        if (!isset($byCta[$cta])) $byCta[$cta] = ['n' => 0, 'score' => 0.0];
+        $byCta[$cta]['n']++;
+        $byCta[$cta]['score'] += $score;
+
+        $time = (string)$r['suggested_time'];
+        if ($time !== '') {
+            if (!isset($byTime[$time])) $byTime[$time] = ['n' => 0, 'score' => 0.0];
+            $byTime[$time]['n']++;
+            $byTime[$time]['score'] += $score;
+        }
+    }
+
+    uasort($byProduct, fn($a, $b) => ($b['scoreSum'] / max($b['posts'], 1)) <=> ($a['scoreSum'] / max($a['posts'], 1)));
+    $keepDoing = [];
+    foreach (array_slice($byProduct, 0, 3, true) as $row) {
+        $avgCtr = $row['posts'] > 0 ? $row['ctrSum'] / $row['posts'] : 0;
+        $keepDoing[] = [
+            'productId' => $row['productId'],
+            'productName' => $row['productName'],
+            'why' => 'โพสต์ ' . $row['posts'] . ' ชิ้น · ออเดอร์ ' . $row['orders']
+                . ' · ค่าคอมที่กรอก ฿' . number_format($row['commission'], 0)
+                . ' · CTR เฉลี่ย ~' . number_format($avgCtr * 100, 1) . '%',
+            'sampleSize' => $row['posts'],
+            'commission' => $row['commission'],
+            'orders' => $row['orders'],
+            'avgCtr' => $avgCtr,
+        ];
+    }
+
+    $stopOrPause = [];
+    foreach ($byProduct as $row) {
+        if (!$row['active']) continue;
+        if ($row['posts'] < 2) continue;
+        if ($row['orders'] === 0 && $row['commission'] <= 0) {
+            $stopOrPause[] = [
+                'productId' => $row['productId'],
+                'productName' => $row['productName'],
+                'why' => 'โพสต์ ' . $row['posts'] . ' ชิ้นแล้วยังไม่มีออเดอร์/ค่าคอม — พิจารณาพักหรือเปลี่ยนมุมขาย (ไม่พักอัตโนมัติ)',
+            ];
+        }
+        if (count($stopOrPause) >= 5) break;
+    }
+
+    $channelTips = [];
+    if ($byChannel) {
+        uasort($byChannel, fn($a, $b) => ($b['score'] / max($b['n'], 1)) <=> ($a['score'] / max($a['n'], 1)));
+        $channels = array_keys($byChannel);
+        $best = $channels[0];
+        $channelTips[] = [
+            'channel' => $best,
+            'label' => channel_label($best),
+            'tip' => 'คะแนนเฉลี่ยดีกว่าในชุดข้อมูลนี้ (n=' . $byChannel[$best]['n'] . ') — ลองจัดสล็อตคุณภาพก่อน',
+        ];
+        $weak = $channels[count($channels) - 1];
+        if ($weak !== $best) {
+            $channelTips[] = [
+                'channel' => $weak,
+                'label' => channel_label($weak),
+                'tip' => 'อ่อนกว่าช่องอื่น (n=' . $byChannel[$weak]['n'] . ') — อย่าถี่ขึ้น ให้ปรับ hook/CTA ก่อน',
+            ];
+        }
+    }
+
+    $hookTips = [];
+    if (count($byHook) >= 2) {
+        uasort($byHook, fn($a, $b) => ($b['score'] / max($b['n'], 1)) <=> ($a['score'] / max($a['n'], 1)));
+        $bestHook = array_key_first($byHook);
+        $hookTips[] = 'ในหน้าต่างนี้ hook #' . ((int)$bestHook + 1) . ' คะแนนเฉลี่ยดีกว่า (n=' . $byHook[$bestHook]['n'] . ') — ใช้เป็นสมมติฐานทดสอบ ไม่ใช่การันตี';
+    } else {
+        $hookTips[] = 'ยังไม่พอข้อมูลเปรียบเทียบ hook — อนุมัติ draft แล้วลองคนละ hook 1–2 ชิ้น';
+    }
+
+    $ctaTips = [];
+    if (count($byCta) >= 2) {
+        uasort($byCta, fn($a, $b) => ($b['score'] / max($b['n'], 1)) <=> ($a['score'] / max($a['n'], 1)));
+        $bestCta = array_key_first($byCta);
+        $ctaTips[] = 'ในหน้าต่างนี้ CTA #' . ((int)$bestCta + 1) . ' คะแนนเฉลี่ยดีกว่า (n=' . $byCta[$bestCta]['n'] . ') — ทดลอง ไม่การันตี';
+    } else {
+        $ctaTips[] = 'ยังไม่พอข้อมูล CTA — ใช้ CTA อ่อนโยน + disclosure ทุกครั้ง';
+    }
+
+    $timeTips = [];
+    if (count($byTime) >= 2) {
+        uasort($byTime, fn($a, $b) => ($b['score'] / max($b['n'], 1)) <=> ($a['score'] / max($a['n'], 1)));
+        $bestTime = array_key_first($byTime);
+        $timeTips[] = 'สล็อต ' . $bestTime . ' คะแนนเฉลี่ยดีกว่า (n=' . $byTime[$bestTime]['n'] . ') — ทดลองไม่บังคับ';
+    } else {
+        $timeTips[] = 'ยังไม่พอข้อมูลช่วงเวลา — โพสต์ตามตาราง draft 2–3 ชิ้น/วันพอ';
+    }
+
+    $experiments = [];
+    if ($keepDoing) {
+        $experiments[] = [
+            'title' => 'ต่อยอด “' . $keepDoing[0]['productName'] . '” ด้วย hook ใหม่',
+            'detail' => 'Approve draft ที่ใช้ hook คนละแบบจากเดิม 1 ชิ้น แล้วกรอกผลเย็น — อย่าโพสต์ซ้ำแคปชันเดิม',
+        ];
+    }
+    if ($stopOrPause) {
+        $experiments[] = [
+            'title' => 'พัก “' . $stopOrPause[0]['productName'] . '” แล้วโฟกัส keep',
+            'detail' => 'กดพักเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ) แล้วโฟกัสสินค้าที่ keep doing',
+        ];
+    }
+    if (!$experiments) {
+        $experiments[] = [
+            'title' => 'เก็บข้อมูลคุณภาพก่อนขยาย',
+            'detail' => 'รัน Morning → Approve 1–2 draft → โพสต์มือ → กรอกผลเย็น แล้วค่อยอ่าน Playbook ใหม่',
+        ];
+    }
+
+    $checklist = [
+        'ตรวจ disclosure ทุกแคปชันก่อน Approve',
+        'โพสต์ด้วยมือหลัง Approve เท่านั้น — ระบบไม่โพสต์ให้อัตโนมัติ',
+        'อย่าโพสต์ซ้ำข้อความเดิมในวันเดียว',
+        'กรอก views/clicks/orders/ค่าคอมเย็นนี้เพื่ออัปเดต Playbook',
+        'ถ้าสินค้าอ่อนต่อเนื่อง ให้พักเอง ไม่ต้องเพิ่มรอบ',
+    ];
+
+    $samplePosts = count($rows);
+    $summary = $samplePosts === 0
+        ? "Winner Playbook {$date}: ยังไม่มีเมตริกใน {$window} วัน — เก็บผลจริงก่อนสรุป keep/stop"
+        : "Winner Playbook {$date}: จาก {$samplePosts} โพสต์/{$window} วัน · keep " . count($keepDoing) . ' · พิจารณาพัก ' . count($stopOrPause) . ' (ทดลอง ไม่การันตีรายได้)';
+
+    $lines = ["Winner Playbook {$date}: {$summary}"];
+    foreach (array_slice($keepDoing, 0, 3) as $i => $k) {
+        $lines[] = 'Keep ' . ($i + 1) . ') ' . $k['productName'] . ' — ' . $k['why'];
+    }
+    foreach (array_slice($stopOrPause, 0, 2) as $s) {
+        $lines[] = 'Stop/พัก: ' . $s['productName'] . ' — ' . $s['why'];
+    }
+    if ($channelTips) {
+        $lines[] = 'ช่องทาง: ' . $channelTips[0]['label'] . ' — ' . $channelTips[0]['tip'];
+    }
+    foreach (array_slice($experiments, 0, 2) as $e) {
+        $lines[] = 'ทดลอง: ' . $e['title'];
+    }
+    $lines[] = 'Playbook เป็นสมมติฐานจากข้อมูลที่กรอก — ไม่โพสต์อัตโนมัติและไม่การันตีรายได้';
+
+    return [
+        'date' => $date,
+        'windowDays' => $window,
+        'samplePosts' => $samplePosts,
+        'summary' => $summary,
+        'keepDoing' => $keepDoing,
+        'stopOrPause' => $stopOrPause,
+        'channelTips' => $channelTips,
+        'hookTips' => $hookTips,
+        'ctaTips' => $ctaTips,
+        'timeTips' => $timeTips,
+        'experiments' => $experiments,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function winner_playbook_to_markdown(array $playbook): string
+{
+    $keep = [];
+    foreach ($playbook['keepDoing'] as $i => $k) {
+        $n = $i + 1;
+        $keep[] = "{$n}. **{$k['productName']}**\n   {$k['why']}\n   ออเดอร์ {$k['orders']} · ค่าคอม ฿" . number_format((float)$k['commission'], 0) . ' · CTR ~' . number_format(((float)$k['avgCtr']) * 100, 1) . '%';
+    }
+    if (!$keep) $keep[] = '_(ยังไม่มีสินค้า keep — เก็บเมตริกต่อ)_';
+
+    $stop = [];
+    foreach ($playbook['stopOrPause'] as $i => $s) {
+        $n = $i + 1;
+        $stop[] = "{$n}. **{$s['productName']}** — {$s['why']}";
+    }
+    if (!$stop) $stop[] = '_(ยังไม่มีคำแนะนำพัก)_';
+
+    $channels = [];
+    foreach ($playbook['channelTips'] as $c) {
+        $channels[] = "- **{$c['label']}**: {$c['tip']}";
+    }
+    if (!$channels) $channels[] = '_(ยังไม่พอข้อมูลช่องทาง)_';
+
+    $experiments = [];
+    foreach ($playbook['experiments'] as $i => $e) {
+        $n = $i + 1;
+        $experiments[] = "{$n}. **{$e['title']}**\n   {$e['detail']}";
+    }
+    $checklist = array_map(fn($c) => '- ' . $c, $playbook['checklist']);
+
+    return "# Winner Playbook · {$playbook['date']}\n\n"
+        . $playbook['summary'] . "\n\n"
+        . "หน้าต่างข้อมูล: {$playbook['windowDays']} วัน · โพสต์ที่มีเมตริก: {$playbook['samplePosts']}\n\n"
+        . "## Keep doing\n" . implode("\n", $keep) . "\n\n"
+        . "## Stop / พักชั่วคราว\n" . implode("\n", $stop) . "\n\n"
+        . "## ช่องทาง\n" . implode("\n", $channels) . "\n\n"
+        . "## Hook\n" . implode("\n", array_map(fn($t) => '- ' . $t, $playbook['hookTips'])) . "\n\n"
+        . "## CTA\n" . implode("\n", array_map(fn($t) => '- ' . $t, $playbook['ctaTips'])) . "\n\n"
+        . "## ช่วงเวลา\n" . implode("\n", array_map(fn($t) => '- ' . $t, $playbook['timeTips'])) . "\n\n"
+        . "## ทดลองถัดไป\n" . implode("\n", $experiments) . "\n\n"
+        . "## Checklist\n" . implode("\n", $checklist) . "\n\n"
+        . "> ระบบไม่โพสต์อัตโนมัติ — Approve แล้วต้องโพสต์ด้วยมือ\n\n"
+        . $playbook['disclaimer'] . "\n";
+}
+
 /** Morning brief lines for caption quality of today's drafts. */
 function quality_brief_lines(string $date): array
 {
@@ -1516,6 +1772,7 @@ function run_morning_workflow(?string $date = null): array
     $qualityLines = quality_brief_lines($date);
     $approveQueue = build_approve_queue($date);
     $approveLines = array_slice($approveQueue['lines'], 0, 5);
+    $playbookLines = array_slice(build_winner_playbook($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -1526,6 +1783,7 @@ function run_morning_workflow(?string $date = null): array
         ...$compliance,
         ...$qualityLines,
         ...$approveLines,
+        ...$playbookLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -1605,8 +1863,12 @@ function run_evening_workflow(?string $date = null): array
     $analysis = analyze_posted($date);
     $next = rank_products(3);
     $tomorrow = build_tomorrow_plan($date);
+    $playbook = build_winner_playbook($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
+        $recs[] = $line;
+    }
+    foreach (array_slice($playbook['lines'], 0, 6) as $line) {
         $recs[] = $line;
     }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';

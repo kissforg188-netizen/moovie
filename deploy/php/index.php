@@ -31,6 +31,7 @@ $futureAdapters = future_affiliate_adapters();
 $digest = build_daily_digest($date);
 $tomorrowPlan = build_tomorrow_plan($date);
 $approveQueue = build_approve_queue($date);
+$winnerPlaybook = build_winner_playbook($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -319,6 +320,54 @@ $approveQueue = build_approve_queue($date);
           <?php endforeach; ?>
         </ul>
         <p class="note"><?= h($tomorrowPlan['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Winner Playbook</h2>
+        <p class="muted"><?= h($winnerPlaybook['summary']) ?></p>
+        <p class="muted">หน้าต่าง <?= (int)$winnerPlaybook['windowDays'] ?> วัน · โพสต์ที่มีเมตริก <?= (int)$winnerPlaybook['samplePosts'] ?></p>
+        <div class="grid-2">
+          <div>
+            <h3>Keep doing</h3>
+            <?php if (!$winnerPlaybook['keepDoing']): ?>
+              <p class="muted">ยังไม่มี keep — กรอกผลหลังโพสต์ก่อน</p>
+            <?php else: ?>
+              <ol>
+                <?php foreach (array_slice($winnerPlaybook['keepDoing'], 0, 3) as $k): ?>
+                  <li>
+                    <strong><?= h($k['productName']) ?></strong>
+                    <div class="muted"><?= h($k['why']) ?></div>
+                  </li>
+                <?php endforeach; ?>
+              </ol>
+            <?php endif; ?>
+          </div>
+          <div>
+            <h3>Stop / พัก</h3>
+            <?php if (!$winnerPlaybook['stopOrPause']): ?>
+              <p class="muted">ยังไม่มีคำแนะนำพัก</p>
+            <?php else: ?>
+              <ol>
+                <?php foreach (array_slice($winnerPlaybook['stopOrPause'], 0, 3) as $s): ?>
+                  <li>
+                    <strong><?= h($s['productName']) ?></strong>
+                    <div class="muted"><?= h($s['why']) ?></div>
+                  </li>
+                <?php endforeach; ?>
+              </ol>
+            <?php endif; ?>
+          </div>
+        </div>
+        <ul>
+          <?php foreach (array_slice($winnerPlaybook['experiments'], 0, 3) as $e): ?>
+            <li class="muted"><strong><?= h($e['title']) ?></strong> — <?= h($e['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=playbook">Export Playbook (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($winnerPlaybook['disclaimer']) ?></p>
       </section>
 
       <section class="card">

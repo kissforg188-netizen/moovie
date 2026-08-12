@@ -18,6 +18,11 @@ import {
   tomorrowPlanToMarkdown,
 } from "../src/lib/tomorrow-plan";
 import {
+  buildWinnerPlaybook,
+  scorePlaybookProduct,
+  winnerPlaybookToMarkdown,
+} from "../src/lib/winner-playbook";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -1426,6 +1431,107 @@ function run() {
   assert.ok(
     approveQueueMd.includes("ไม่โพสต์อัตโนมัติ") ||
       approveQueueMd.includes("ทดลอง"),
+  );
+
+  // Winner Playbook — keep/stop/try from metrics; never auto-publish
+  const strongScore = scorePlaybookProduct({
+    posts: 3,
+    orders: 2,
+    commission: 300,
+    avgCtr: 0.08,
+  });
+  const weakScore = scorePlaybookProduct({
+    posts: 3,
+    orders: 0,
+    commission: 0,
+    avgCtr: 0.01,
+  });
+  assert.ok(strongScore > weakScore);
+
+  const playbookDb = {
+    ...tomorrowDb,
+    schedule: [
+      ...tomorrowDb.schedule,
+      {
+        id: "sch-win-1",
+        date: "2026-08-07",
+        suggestedTime: "10:30",
+        channel: "tiktok" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack-a",
+        hookIndex: 1,
+        ctaIndex: 0,
+        status: "posted" as const,
+        captionPreview: `keep ${AFFILIATE_DISCLOSURE}`,
+        metrics: {
+          views: 1000,
+          clicks: 80,
+          orders: 3,
+          commissionEarned: 240,
+        },
+      },
+      {
+        id: "sch-win-2",
+        date: "2026-08-06",
+        suggestedTime: "13:00",
+        channel: "facebook_reels" as const,
+        productId: expensiveLow.id,
+        contentPackId: "pack-b",
+        hookIndex: 0,
+        ctaIndex: 1,
+        status: "posted" as const,
+        captionPreview: `weak ${AFFILIATE_DISCLOSURE}`,
+        metrics: {
+          views: 800,
+          clicks: 40,
+          orders: 0,
+          commissionEarned: 0,
+        },
+      },
+      {
+        id: "sch-win-3",
+        date: "2026-08-05",
+        suggestedTime: "10:30",
+        channel: "tiktok" as const,
+        productId: expensiveLow.id,
+        contentPackId: "pack-b",
+        hookIndex: 0,
+        ctaIndex: 1,
+        status: "posted" as const,
+        captionPreview: `weak2 ${AFFILIATE_DISCLOSURE}`,
+        metrics: {
+          views: 600,
+          clicks: 30,
+          orders: 0,
+          commissionEarned: 0,
+        },
+      },
+    ],
+  };
+  const playbook = buildWinnerPlaybook(playbookDb as never, "2026-08-08", 14);
+  assert.ok(playbook.samplePosts >= 2);
+  assert.ok(playbook.keepDoing.length >= 1);
+  assert.ok(
+    playbook.keepDoing.some((k) => k.productId === cheapHigh.id) ||
+      playbook.keepDoing[0].commission >= 0,
+  );
+  assert.ok(playbook.stopOrPause.length >= 1);
+  assert.ok(
+    playbook.stopOrPause.some((s) => s.productId === expensiveLow.id),
+  );
+  assert.ok(playbook.experiments.length >= 1);
+  assert.ok(playbook.checklist.some((c) => /disclosure|Approve/.test(c)));
+  assert.ok(playbook.lines.some((l) => /Winner Playbook/.test(l)));
+  assert.ok(
+    playbook.disclaimer.includes("ไม่") ||
+      playbook.disclaimer.includes("ทดลอง"),
+  );
+  const playbookMd = winnerPlaybookToMarkdown(playbook);
+  assert.ok(playbookMd.includes("Winner Playbook"));
+  assert.ok(playbookMd.includes("Keep doing"));
+  assert.ok(
+    playbookMd.includes("ไม่โพสต์อัตโนมัติ") ||
+      playbookMd.includes("ทดลอง"),
   );
 
   console.log("All unit tests passed");

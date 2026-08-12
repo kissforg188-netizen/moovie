@@ -25,6 +25,7 @@ export default async function AutomationPage() {
     digest,
     tomorrowPlan,
     approveQueue,
+    winnerPlaybook,
   } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
@@ -236,6 +237,74 @@ export default async function AutomationPage() {
           ))}
         </ul>
         <p className="text-xs text-[var(--ink-soft)]">{tomorrowPlan.disclaimer}</p>
+      </section>
+
+      <section className="surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Winner Playbook
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              {winnerPlaybook.summary}
+            </p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href="/api/export?format=md&scope=playbook"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-xs text-[var(--ink-soft)]">
+          หน้าต่าง {winnerPlaybook.windowDays} วัน · โพสต์ที่มีเมตริก{" "}
+          {winnerPlaybook.samplePosts}
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <h3 className="text-sm text-[var(--sage-deep)]">Keep doing</h3>
+            {winnerPlaybook.keepDoing.length === 0 ? (
+              <p className="mt-1 text-xs text-[var(--ink-soft)]">
+                ยังไม่มี keep — กรอกผลหลังโพสต์ก่อน
+              </p>
+            ) : (
+              <ol className="mt-1 list-decimal space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+                {winnerPlaybook.keepDoing.slice(0, 3).map((k) => (
+                  <li key={k.productId}>
+                    <span className="text-[var(--sage-deep)]">{k.productName}</span>
+                    <p className="mt-0.5">{k.why}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+          <div>
+            <h3 className="text-sm text-[var(--sage-deep)]">Stop / พัก</h3>
+            {winnerPlaybook.stopOrPause.length === 0 ? (
+              <p className="mt-1 text-xs text-[var(--ink-soft)]">
+                ยังไม่มีคำแนะนำพัก
+              </p>
+            ) : (
+              <ol className="mt-1 list-decimal space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+                {winnerPlaybook.stopOrPause.slice(0, 3).map((s) => (
+                  <li key={s.productId}>
+                    <span className="text-[var(--sage-deep)]">{s.productName}</span>
+                    <p className="mt-0.5">{s.why}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </div>
+        <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+          {winnerPlaybook.experiments.slice(0, 3).map((e) => (
+            <li key={e.title}>
+              <span className="text-[var(--sage-deep)]">{e.title}</span> —{" "}
+              {e.detail}
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-[var(--ink-soft)]">{winnerPlaybook.disclaimer}</p>
       </section>
 
       <WorkflowButtons />

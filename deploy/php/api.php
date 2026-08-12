@@ -207,6 +207,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md approve-queue');
                 exit;
             }
+            if (in_array($scope, ['playbook', 'winner-playbook', 'winners'], true)) {
+                $playbook = build_winner_playbook(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-winner-playbook-'.today_iso().'.md"');
+                echo winner_playbook_to_markdown($playbook);
+                automation_log_finish($job, 'success', 'exported md playbook');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }
