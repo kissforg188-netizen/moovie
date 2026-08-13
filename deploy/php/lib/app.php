@@ -1515,6 +1515,370 @@ function winner_playbook_to_markdown(array $playbook): string
         . $playbook['disclaimer'] . "\n";
 }
 
+/**
+ * Weekly Review Brief — rolling 7-day retrospective from manual metrics.
+ * Soft experimental insights only; never auto-publishes or claims guaranteed income.
+ * @return array{date:string,fromDate:string,windowDays:int,summary:string,totals:array,topPosts:array,weakPosts:array,channelMix:array,productLeaders:array,dataGaps:array,nextWeekFocus:array,checklist:array,lines:array,disclaimer:string}
+ */
+function build_weekly_review(?string $date = null, int $windowDays = 7): array
+{
+    $date = $date ?: today_iso();
+    $window = max(3, min(14, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+
+    $stmt = db()->prepare('SELECT s.*, p.name AS product_name, p.active FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date BETWEEN ? AND ?');
+    $stmt->execute([$from, $date]);
+    $rows = $stmt->fetchAll() ?: [];
+
+    $scheduled = count($rows);
+    $posted = 0;
+    $withMetrics = [];
+    $missingMetrics = 0;
+    foreach ($rows as $r) {
+        if ((string)$r['status'] === 'posted') {
+            $posted++;
+            if (empty($r['metrics_at'])) {
+                $missingMetrics++;
+            }
+        }
+        if (!empty($r['metrics_at'])) {
+            $withMetrics[] = $r;
+        }
+    }
+
+    $views = 0;
+    $clicks = 0;
+    $orders = 0;
+    $commission = 0.0;
+    $ctrSum = 0.0;
+    $perfs = [];
+    $byChannel = [];
+    $byProduct = [];
+
+    foreach ($withMetrics as $r) {
+        $v = max((int)$r['views'], 0);
+        $c = max((int)$r['clicks'], 0);
+        $o = max((int)$r['orders_count'], 0);
+        $comm = max((float)$r['commission_earned'], 0);
+        $ctr = $v > 0 ? $c / $v : 0;
+        $opc = $c > 0 ? $o / $c : 0;
+        $score = $ctr * 40 + $opc * 30 + min($comm / 100, 1) * 30;
+        $views += $v;
+        $clicks += $c;
+        $orders += $o;
+        $commission += $comm;
+        $ctrSum += $ctr;
+        $pid = (string)$r['product_id'];
+        $name = (string)($r['product_name'] ?? $pid);
+        $perfs[] = [
+            'scheduleId' => (string)$r['id'],
+            'productId' => $pid,
+            'productName' => $name,
+            'channel' => (string)$r['channel'],
+            'date' => (string)$r['post_date'],
+            'commission' => $comm,
+            'orders' => $o,
+            'ctr' => $ctr,
+            'score' => $score,
+        ];
+        $ch = (string)$r['channel'];
+        if (!isset($byChannel[$ch])) {
+            $byChannel[$ch] = ['n' => 0, 'score' => 0.0, 'commission' => 0.0, 'orders' => 0];
+        }
+        $byChannel[$ch]['n']++;
+        $byChannel[$ch]['score'] += $score;
+        $byChannel[$ch]['commission'] += $comm;
+        $byChannel[$ch]['orders'] += $o;
+
+        if (!isset($byProduct[$pid])) {
+            $byProduct[$pid] = [
+                'productId' => $pid,
+                'productName' => $name,
+                'posts' => 0,
+                'orders' => 0,
+                'commission' => 0.0,
+                'scoreSum' => 0.0,
+            ];
+        }
+        $byProduct[$pid]['posts']++;
+        $byProduct[$pid]['orders'] += $o;
+        $byProduct[$pid]['commission'] += $comm;
+        $byProduct[$pid]['scoreSum'] += $score;
+    }
+
+    usort($perfs, fn($a, $b) => $b['score'] <=> $a['score']);
+    $avgCtr = count($withMetrics) > 0 ? $ctrSum / count($withMetrics) : 0;
+
+    $topPosts = [];
+    foreach (array_slice($perfs, 0, 3) as $p) {
+        $whyParts = [
+            channel_label($p['channel']) . ' · ' . $p['date'],
+            'CTR ~' . number_format($p['ctr'] * 100, 1) . '%',
+            $p['commission'] > 0
+                ? 'ค่าคอมที่กรอก ฿' . number_format($p['commission'], 0)
+                : 'ยังไม่มีค่าคอม',
+            $p['orders'] > 0 ? 'ออเดอร์ ' . $p['orders'] : 'ยังไม่มีออเดอร์',
+        ];
+        $topPosts[] = [
+            'scheduleId' => $p['scheduleId'],
+            'productId' => $p['productId'],
+            'productName' => $p['productName'],
+            'channel' => $p['channel'],
+            'channelLabel' => channel_label($p['channel']),
+            'date' => $p['date'],
+            'why' => implode(' · ', $whyParts),
+            'commission' => $p['commission'],
+            'orders' => $p['orders'],
+            'ctr' => $p['ctr'],
+            'score' => $p['score'],
+        ];
+    }
+
+    $weakPosts = [];
+    $weakCandidates = array_reverse($perfs);
+    foreach ($weakCandidates as $p) {
+        if ($p['commission'] > 0 || $p['orders'] > 0) {
+            continue;
+        }
+        $weakPosts[] = [
+            'scheduleId' => $p['scheduleId'],
+            'productId' => $p['productId'],
+            'productName' => $p['productName'],
+            'channel' => $p['channel'],
+            'channelLabel' => channel_label($p['channel']),
+            'date' => $p['date'],
+            'why' => 'คะแนนอ่อน · CTR ~' . number_format($p['ctr'] * 100, 1) . '% — พิจารณาเปลี่ยน hook/มุมขาย ไม่ต้องเพิ่มความถี่',
+            'commission' => $p['commission'],
+            'orders' => $p['orders'],
+            'ctr' => $p['ctr'],
+            'score' => $p['score'],
+        ];
+        if (count($weakPosts) >= 3) {
+            break;
+        }
+    }
+
+    $channelMix = [];
+    if ($byChannel) {
+        uasort($byChannel, fn($a, $b) => ($b['score'] / max($b['n'], 1)) <=> ($a['score'] / max($a['n'], 1)));
+        $idx = 0;
+        $nCh = count($byChannel);
+        foreach ($byChannel as $ch => $row) {
+            $tip = 'รักษาคุณภาพแคปชัน + disclosure ทุกครั้ง';
+            if ($idx === 0 && $nCh > 1) {
+                $tip = 'ช่องนี้คะแนนเฉลี่ยดีกว่าในสัปดาห์นี้ — จัดสล็อตคุณภาพก่อน (ทดลอง)';
+            } elseif ($idx === $nCh - 1 && $nCh > 1) {
+                $tip = 'อ่อนกว่าช่องอื่น — ปรับ hook/CTA ก่อนเพิ่มรอบ (ห้ามสแปม)';
+            }
+            $channelMix[] = [
+                'channel' => $ch,
+                'label' => channel_label($ch),
+                'posts' => $row['n'],
+                'commission' => $row['commission'],
+                'orders' => $row['orders'],
+                'avgScore' => $row['score'] / max($row['n'], 1),
+                'tip' => $tip,
+            ];
+            $idx++;
+        }
+    }
+
+    uasort($byProduct, fn($a, $b) => ($b['scoreSum'] / max($b['posts'], 1)) <=> ($a['scoreSum'] / max($a['posts'], 1)));
+    $productLeaders = [];
+    foreach (array_slice($byProduct, 0, 3, true) as $row) {
+        $productLeaders[] = [
+            'productId' => $row['productId'],
+            'productName' => $row['productName'],
+            'commission' => $row['commission'],
+            'orders' => $row['orders'],
+            'posts' => $row['posts'],
+        ];
+    }
+
+    $dataGaps = [];
+    if ($scheduled === 0) {
+        $dataGaps[] = 'ยังไม่มีโพสต์ในหน้าต่างนี้ — รัน Morning แล้ว Approve ก่อนโพสต์มือ';
+    }
+    if ($missingMetrics > 0) {
+        $dataGaps[] = "โพสต์ที่ mark แล้วแต่ยังไม่กรอกผล {$missingMetrics} ชิ้น — กรอก views/clicks/orders/ค่าคอมที่หน้า Results";
+    }
+    if (count($withMetrics) === 0 && $posted > 0) {
+        $dataGaps[] = 'มีโพสต์แล้วแต่ยังไม่มีเมตริก — Weekly Review จะแม่นขึ้นหลังกรอกผล';
+    }
+    if (count($withMetrics) > 0 && count($withMetrics) < 3) {
+        $dataGaps[] = 'ตัวอย่างเมตริกยังน้อย (n=' . count($withMetrics) . ') — อ่านแนวโน้มเบา ๆ อย่าสรุปหนัก';
+    }
+    $activeCount = 0;
+    foreach (all_products() as $p) {
+        if ((int)($p['active'] ?? 1) === 1) {
+            $activeCount++;
+        }
+    }
+    if ($activeCount < 3) {
+        $dataGaps[] = 'สินค้าที่ใช้งานน้อยกว่า 3 — เพิ่มรายการ manual เพื่อกระจายการทดลอง';
+    }
+    if (!$dataGaps) {
+        $dataGaps[] = 'ข้อมูลครบพอสำหรับรีวิวสัปดาห์นี้ — ใช้เป็นสมมติฐานทดสอบ ไม่การันตีรายได้';
+    }
+
+    $nextWeekFocus = [];
+    if ($productLeaders) {
+        $nextWeekFocus[] = [
+            'id' => 'double-down',
+            'title' => 'ต่อยอด “' . $productLeaders[0]['productName'] . '” ด้วย hook ใหม่',
+            'detail' => 'Approve draft คนละ hook จากเดิม 1 ชิ้น แล้วกรอกผล — อย่าโพสต์ซ้ำแคปชันเดิม',
+        ];
+    }
+    if ($weakPosts) {
+        $nextWeekFocus[] = [
+            'id' => 'rescue-or-pause',
+            'title' => 'ทบทวน “' . $weakPosts[0]['productName'] . '”',
+            'detail' => 'เปลี่ยน pain point/มุมขาย หรือพักเองชั่วคราว — ระบบไม่พักอัตโนมัติ',
+        ];
+    }
+    if ($channelMix && count($channelMix) > 1) {
+        $nextWeekFocus[] = [
+            'id' => 'channel-quality',
+            'title' => 'โฟกัสคุณภาพที่ ' . $channelMix[0]['label'],
+            'detail' => 'จัด 1–2 สล็อตคุณภาพ/วัน ไม่เพิ่มความถี่เกิน maxPostsPerDay',
+        ];
+    }
+    if ($missingMetrics > 0) {
+        $nextWeekFocus[] = [
+            'id' => 'close-metrics',
+            'title' => 'ปิดช่องว่างเมตริกก่อนขยาย',
+            'detail' => "กรอกผลที่ขาด {$missingMetrics} ชิ้นก่อนสรุป keep/stop รอบใหม่",
+        ];
+    }
+    if (!$nextWeekFocus) {
+        $nextWeekFocus[] = [
+            'id' => 'baseline',
+            'title' => 'เก็บ baseline คุณภาพก่อนขยาย',
+            'detail' => 'Morning → Approve 1–2 draft → โพสต์มือ + disclosure → กรอกผลเย็น',
+        ];
+    }
+    $nextWeekFocus = array_slice($nextWeekFocus, 0, 4);
+
+    $checklist = [
+        'ตรวจ disclosure ทุกแคปชันก่อน Approve',
+        'โพสต์ด้วยมือหลัง Approve เท่านั้น — ระบบไม่โพสต์ให้อัตโนมัติ',
+        'อย่าโพสต์ซ้ำข้อความเดิมในวันเดียว',
+        'กรอก views/clicks/orders/ค่าคอมหลังโพสต์เพื่ออัปเดต Weekly Review',
+        'ใช้ตัวเลขเป็นสมมติฐานทดลอง — ไม่การันตีรายได้',
+    ];
+
+    $nMetrics = count($withMetrics);
+    $summary = $nMetrics === 0
+        ? "Weekly Review {$date}: ยังไม่มีเมตริกใน {$window} วัน ({$from}–{$date}) — เก็บผลจริงก่อนสรุป"
+        : "Weekly Review {$date}: {$nMetrics} โพสต์มีเมตริก · ค่าคอมที่กรอก ฿" . number_format($commission, 0)
+            . ' · ออเดอร์ ' . $orders
+            . ' · CTR เฉลี่ย ~' . number_format($avgCtr * 100, 1) . '% (ทดลอง ไม่การันตี)';
+
+    $lines = ["Weekly Review {$date}: {$summary}"];
+    if ($productLeaders) {
+        $lines[] = 'สินค้าเด่นสัปดาห์นี้: ' . $productLeaders[0]['productName']
+            . ' · ค่าคอมที่กรอก ฿' . number_format($productLeaders[0]['commission'], 0)
+            . ' · ออเดอร์ ' . $productLeaders[0]['orders'];
+    }
+    if ($topPosts) {
+        $lines[] = 'โพสต์เด่น: ' . $topPosts[0]['productName'] . ' @ ' . $topPosts[0]['channelLabel'] . ' — ' . $topPosts[0]['why'];
+    }
+    if ($channelMix) {
+        $lines[] = 'ช่องทางเด่น: ' . $channelMix[0]['label'] . ' (n=' . $channelMix[0]['posts'] . ') — ' . $channelMix[0]['tip'];
+    }
+    if ($missingMetrics > 0) {
+        $lines[] = "ช่องว่างข้อมูล: รอกรอกผล {$missingMetrics} ชิ้นที่ Results";
+    }
+    foreach (array_slice($nextWeekFocus, 0, 2) as $a) {
+        $lines[] = 'โฟกัสสัปดาห์หน้า: ' . $a['title'];
+    }
+    $lines[] = 'Weekly Review อ่านจากเมตริกที่กรอกเอง — ไม่โพสต์อัตโนมัติและไม่การันตีรายได้';
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'summary' => $summary,
+        'totals' => [
+            'scheduled' => $scheduled,
+            'posted' => $posted,
+            'withMetrics' => $nMetrics,
+            'missingMetrics' => $missingMetrics,
+            'views' => $views,
+            'clicks' => $clicks,
+            'orders' => $orders,
+            'commission' => $commission,
+            'promoSpend' => 0.0,
+            'avgCtr' => $avgCtr,
+            'roi' => null,
+        ],
+        'topPosts' => $topPosts,
+        'weakPosts' => $weakPosts,
+        'channelMix' => $channelMix,
+        'productLeaders' => $productLeaders,
+        'dataGaps' => $dataGaps,
+        'nextWeekFocus' => $nextWeekFocus,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function weekly_review_to_markdown(array $review): string
+{
+    $t = $review['totals'];
+    $top = $review['topPosts']
+        ? implode("\n", array_map(function ($p, $i) {
+            return ($i + 1) . '. **' . $p['productName'] . '** (' . $p['channelLabel'] . ' · ' . $p['date'] . ') — ' . $p['why'];
+        }, $review['topPosts'], array_keys($review['topPosts'])))
+        : '- ยังไม่มีโพสต์เด่น';
+    $weak = $review['weakPosts']
+        ? implode("\n", array_map(function ($p, $i) {
+            return ($i + 1) . '. **' . $p['productName'] . '** (' . $p['channelLabel'] . ' · ' . $p['date'] . ') — ' . $p['why'];
+        }, $review['weakPosts'], array_keys($review['weakPosts'])))
+        : '- ยังไม่มีโพสต์อ่อนชัดเจน';
+    $channels = $review['channelMix']
+        ? implode("\n", array_map(fn($c) => '- **' . $c['label'] . '** · n=' . $c['posts']
+            . ' · ค่าคอม ฿' . number_format($c['commission'], 0)
+            . ' · ออเดอร์ ' . $c['orders'] . ' — ' . $c['tip'], $review['channelMix']))
+        : '- ยังไม่พอข้อมูลช่องทาง';
+    $leaders = $review['productLeaders']
+        ? implode("\n", array_map(function ($p, $i) {
+            return ($i + 1) . '. **' . $p['productName'] . '** · โพสต์ ' . $p['posts']
+                . ' · ออเดอร์ ' . $p['orders']
+                . ' · ค่าคอม ฿' . number_format($p['commission'], 0);
+        }, $review['productLeaders'], array_keys($review['productLeaders'])))
+        : '- ยังไม่มีสินค้าเด่น';
+    $focus = implode("\n", array_map(function ($a, $i) {
+        return ($i + 1) . '. **' . $a['title'] . '** — ' . $a['detail'];
+    }, $review['nextWeekFocus'], array_keys($review['nextWeekFocus'])));
+    $gaps = implode("\n", array_map(fn($g) => '- ' . $g, $review['dataGaps']));
+    $checklist = implode("\n", array_map(fn($c) => '- [ ] ' . $c, $review['checklist']));
+
+    return "# Weekly Review · {$review['date']}\n\n"
+        . $review['summary'] . "\n\n"
+        . "หน้าต่าง: {$review['fromDate']} → {$review['date']} ({$review['windowDays']} วัน)\n\n"
+        . "## สรุปตัวเลข (จากที่กรอกเอง)\n"
+        . "- ตารางในหน้าต่าง: {$t['scheduled']}\n"
+        . "- โพสต์แล้ว: {$t['posted']}\n"
+        . "- มีเมตริก: {$t['withMetrics']}\n"
+        . "- รอกรอกผล: {$t['missingMetrics']}\n"
+        . '- Views: ' . number_format($t['views']) . "\n"
+        . '- Clicks: ' . number_format($t['clicks']) . "\n"
+        . "- Orders: {$t['orders']}\n"
+        . '- ค่าคอมที่กรอก: ฿' . number_format($t['commission'], 0) . "\n"
+        . '- CTR เฉลี่ย: ~' . number_format($t['avgCtr'] * 100, 1) . "%\n\n"
+        . "## สินค้าเด่น\n{$leaders}\n\n"
+        . "## โพสต์เด่น\n{$top}\n\n"
+        . "## โพสต์ที่ควรทบทวน\n{$weak}\n\n"
+        . "## ช่องทาง\n{$channels}\n\n"
+        . "## ช่องว่างข้อมูล\n{$gaps}\n\n"
+        . "## โฟกัสสัปดาห์หน้า\n{$focus}\n\n"
+        . "## Checklist\n{$checklist}\n\n"
+        . $review['disclaimer'] . "\n"
+        . "> ไม่โพสต์อัตโนมัติ — ต้อง Approve แล้วโพสต์ด้วยมือ\n";
+}
+
 /** Morning brief lines for caption quality of today's drafts. */
 function quality_brief_lines(string $date): array
 {
@@ -1773,6 +2137,7 @@ function run_morning_workflow(?string $date = null): array
     $approveQueue = build_approve_queue($date);
     $approveLines = array_slice($approveQueue['lines'], 0, 5);
     $playbookLines = array_slice(build_winner_playbook($date)['lines'], 0, 4);
+    $weeklyReviewLines = array_slice(build_weekly_review($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -1784,6 +2149,7 @@ function run_morning_workflow(?string $date = null): array
         ...$qualityLines,
         ...$approveLines,
         ...$playbookLines,
+        ...$weeklyReviewLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -1864,11 +2230,15 @@ function run_evening_workflow(?string $date = null): array
     $next = rank_products(3);
     $tomorrow = build_tomorrow_plan($date);
     $playbook = build_winner_playbook($date);
+    $weeklyReview = build_weekly_review($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
     }
     foreach (array_slice($playbook['lines'], 0, 6) as $line) {
+        $recs[] = $line;
+    }
+    foreach (array_slice($weeklyReview['lines'], 0, 6) as $line) {
         $recs[] = $line;
     }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';

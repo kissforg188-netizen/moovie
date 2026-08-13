@@ -214,6 +214,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md playbook');
                 exit;
             }
+            if (in_array($scope, ['weekly-review', 'week-review', 'review'], true)) {
+                $review = build_weekly_review(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-weekly-review-'.today_iso().'.md"');
+                echo weekly_review_to_markdown($review);
+                automation_log_finish($job, 'success', 'exported md weekly-review');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

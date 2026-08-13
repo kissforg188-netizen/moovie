@@ -23,6 +23,11 @@ import {
   winnerPlaybookToMarkdown,
 } from "../src/lib/winner-playbook";
 import {
+  buildWeeklyReview,
+  weeklyReviewLines,
+  weeklyReviewToMarkdown,
+} from "../src/lib/weekly-review";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -1532,6 +1537,35 @@ function run() {
   assert.ok(
     playbookMd.includes("ไม่โพสต์อัตโนมัติ") ||
       playbookMd.includes("ทดลอง"),
+  );
+
+  // Weekly Review — rolling 7-day retrospective; never auto-publish
+  const weeklyReview = buildWeeklyReview(playbookDb as never, "2026-08-08", 7);
+  assert.equal(weeklyReview.windowDays, 7);
+  assert.ok(weeklyReview.totals.withMetrics >= 2);
+  assert.ok(weeklyReview.totals.commission >= 240);
+  assert.ok(weeklyReview.totals.orders >= 3);
+  assert.ok(weeklyReview.topPosts.length >= 1);
+  assert.ok(
+    weeklyReview.topPosts.some((p) => p.productId === cheapHigh.id),
+  );
+  assert.ok(weeklyReview.productLeaders.length >= 1);
+  assert.ok(weeklyReview.channelMix.length >= 1);
+  assert.ok(weeklyReview.nextWeekFocus.length >= 1);
+  assert.ok(weeklyReview.dataGaps.length >= 1);
+  assert.ok(weeklyReview.checklist.some((c) => /disclosure|Approve/.test(c)));
+  assert.ok(weeklyReview.lines.some((l) => /Weekly Review/.test(l)));
+  assert.ok(weeklyReviewLines(weeklyReview, 3).length <= 3);
+  assert.ok(
+    weeklyReview.disclaimer.includes("ไม่") ||
+      weeklyReview.disclaimer.includes("ทดลอง"),
+  );
+  const weeklyReviewMd = weeklyReviewToMarkdown(weeklyReview);
+  assert.ok(weeklyReviewMd.includes("Weekly Review"));
+  assert.ok(weeklyReviewMd.includes("โฟกัสสัปดาห์หน้า"));
+  assert.ok(
+    weeklyReviewMd.includes("ไม่โพสต์อัตโนมัติ") ||
+      weeklyReviewMd.includes("ทดลอง"),
   );
 
   console.log("All unit tests passed");

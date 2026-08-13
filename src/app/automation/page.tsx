@@ -26,6 +26,7 @@ export default async function AutomationPage() {
     tomorrowPlan,
     approveQueue,
     winnerPlaybook,
+    weeklyReview,
   } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
@@ -307,6 +308,90 @@ export default async function AutomationPage() {
         <p className="text-xs text-[var(--ink-soft)]">{winnerPlaybook.disclaimer}</p>
       </section>
 
+      <section className="surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Weekly Review
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              {weeklyReview.summary}
+            </p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href="/api/export?format=md&scope=weekly-review"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-xs text-[var(--ink-soft)]">
+          {weeklyReview.fromDate} → {weeklyReview.date} ·{" "}
+          {weeklyReview.windowDays} วัน · มีเมตริก{" "}
+          {weeklyReview.totals.withMetrics}
+        </p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">ค่าคอมที่กรอก</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              ฿{weeklyReview.totals.commission.toLocaleString("th-TH")}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">ออเดอร์</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {weeklyReview.totals.orders}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">CTR เฉลี่ย</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              ~{(weeklyReview.totals.avgCtr * 100).toFixed(1)}%
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">รอกรอกผล</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {weeklyReview.totals.missingMetrics}
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <h3 className="text-sm text-[var(--sage-deep)]">โพสต์เด่น</h3>
+            {weeklyReview.topPosts.length === 0 ? (
+              <p className="mt-1 text-xs text-[var(--ink-soft)]">
+                ยังไม่มีโพสต์เด่น — กรอกผลหลังโพสต์ก่อน
+              </p>
+            ) : (
+              <ol className="mt-1 list-decimal space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+                {weeklyReview.topPosts.map((p) => (
+                  <li key={p.scheduleId}>
+                    <span className="text-[var(--sage-deep)]">
+                      {p.productName}
+                    </span>{" "}
+                    · {p.channelLabel}
+                    <p className="mt-0.5">{p.why}</p>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+          <div>
+            <h3 className="text-sm text-[var(--sage-deep)]">โฟกัสสัปดาห์หน้า</h3>
+            <ol className="mt-1 list-decimal space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+              {weeklyReview.nextWeekFocus.slice(0, 3).map((a) => (
+                <li key={a.id}>
+                  <span className="text-[var(--sage-deep)]">{a.title}</span>
+                  <p className="mt-0.5">{a.detail}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+        <p className="text-xs text-[var(--ink-soft)]">{weeklyReview.disclaimer}</p>
+      </section>
+
       <WorkflowButtons />
 
       <SettingsPanel
@@ -410,6 +495,18 @@ export default async function AutomationPage() {
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >
           Export คิว Approve (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=playbook"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Playbook (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=weekly-review"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Weekly Review (.md)
         </a>
         <a
           href="/api/export?format=csv&scope=schedule"

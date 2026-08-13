@@ -6,6 +6,7 @@ import { readDb, todayISO } from "@/lib/db";
 import { channelLabel } from "@/lib/schedule";
 import { buildTomorrowPlan } from "@/lib/tomorrow-plan";
 import { buildWinnerPlaybook } from "@/lib/winner-playbook";
+import { buildWeeklyReview } from "@/lib/weekly-review";
 import { weeklyInsightLines, weeklyProductRollup } from "@/lib/weekly";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ export default async function ResultsPage() {
   const weeklyLines = weeklyInsightLines(weekly);
   const tomorrowPlan = buildTomorrowPlan(db, date);
   const winnerPlaybook = buildWinnerPlaybook(db, date);
+  const weeklyReview = buildWeeklyReview(db, date);
 
   return (
     <div className="space-y-8">
@@ -256,6 +258,86 @@ export default async function ResultsPage() {
           ))}
         </ul>
         <p className="text-xs text-[var(--ink-soft)]">{winnerPlaybook.disclaimer}</p>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="brand-mark text-3xl text-[var(--sage-deep)]">
+            Weekly Review
+          </h2>
+          <a
+            href="/api/export?format=md&scope=weekly-review"
+            className="text-xs text-[var(--sage)] hover:underline"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-sm text-[var(--ink-soft)]">{weeklyReview.summary}</p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">ค่าคอมที่กรอก</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              ฿{weeklyReview.totals.commission.toLocaleString("th-TH")}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">ออเดอร์</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {weeklyReview.totals.orders}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">CTR เฉลี่ย</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              ~{(weeklyReview.totals.avgCtr * 100).toFixed(1)}%
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">รอกรอกผล</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {weeklyReview.totals.missingMetrics}
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <article className="surface rounded-2xl p-4">
+            <h3 className="font-medium">โพสต์เด่น</h3>
+            {weeklyReview.topPosts.length === 0 ? (
+              <p className="mt-2 text-xs text-[var(--ink-soft)]">
+                ยังไม่มีโพสต์เด่น
+              </p>
+            ) : (
+              <ul className="mt-2 list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+                {weeklyReview.topPosts.map((p) => (
+                  <li key={p.scheduleId}>
+                    <span className="text-[var(--ink)]">{p.productName}</span> ·{" "}
+                    {p.channelLabel}
+                    <br />
+                    {p.why}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+          <article className="surface rounded-2xl p-4">
+            <h3 className="font-medium">โฟกัสสัปดาห์หน้า</h3>
+            <ul className="mt-2 list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+              {weeklyReview.nextWeekFocus.map((a) => (
+                <li key={a.id}>
+                  <span className="text-[var(--ink)]">{a.title}</span>
+                  <br />
+                  {a.detail}
+                </li>
+              ))}
+            </ul>
+          </article>
+        </div>
+        <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+          {weeklyReview.dataGaps.slice(0, 3).map((g) => (
+            <li key={g}>{g}</li>
+          ))}
+        </ul>
+        <p className="text-xs text-[var(--ink-soft)]">{weeklyReview.disclaimer}</p>
       </section>
     </div>
   );

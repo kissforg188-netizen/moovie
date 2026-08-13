@@ -32,6 +32,7 @@ $digest = build_daily_digest($date);
 $tomorrowPlan = build_tomorrow_plan($date);
 $approveQueue = build_approve_queue($date);
 $winnerPlaybook = build_winner_playbook($date);
+$weeklyReview = build_weekly_review($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -368,6 +369,60 @@ $winnerPlaybook = build_winner_playbook($date);
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($winnerPlaybook['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Weekly Review</h2>
+        <p class="muted"><?= h($weeklyReview['summary']) ?></p>
+        <p class="muted"><?= h($weeklyReview['fromDate']) ?> → <?= h($weeklyReview['date']) ?> · <?= (int)$weeklyReview['windowDays'] ?> วัน · มีเมตริก <?= (int)$weeklyReview['totals']['withMetrics'] ?></p>
+        <div class="grid-2">
+          <div>
+            <p class="muted">ค่าคอมที่กรอก</p>
+            <p><strong>฿<?= h(number_format((float)$weeklyReview['totals']['commission'], 0)) ?></strong></p>
+            <p class="muted">ออเดอร์ <?= (int)$weeklyReview['totals']['orders'] ?> · CTR ~<?= h(number_format((float)$weeklyReview['totals']['avgCtr'] * 100, 1)) ?>% · รอกรอกผล <?= (int)$weeklyReview['totals']['missingMetrics'] ?></p>
+          </div>
+          <div>
+            <h3>โฟกัสสัปดาห์หน้า</h3>
+            <ol>
+              <?php foreach (array_slice($weeklyReview['nextWeekFocus'], 0, 3) as $a): ?>
+                <li>
+                  <strong><?= h($a['title']) ?></strong>
+                  <div class="muted"><?= h($a['detail']) ?></div>
+                </li>
+              <?php endforeach; ?>
+            </ol>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div>
+            <h3>โพสต์เด่น</h3>
+            <?php if (!$weeklyReview['topPosts']): ?>
+              <p class="muted">ยังไม่มีโพสต์เด่น — กรอกผลหลังโพสต์ก่อน</p>
+            <?php else: ?>
+              <ol>
+                <?php foreach (array_slice($weeklyReview['topPosts'], 0, 3) as $p): ?>
+                  <li>
+                    <strong><?= h($p['productName']) ?></strong> · <?= h($p['channelLabel']) ?>
+                    <div class="muted"><?= h($p['why']) ?></div>
+                  </li>
+                <?php endforeach; ?>
+              </ol>
+            <?php endif; ?>
+          </div>
+          <div>
+            <h3>ช่องว่างข้อมูล</h3>
+            <ul>
+              <?php foreach (array_slice($weeklyReview['dataGaps'], 0, 3) as $g): ?>
+                <li class="muted"><?= h($g) ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+        </div>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=weekly-review">Export Weekly Review (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($weeklyReview['disclaimer']) ?></p>
       </section>
 
       <section class="card">
