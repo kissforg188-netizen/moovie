@@ -27,6 +27,7 @@ export default async function AutomationPage() {
     approveQueue,
     winnerPlaybook,
     weeklyReview,
+    postingHygiene,
   } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
@@ -392,6 +393,76 @@ export default async function AutomationPage() {
         <p className="text-xs text-[var(--ink-soft)]">{weeklyReview.disclaimer}</p>
       </section>
 
+      <section className="surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Posting Hygiene
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              {postingHygiene.summary}
+            </p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href="/api/export?format=md&scope=hygiene"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-xs text-[var(--ink-soft)]">
+          เกรด {postingHygiene.grade} · {postingHygiene.score}/100 · คิววันนี้{" "}
+          {postingHygiene.todayActive}/{postingHygiene.maxPostsPerDay} · คูลดาวน์{" "}
+          {postingHygiene.cooldownDays} วัน
+        </p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">เกรด</p>
+            <p className="text-xl text-[var(--sage-deep)]">{postingHygiene.grade}</p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">เหลือที่ว่าง</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {postingHygiene.todayRoomLeft}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">คู่คูลดาวน์</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {postingHygiene.coolingPairs.length}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">แคปชันใกล้ซ้ำ</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {postingHygiene.nearDuplicates.length}
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <h3 className="text-sm text-[var(--sage-deep)]">อย่าโพสต์ / ชะลอ</h3>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+              {postingHygiene.doNotPost.slice(0, 4).map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3 className="text-sm text-[var(--sage-deep)]">ทำก่อน</h3>
+            <ol className="mt-1 list-decimal space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+              {postingHygiene.actions.slice(0, 3).map((a) => (
+                <li key={a.id}>
+                  <span className="text-[var(--sage-deep)]">{a.title}</span>
+                  <p className="mt-0.5">{a.detail}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+        <p className="text-xs text-[var(--ink-soft)]">{postingHygiene.disclaimer}</p>
+      </section>
+
       <WorkflowButtons />
 
       <SettingsPanel
@@ -507,6 +578,12 @@ export default async function AutomationPage() {
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >
           Export Weekly Review (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=hygiene"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Posting Hygiene (.md)
         </a>
         <a
           href="/api/export?format=csv&scope=schedule"

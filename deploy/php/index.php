@@ -33,6 +33,7 @@ $tomorrowPlan = build_tomorrow_plan($date);
 $approveQueue = build_approve_queue($date);
 $winnerPlaybook = build_winner_playbook($date);
 $weeklyReview = build_weekly_review($date);
+$postingHygiene = build_posting_hygiene($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -423,6 +424,38 @@ $weeklyReview = build_weekly_review($date);
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($weeklyReview['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Posting Hygiene</h2>
+        <p class="muted"><?= h($postingHygiene['summary']) ?></p>
+        <p class="muted">เกรด <?= h($postingHygiene['grade']) ?> · <?= (int)$postingHygiene['score'] ?>/100 · คิววันนี้ <?= (int)$postingHygiene['todayActive'] ?>/<?= (int)$postingHygiene['maxPostsPerDay'] ?> · คูลดาวน์ <?= (int)$postingHygiene['cooldownDays'] ?> วัน</p>
+        <div class="grid-2">
+          <div>
+            <h3>อย่าโพสต์ / ชะลอ</h3>
+            <ul>
+              <?php foreach (array_slice($postingHygiene['doNotPost'], 0, 4) as $d): ?>
+                <li class="muted"><?= h($d) ?></li>
+              <?php endforeach; ?>
+            </ul>
+          </div>
+          <div>
+            <h3>ทำก่อน</h3>
+            <ol>
+              <?php foreach (array_slice($postingHygiene['actions'], 0, 3) as $a): ?>
+                <li>
+                  <strong><?= h($a['title']) ?></strong>
+                  <div class="muted"><?= h($a['detail']) ?></div>
+                </li>
+              <?php endforeach; ?>
+            </ol>
+          </div>
+        </div>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=hygiene">Export Posting Hygiene (.md)</a>
+          <a class="btn" href="?page=calendar">ไปตารางโพสต์</a>
+        </div>
+        <p class="note"><?= h($postingHygiene['disclaimer']) ?></p>
       </section>
 
       <section class="card">

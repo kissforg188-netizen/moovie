@@ -28,6 +28,11 @@ import {
   weeklyReviewToMarkdown,
 } from "../src/lib/weekly-review";
 import {
+  buildPostingHygiene,
+  postingHygieneLines,
+  postingHygieneToMarkdown,
+} from "../src/lib/posting-hygiene";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -1566,6 +1571,96 @@ function run() {
   assert.ok(
     weeklyReviewMd.includes("ไม่โพสต์อัตโนมัติ") ||
       weeklyReviewMd.includes("ทดลอง"),
+  );
+
+  // Posting Hygiene — anti-spam health; never auto-publish
+  const hygieneClean = buildPostingHygiene(
+    { ...playbookDb, schedule: [] } as never,
+    "2026-08-08",
+    7,
+  );
+  assert.ok(["A", "B"].includes(hygieneClean.grade));
+  assert.ok(hygieneClean.score >= 70);
+  assert.ok(hygieneClean.todayRoomLeft === hygieneClean.maxPostsPerDay);
+
+  const dupeCaption = `ซ้ำ ๆ กันทั้งวันเพื่อทดสอบ fingerprint hygiene ${AFFILIATE_DISCLOSURE}`;
+  const hygieneDb = {
+    ...playbookDb,
+    settings: {
+      maxPostsPerDay: 3 as const,
+      cooldownDays: 3,
+      staleDraftDays: 5,
+    },
+    schedule: [
+      ...playbookDb.schedule,
+      {
+        id: "sch-hyg-1",
+        date: "2026-08-08",
+        suggestedTime: "10:30",
+        channel: "tiktok" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack-a",
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "draft" as const,
+        captionPreview: dupeCaption,
+      },
+      {
+        id: "sch-hyg-2",
+        date: "2026-08-07",
+        suggestedTime: "10:30",
+        channel: "tiktok" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack-a",
+        hookIndex: 0,
+        ctaIndex: 0,
+        status: "posted" as const,
+        captionPreview: dupeCaption,
+      },
+      {
+        id: "sch-hyg-3",
+        date: "2026-08-06",
+        suggestedTime: "13:00",
+        channel: "facebook_reels" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack-a",
+        hookIndex: 1,
+        ctaIndex: 0,
+        status: "posted" as const,
+        captionPreview: `อีกมุม ${AFFILIATE_DISCLOSURE}`,
+      },
+      {
+        id: "sch-hyg-4",
+        date: "2026-08-05",
+        suggestedTime: "19:30",
+        channel: "facebook_post" as const,
+        productId: cheapHigh.id,
+        contentPackId: "pack-a",
+        hookIndex: 2,
+        ctaIndex: 1,
+        status: "posted" as const,
+        captionPreview: `มุมสาม ${AFFILIATE_DISCLOSURE}`,
+      },
+    ],
+  };
+  const hygiene = buildPostingHygiene(hygieneDb as never, "2026-08-08", 7);
+  assert.equal(hygiene.windowDays, 7);
+  assert.ok(hygiene.hotProducts.some((h) => h.productId === cheapHigh.id));
+  assert.ok(hygiene.nearDuplicates.length >= 1);
+  assert.ok(hygiene.coolingPairs.length >= 1);
+  assert.ok(hygiene.doNotPost.length >= 1);
+  assert.ok(hygiene.actions.length >= 1);
+  assert.ok(hygiene.checklist.some((c) => /disclosure|Approve/.test(c)));
+  assert.ok(hygiene.lines.some((l) => /Posting Hygiene/.test(l)));
+  assert.ok(postingHygieneLines(hygiene, 3).length <= 3);
+  assert.ok(
+    hygiene.disclaimer.includes("ไม่") || hygiene.disclaimer.includes("ทดลอง"),
+  );
+  const hygieneMd = postingHygieneToMarkdown(hygiene);
+  assert.ok(hygieneMd.includes("Posting Hygiene"));
+  assert.ok(hygieneMd.includes("อย่าโพสต์") || hygieneMd.includes("Checklist"));
+  assert.ok(
+    hygieneMd.includes("ไม่โพสต์อัตโนมัติ") || hygieneMd.includes("ทดลอง"),
   );
 
   console.log("All unit tests passed");

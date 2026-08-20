@@ -221,6 +221,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md weekly-review');
                 exit;
             }
+            if (in_array($scope, ['hygiene', 'posting-hygiene', 'anti-spam'], true)) {
+                $hygiene = build_posting_hygiene(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-posting-hygiene-'.today_iso().'.md"');
+                echo posting_hygiene_to_markdown($hygiene);
+                automation_log_finish($job, 'success', 'exported md posting-hygiene');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

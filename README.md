@@ -42,6 +42,8 @@
 - **Approve gate**: ขาด disclosure หรือมีคำโฆษณาเกินจริง = Approve ไม่ได้ (ทั้งชิ้นเดียวและ bulk)
 - **สร้างแคปชันใหม่** จากตารางโพสต์ (variant ใหม่) — ยังเป็น draft ต้อง Approve ก่อน
 - Evening แนะนำสินค้าที่ควร**พักชั่วคราว**จากผลจริง (ไม่พักอัตโนมัติ)
+- **Weekly Review**: สรุป 7 วันจากเมตริกที่กรอกเอง + โฟกัสสัปดาห์หน้า
+- **Posting Hygiene**: เกรดสุขอนามัยกันสแปม (คูลดาวน์ / แคปชันใกล้ซ้ำ / สัดส่วนช่องทาง) — ไม่โพสต์อัตโนมัติ
 
 
 ## Production (cPanel / MySQL)
@@ -98,10 +100,10 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
 - `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Tomorrow Plan, Winner Playbook, Weekly Review, login status, morning/evening, import CSV/JSON, bulk approve, logs)
+- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
 - `/calendar` ตารางโพสต์วันนี้ + คิว Approve + Approve / ข้าม
-- `/results` กรอก views/clicks/orders/ค่าคอม + Winner Playbook + Weekly Review + ดูวิเคราะห์
+- `/results` กรอก views/clicks/orders/ค่าคอม + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
 - `/guide` คู่มือการใช้งาน
 
 ### Export
@@ -122,6 +124,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown Approve Priority Queue: `/api/export?format=md&scope=approve-queue`
 - Markdown Winner Playbook: `/api/export?format=md&scope=playbook`
 - Markdown Weekly Review: `/api/export?format=md&scope=weekly-review`
+- Markdown Posting Hygiene (anti-spam): `/api/export?format=md&scope=hygiene`
 
 ## Workflow แนะนำ
 

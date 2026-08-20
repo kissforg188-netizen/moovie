@@ -21,6 +21,7 @@ import { dailyDigestToMarkdown } from "@/lib/daily-digest";
 import { tomorrowPlanToMarkdown } from "@/lib/tomorrow-plan";
 import { winnerPlaybookToMarkdown } from "@/lib/winner-playbook";
 import { weeklyReviewToMarkdown } from "@/lib/weekly-review";
+import { postingHygieneToMarkdown } from "@/lib/posting-hygiene";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -82,6 +83,14 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = weeklyReviewToMarkdown(snap.weeklyReview);
       filename = `affiliate-weekly-review-${todayISO()}.md`;
+    } else if (
+      scope === "hygiene" ||
+      scope === "posting-hygiene" ||
+      scope === "anti-spam"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = postingHygieneToMarkdown(snap.postingHygiene);
+      filename = `affiliate-posting-hygiene-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

@@ -7,6 +7,7 @@ import { channelLabel } from "@/lib/schedule";
 import { buildTomorrowPlan } from "@/lib/tomorrow-plan";
 import { buildWinnerPlaybook } from "@/lib/winner-playbook";
 import { buildWeeklyReview } from "@/lib/weekly-review";
+import { buildPostingHygiene } from "@/lib/posting-hygiene";
 import { weeklyInsightLines, weeklyProductRollup } from "@/lib/weekly";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function ResultsPage() {
   const tomorrowPlan = buildTomorrowPlan(db, date);
   const winnerPlaybook = buildWinnerPlaybook(db, date);
   const weeklyReview = buildWeeklyReview(db, date);
+  const postingHygiene = buildPostingHygiene(db, date);
 
   return (
     <div className="space-y-8">
@@ -338,6 +340,68 @@ export default async function ResultsPage() {
           ))}
         </ul>
         <p className="text-xs text-[var(--ink-soft)]">{weeklyReview.disclaimer}</p>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="brand-mark text-3xl text-[var(--sage-deep)]">
+            Posting Hygiene
+          </h2>
+          <a
+            href="/api/export?format=md&scope=hygiene"
+            className="text-xs text-[var(--sage)] hover:underline"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-sm text-[var(--ink-soft)]">{postingHygiene.summary}</p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">เกรด</p>
+            <p className="text-lg text-[var(--sage-deep)]">{postingHygiene.grade}</p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">คะแนน</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {postingHygiene.score}/100
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">สินค้าใช้บ่อย</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {postingHygiene.hotProducts.length}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">แคปชันใกล้ซ้ำ</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {postingHygiene.nearDuplicates.length}
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <article className="surface rounded-2xl p-4">
+            <h3 className="font-medium">อย่าโพสต์ / ชะลอ</h3>
+            <ul className="mt-2 list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+              {postingHygiene.doNotPost.slice(0, 4).map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          </article>
+          <article className="surface rounded-2xl p-4">
+            <h3 className="font-medium">ทำก่อน</h3>
+            <ul className="mt-2 list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+              {postingHygiene.actions.map((a) => (
+                <li key={a.id}>
+                  <span className="text-[var(--ink)]">{a.title}</span>
+                  <br />
+                  {a.detail}
+                </li>
+              ))}
+            </ul>
+          </article>
+        </div>
+        <p className="text-xs text-[var(--ink-soft)]">{postingHygiene.disclaimer}</p>
       </section>
     </div>
   );

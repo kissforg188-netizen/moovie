@@ -1879,6 +1879,333 @@ function weekly_review_to_markdown(array $review): string
         . "> ไม่โพสต์อัตโนมัติ — ต้อง Approve แล้วโพสต์ด้วยมือ\n";
 }
 
+/** Normalize caption for soft duplicate detection (anti-spam). */
+function caption_fingerprint(string $text): string
+{
+    $t = mb_strtolower($text, 'UTF-8');
+    $t = preg_replace('/\s+/u', ' ', $t) ?? $t;
+    $t = preg_replace('#https?://\S+#u', '', $t) ?? $t;
+    $t = trim($t);
+    return mb_substr($t, 0, 180, 'UTF-8');
+}
+
+/**
+ * Posting Hygiene Brief — anti-spam health from schedule + settings.
+ * Soft guidance only; never auto-publishes or claims guaranteed income.
+ * @return array{date:string,fromDate:string,windowDays:int,grade:string,score:int,summary:string,cooldownDays:int,maxPostsPerDay:int,staleDraftDays:int,todayActive:int,todayRoomLeft:int,staleDraftCount:int,coolingPairs:array,hotProducts:array,channelMix:array,nearDuplicates:array,doNotPost:array,actions:array,checklist:array,lines:array,disclaimer:string}
+ */
+function build_posting_hygiene(?string $date = null, int $windowDays = 7): array
+{
+    $date = $date ?: today_iso();
+    $window = max(3, min(14, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $cooldown = cooldown_days();
+    $maxPosts = max_posts_per_day();
+    $staleDays = stale_draft_days();
+
+    $stmt = db()->prepare("SELECT s.*, p.name AS product_name FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date BETWEEN ? AND ? AND s.status <> 'skipped'");
+    $stmt->execute([$from, $date]);
+    $inWindow = $stmt->fetchAll() ?: [];
+
+    $stmt = db()->prepare("SELECT s.*, p.name AS product_name FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date=? AND s.status <> 'skipped'");
+    $stmt->execute([$date]);
+    $todayActiveRows = $stmt->fetchAll() ?: [];
+    $todayActive = count($todayActiveRows);
+    $todayRoomLeft = max(0, $maxPosts - $todayActive);
+
+    $stmt = db()->prepare("SELECT COUNT(*) FROM schedule WHERE status='draft' AND post_date < DATE_SUB(?, INTERVAL ? DAY)");
+    $stmt->execute([$date, $staleDays]);
+    $staleDraftCount = (int)$stmt->fetchColumn();
+
+    // Cooling pairs within cooldown window
+    $cooldownFrom = date('Y-m-d', strtotime($date . ' -' . $cooldown . ' days'));
+    $stmt = db()->prepare("SELECT s.*, p.name AS product_name FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date BETWEEN ? AND ? AND s.status <> 'skipped' ORDER BY s.post_date DESC");
+    $stmt->execute([$cooldownFrom, $date]);
+    $recentRows = $stmt->fetchAll() ?: [];
+    $lastByPair = [];
+    foreach ($recentRows as $r) {
+        $key = $r['product_id'] . ':' . $r['channel'];
+        if (!isset($lastByPair[$key])) {
+            $lastByPair[$key] = $r;
+        }
+    }
+    $coolingPairs = [];
+    foreach ($lastByPair as $r) {
+        $gap = (int)round((strtotime($date) - strtotime((string)$r['post_date'])) / 86400);
+        if ($gap < 0 || $gap > $cooldown) continue;
+        $daysLeft = $cooldown - $gap + 1;
+        $label = channel_label((string)$r['channel']);
+        $name = (string)($r['product_name'] ?: $r['product_id']);
+        $coolingPairs[] = [
+            'productId' => (string)$r['product_id'],
+            'productName' => $name,
+            'channel' => (string)$r['channel'],
+            'channelLabel' => $label,
+            'lastDate' => (string)$r['post_date'],
+            'daysAgo' => $gap,
+            'daysLeft' => $daysLeft,
+            'tip' => $gap === 0
+                ? 'ใช้คิววันนี้แล้ว — อย่าอนุมัติซ้ำช่องทางเดิม'
+                : "พักอีก ~{$daysLeft} วันก่อนหมุน {$label} คู่เดิม",
+        ];
+    }
+    usort($coolingPairs, fn($a, $b) => $b['daysLeft'] <=> $a['daysLeft'] ?: strcmp($a['productName'], $b['productName']));
+    $coolingPairs = array_slice($coolingPairs, 0, 8);
+
+    // Hot products
+    $hotFrom = date('Y-m-d', strtotime($date . ' -' . ($cooldown - 1) . ' days'));
+    $stmt = db()->prepare("SELECT s.product_id, p.name AS product_name, COUNT(*) AS n FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date BETWEEN ? AND ? AND s.status <> 'skipped' GROUP BY s.product_id, p.name HAVING COUNT(*) >= 3 ORDER BY n DESC LIMIT 5");
+    $stmt->execute([$hotFrom, $date]);
+    $hotProducts = [];
+    foreach ($stmt->fetchAll() ?: [] as $r) {
+        $n = (int)$r['n'];
+        $name = (string)($r['product_name'] ?: $r['product_id']);
+        $hotProducts[] = [
+            'productId' => (string)$r['product_id'],
+            'productName' => $name,
+            'recentPosts' => $n,
+            'tip' => "ถูกจัดคิว/โพสต์ {$n} ครั้งใน {$cooldown} วัน — หมุนสินค้าอื่นก่อน (กันสแปม)",
+        ];
+    }
+
+    // Channel mix
+    $channelCounts = [];
+    foreach ($inWindow as $r) {
+        $ch = (string)$r['channel'];
+        $channelCounts[$ch] = ($channelCounts[$ch] ?? 0) + 1;
+    }
+    $mixTotal = max(count($inWindow), 1);
+    $channelMix = [];
+    foreach (['tiktok', 'facebook_reels', 'facebook_post', 'facebook_group'] as $ch) {
+        $posts = $channelCounts[$ch] ?? 0;
+        $share = $posts / $mixTotal;
+        $tip = 'กระจายพอใช้';
+        if (!$inWindow) $tip = 'ยังไม่มีโพสต์ในหน้าต่าง';
+        elseif ($share >= 0.55) $tip = 'หนาแน่นเกินไป — สลับช่องทางอื่น';
+        elseif ($posts === 0) $tip = 'ยังว่าง — เหมาะสำหรับทดลองกระจาย';
+        $channelMix[] = [
+            'channel' => $ch,
+            'label' => channel_label($ch),
+            'posts' => $posts,
+            'share' => $share,
+            'tip' => $tip,
+        ];
+    }
+
+    // Near duplicates
+    $fpMap = [];
+    foreach ($inWindow as $r) {
+        $cap = (string)$r['caption_preview'];
+        $fp = caption_fingerprint($cap);
+        if (mb_strlen($fp, 'UTF-8') < 24) continue;
+        if (!isset($fpMap[$fp])) {
+            $fpMap[$fp] = [
+                'count' => 0,
+                'sample' => mb_substr($cap, 0, 120, 'UTF-8'),
+                'dates' => [],
+                'names' => [],
+            ];
+        }
+        $fpMap[$fp]['count']++;
+        $fpMap[$fp]['dates'][(string)$r['post_date']] = true;
+        $fpMap[$fp]['names'][(string)($r['product_name'] ?: $r['product_id'])] = true;
+    }
+    $nearDuplicates = [];
+    foreach ($fpMap as $fp => $v) {
+        if ($v['count'] < 2) continue;
+        $names = array_keys($v['names']);
+        $dates = array_keys($v['dates']);
+        sort($dates);
+        $nearDuplicates[] = [
+            'fingerprint' => $fp,
+            'count' => $v['count'],
+            'sampleCaption' => $v['sample'],
+            'dates' => $dates,
+            'productNames' => $names,
+            'tip' => 'แคปชันคล้ายกัน — กดสร้างแคปชันใหม่หรือเปลี่ยน hook/มุมขายก่อน Approve',
+        ];
+    }
+    usort($nearDuplicates, fn($a, $b) => $b['count'] <=> $a['count']);
+    $nearDuplicates = array_slice($nearDuplicates, 0, 5);
+
+    $doNotPost = [];
+    foreach (array_slice($hotProducts, 0, 3) as $h) {
+        $doNotPost[] = $h['productName'] . ': ลดความถี่ — ' . $h['tip'];
+    }
+    foreach (array_slice($nearDuplicates, 0, 2) as $d) {
+        $doNotPost[] = 'แคปชันซ้ำ (' . $d['count'] . ' ชิ้น · ' . implode(', ', $d['productNames']) . '): อย่า Approve จนกว่าจะ regenerate';
+    }
+    if ($todayRoomLeft === 0 && $todayActive >= $maxPosts) {
+        $doNotPost[] = "คิววันนี้เต็มแล้ว ({$todayActive}/{$maxPosts}) — อย่า force Morning เพื่อเพิ่ม draft";
+    }
+    if (!$doNotPost) {
+        $doNotPost[] = 'ยังไม่พบสัญญาณสแปมชัด — คงคุณภาพ + disclosure ทุกชิ้น';
+    }
+
+    $score = 100;
+    $score -= min(30, count($hotProducts) * 10);
+    $score -= min(25, count($nearDuplicates) * 12);
+    if ($todayActive > $maxPosts) $score -= 20;
+    elseif ($todayRoomLeft === 0 && $todayActive >= $maxPosts) $score -= 5;
+    $score -= min(15, $staleDraftCount * 5);
+    $dominant = $channelMix[0];
+    foreach ($channelMix as $row) {
+        if ($row['share'] > $dominant['share']) $dominant = $row;
+    }
+    if ($dominant['share'] >= 0.55 && count($inWindow) >= 3) $score -= 10;
+    if (count($coolingPairs) >= $maxPosts * 2) $score -= 5;
+    $score = max(0, min(100, (int)round($score)));
+    $grade = $score >= 85 ? 'A' : ($score >= 70 ? 'B' : ($score >= 50 ? 'C' : 'D'));
+
+    $actions = [];
+    if ($hotProducts) {
+        $actions[] = [
+            'id' => 'rotate-hot',
+            'title' => 'หมุนสินค้าที่ถูกใช้บ่อย',
+            'detail' => implode(', ', array_map(fn($h) => $h['productName'], array_slice($hotProducts, 0, 2))),
+        ];
+    }
+    if ($nearDuplicates) {
+        $actions[] = [
+            'id' => 'regen-dupes',
+            'title' => 'สร้างแคปชันใหม่ให้ชิ้นที่คล้ายกัน',
+            'detail' => 'ใช้ปุ่ม regenerate บนตารางโพสต์ — ยังเป็น draft ต้อง Approve',
+        ];
+    }
+    if ($staleDraftCount > 0) {
+        $actions[] = [
+            'id' => 'expire-stale',
+            'title' => 'เคลียร์ draft ค้าง',
+            'detail' => "มี {$staleDraftCount} draft เก่ากว่า {$staleDays} วัน — Morning จะข้ามให้อัตโนมัติ",
+        ];
+    }
+    if ($dominant['share'] >= 0.55 && count($inWindow) >= 3) {
+        $actions[] = [
+            'id' => 'mix-channels',
+            'title' => 'กระจายช่องทาง',
+            'detail' => $dominant['label'] . ' หนาแน่น (~' . (int)round($dominant['share'] * 100) . '%) — สลับ Reels/Group/Page',
+        ];
+    }
+    if ($todayRoomLeft > 0) {
+        $actions[] = [
+            'id' => 'fill-quality',
+            'title' => 'เติมคิวอย่างมีคุณภาพ',
+            'detail' => "เหลือที่ว่าง {$todayRoomLeft}/{$maxPosts} — รัน Morning แล้ว Approve เฉพาะชิ้นที่ผ่าน disclosure",
+        ];
+    }
+    if (!$actions) {
+        $actions[] = [
+            'id' => 'keep-clean',
+            'title' => 'รักษาสุขอนามัย',
+            'detail' => 'คูลดาวน์โอเค · ไม่มีแคปชันซ้ำชัด — Approve ทีละชิ้นหลังตรวจ disclosure',
+        ];
+    }
+    $actions = array_slice($actions, 0, 5);
+
+    $checklist = [
+        'ตรวจ disclosure ทุก caption ก่อน Approve',
+        'ไม่ Approve ชิ้นที่แคปชันคล้ายกันในหน้าต่างล่าสุด',
+        "เคารพคูลดาวน์ product+channel {$cooldown} วัน",
+        "ไม่เกิน {$maxPosts} โพสต์คุณภาพ/วัน",
+        'ห้ามโพสต์อัตโนมัติ — Approve แล้วคัดลอกไปโพสต์ด้วยมือ',
+    ];
+
+    $summary = ($grade === 'A' || $grade === 'B')
+        ? "สุขอนามัยการโพสต์เกรด {$grade} ({$score}/100) — คิวค่อนข้างสะอาด ยังต้อง Approve เอง"
+        : "สุขอนามัยการโพสต์เกรด {$grade} ({$score}/100) — พบสัญญาณซ้ำ/คิวหนา แนะนำหมุนก่อน Approve";
+
+    $lines = [
+        "Posting Hygiene · {$date}: เกรด {$grade} ({$score}/100)",
+        $summary,
+        "คิววันนี้ {$todayActive}/{$maxPosts} · เหลือที่ว่าง {$todayRoomLeft} · draft ค้าง {$staleDraftCount}",
+    ];
+    if ($coolingPairs) {
+        $bits = [];
+        foreach (array_slice($coolingPairs, 0, 3) as $c) {
+            $bits[] = $c['productName'] . '/' . $c['channelLabel'];
+        }
+        $lines[] = 'คู่ที่ยังคูลดาวน์: ' . implode(', ', $bits);
+    } else {
+        $lines[] = 'ยังไม่มีคู่ product+channel ในคูลดาวน์';
+    }
+    if ($hotProducts) {
+        $lines[] = 'สินค้าใช้บ่อย: ' . implode(', ', array_map(fn($h) => $h['productName'], $hotProducts));
+    }
+    $lines[] = $nearDuplicates
+        ? 'แคปชันใกล้ซ้ำ ' . count($nearDuplicates) . ' กลุ่ม — regenerate ก่อน Approve'
+        : 'ไม่พบแคปชันใกล้ซ้ำในหน้าต่าง';
+    if ($actions) {
+        $lines[] = 'ทำก่อน: ' . $actions[0]['title'] . ' — ' . $actions[0]['detail'];
+    }
+    $lines[] = 'ไม่โพสต์อัตโนมัติ · ไม่การันตีรายได้ · ทดลองจากข้อมูลจริง';
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $score,
+        'summary' => $summary,
+        'cooldownDays' => $cooldown,
+        'maxPostsPerDay' => $maxPosts,
+        'staleDraftDays' => $staleDays,
+        'todayActive' => $todayActive,
+        'todayRoomLeft' => $todayRoomLeft,
+        'staleDraftCount' => $staleDraftCount,
+        'coolingPairs' => $coolingPairs,
+        'hotProducts' => $hotProducts,
+        'channelMix' => $channelMix,
+        'nearDuplicates' => $nearDuplicates,
+        'doNotPost' => array_slice($doNotPost, 0, 6),
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function posting_hygiene_to_markdown(array $hygiene): string
+{
+    $cooling = $hygiene['coolingPairs']
+        ? implode("\n", array_map(fn($c) => '- **' . $c['productName'] . '** · ' . $c['channelLabel'] . ' · ล่าสุด ' . $c['lastDate'] . ' (' . $c['daysAgo'] . ' วันก่อน) — ' . $c['tip'], $hygiene['coolingPairs']))
+        : '- ไม่มีคู่ในคูลดาวน์';
+    $hot = $hygiene['hotProducts']
+        ? implode("\n", array_map(function ($h, $i) {
+            return ($i + 1) . '. **' . $h['productName'] . '** · ' . $h['recentPosts'] . ' ครั้ง — ' . $h['tip'];
+        }, $hygiene['hotProducts'], array_keys($hygiene['hotProducts'])))
+        : '- ยังไม่มีสินค้าใช้บ่อยผิดปกติ';
+    $mix = implode("\n", array_map(fn($c) => '- **' . $c['label'] . '** · n=' . $c['posts'] . ' · ~' . (int)round($c['share'] * 100) . '% — ' . $c['tip'], $hygiene['channelMix']));
+    $dupes = $hygiene['nearDuplicates']
+        ? implode("\n", array_map(function ($d, $i) {
+            return ($i + 1) . '. ×' . $d['count'] . ' · ' . implode(', ', $d['productNames']) . ' · วัน ' . implode(', ', $d['dates']) . ' — ' . $d['tip'] . "\n   > " . str_replace("\n", ' ', $d['sampleCaption']);
+        }, $hygiene['nearDuplicates'], array_keys($hygiene['nearDuplicates'])))
+        : '- ไม่พบแคปชันใกล้ซ้ำ';
+    $avoid = implode("\n", array_map(fn($d) => '- ' . $d, $hygiene['doNotPost']));
+    $actions = implode("\n", array_map(function ($a, $i) {
+        return ($i + 1) . '. **' . $a['title'] . '** — ' . $a['detail'];
+    }, $hygiene['actions'], array_keys($hygiene['actions'])));
+    $checklist = implode("\n", array_map(fn($c) => '- [ ] ' . $c, $hygiene['checklist']));
+
+    return "# Posting Hygiene · {$hygiene['date']}\n\n"
+        . "เกรด **{$hygiene['grade']}** ({$hygiene['score']}/100)\n\n"
+        . "{$hygiene['summary']}\n\n"
+        . "หน้าต่าง: {$hygiene['fromDate']} → {$hygiene['date']} ({$hygiene['windowDays']} วัน)\n"
+        . "คูลดาวน์ {$hygiene['cooldownDays']} วัน · เป้า {$hygiene['maxPostsPerDay']}/วัน · stale {$hygiene['staleDraftDays']} วัน\n\n"
+        . "## คิววันนี้\n"
+        . "- ใช้งานแล้ว: {$hygiene['todayActive']}/{$hygiene['maxPostsPerDay']}\n"
+        . "- เหลือที่ว่าง: {$hygiene['todayRoomLeft']}\n"
+        . "- draft ค้าง (เก่าเกิน stale): {$hygiene['staleDraftCount']}\n\n"
+        . "## คู่ที่ยังคูลดาวน์\n{$cooling}\n\n"
+        . "## สินค้าใช้บ่อย\n{$hot}\n\n"
+        . "## สัดส่วนช่องทาง\n{$mix}\n\n"
+        . "## แคปชันใกล้ซ้ำ\n{$dupes}\n\n"
+        . "## อย่าโพสต์ / ชะลอ\n{$avoid}\n\n"
+        . "## ทำก่อน\n{$actions}\n\n"
+        . "## Checklist\n{$checklist}\n\n"
+        . $hygiene['disclaimer'] . "\n"
+        . "> ไม่โพสต์อัตโนมัติ — ต้อง Approve แล้วโพสต์ด้วยมือ\n";
+}
+
 /** Morning brief lines for caption quality of today's drafts. */
 function quality_brief_lines(string $date): array
 {
@@ -2138,6 +2465,7 @@ function run_morning_workflow(?string $date = null): array
     $approveLines = array_slice($approveQueue['lines'], 0, 5);
     $playbookLines = array_slice(build_winner_playbook($date)['lines'], 0, 4);
     $weeklyReviewLines = array_slice(build_weekly_review($date)['lines'], 0, 4);
+    $hygieneLines = array_slice(build_posting_hygiene($date)['lines'], 0, 5);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -2150,6 +2478,7 @@ function run_morning_workflow(?string $date = null): array
         ...$approveLines,
         ...$playbookLines,
         ...$weeklyReviewLines,
+        ...$hygieneLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -2231,6 +2560,7 @@ function run_evening_workflow(?string $date = null): array
     $tomorrow = build_tomorrow_plan($date);
     $playbook = build_winner_playbook($date);
     $weeklyReview = build_weekly_review($date);
+    $hygiene = build_posting_hygiene($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -2239,6 +2569,9 @@ function run_evening_workflow(?string $date = null): array
         $recs[] = $line;
     }
     foreach (array_slice($weeklyReview['lines'], 0, 6) as $line) {
+        $recs[] = $line;
+    }
+    foreach (array_slice($hygiene['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
