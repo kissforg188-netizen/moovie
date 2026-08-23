@@ -2124,7 +2124,7 @@ function run() {
       id: "sch_due",
       date: "2026-08-23",
       suggestedTime: "08:00",
-      channel: "facebook_page" as const,
+      channel: "facebook_post" as const,
       productId: "prod_pub",
       contentPackId: "pack_pub",
       status: "approved" as const,
