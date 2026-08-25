@@ -2,32 +2,60 @@
 
 ## Cursor Cloud specific instructions
 
-This repository ("moovie") is currently an empty project stub for a movie streaming application. It contains only a `README.md` file with no source code, dependencies, or services.
+This repository ("moovie") hosts **เลือกดี Affiliate Lab** — a Thai affiliate content automation MVP (Shopee / TikTok Shop / Facebook) with draft → approve → manual post workflow.
 
-### Current State
+### Stack
 
-- No package manager or dependency files exist (`package.json`, `requirements.txt`, `go.mod`, etc.)
-- No build system configured (`Makefile`, `Dockerfile`, `docker-compose.yml`)
-- No services to start or test
-- No lint, test, or build commands available
+- **Local/dev:** Next.js 16 (App Router) + TypeScript + Tailwind v4
+- **Data:** JSON file DB at `data/db.json` (seed via `npm run seed` / `npm run seed:demo`)
+- **Production package:** PHP + MySQL under `deploy/php/` (cPanel-friendly)
+- **Package manager:** npm (`package-lock.json`)
 
 ### Environment Verification
-
-The Cloud VM provides baseline tooling (git, Node.js via nvm, Python 3). To confirm the environment is ready:
 
 ```bash
 git status
 node --version
+npm --version
 python3 --version
 ```
 
-### When Code Is Added
+### Setup & common commands
 
-Future agents should check for:
+```bash
+npm install
+npm run seed:demo
+npm run workflow:morning
+npm run workflow:evening
+npm run test:unit
+npm run build
+npm run dev
+```
 
-- `package.json` (Node.js/JS/TS) → use the lockfile's package manager (`npm install`, `pnpm install`, or `yarn install`)
-- `requirements.txt` or `pyproject.toml` (Python) → `pip install -r requirements.txt` or `uv sync`
-- `Dockerfile` or `docker-compose.yml` → containerized services
-- `Makefile` → check for `setup`, `dev`, `lint`, and `test` targets
+Lint: `npx eslint .` (Next 16 removed `next lint`).
 
-Update the VM environment update script and this section once the tech stack is established.
+### Key paths
+
+- `src/lib/` — scoring, content, schedule, compliance, workflows, playbooks, results-intake
+- `src/app/` — dashboard pages + API routes
+- `scripts/` — seed, morning/evening CLI, unit tests
+- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-b1cd`)
+
+### Rules agents must keep
+
+- Never auto-publish to social platforms; drafts require human Approve then manual post
+- Every caption needs affiliate disclosure; Approve gate blocks overclaim language
+- No guaranteed-income claims — experimental recommendations from manual metrics only
+- Manual affiliate mode is default; platform adapters are stubs until API keys exist
+
+### Latest incremental feature
+
+- **Manual Publish Queue** (`src/lib/publish-queue.ts` + PHP `build_publish_queue`) — ranks approved-but-not-posted items (overdue / due_now / today / upcoming) with copy checklist; morning/evening brief lines; export `scope=publish`
+
+### Soft ROI Lab (this branch)
+
+- `src/lib/roi-lab.ts` — experimental commission ranges + ROI% from logged metrics
+- UI: `/automation`, `/results` · export `scope=roi`
+- PHP: `build_soft_roi_lab` / `soft_roi_lab_to_markdown`
+- Never claims guaranteed income; never auto-publishes
+

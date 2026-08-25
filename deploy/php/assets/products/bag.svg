@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <rect width="128" height="128" rx="24" fill="#eef5f1"/>
+  <circle cx="64" cy="54" r="28" fill="#3f6f5c"/>
+  <rect x="28" y="92" width="72" height="14" rx="7" fill="#3f6f5c" opacity=".35"/>
+  <text x="64" y="60" text-anchor="middle" font-family="Sarabun,sans-serif" font-size="14" fill="#fff">กระเป๋า</text>
+</svg>
