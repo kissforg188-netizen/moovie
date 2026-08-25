@@ -51,11 +51,20 @@ import {
   scorePublishPriority,
 } from "../src/lib/publish-queue";
 import {
+  buildSoftRoiLab,
+  softRoiLabLines,
+  softRoiLabToMarkdown,
+} from "../src/lib/roi-lab";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
 } from "../src/lib/compliance";
-import { withDisclosure, AFFILIATE_DISCLOSURE } from "../src/lib/disclosure";
+import {
+  withDisclosure,
+  AFFILIATE_DISCLOSURE,
+  INCOME_DISCLAIMER,
+} from "../src/lib/disclosure";
 import { generateContentPack } from "../src/lib/content";
 import {
   buildPauseSuggestions,
@@ -2181,6 +2190,147 @@ function run() {
   assert.ok(pubMd.includes("Manual Publish Queue"));
   assert.ok(pubMd.includes("ไม่โพสต์อัตโนมัติ"));
   assert.ok(pubMd.includes("Checklist"));
+
+  // --- Soft ROI Lab ---
+  const roiDisclosure =
+    "ลิงก์นี้เป็นลิงก์ affiliate ผู้เขียนอาจได้รับค่าคอมมิชชัน";
+  const roiProduct = {
+    id: "prod_roi",
+    name: "พัดลมตั้งโต๊ะมินิ",
+    platform: "shopee" as const,
+    affiliateUrl: "https://s.shopee.co.th/roi",
+    price: 299,
+    commissionRate: 12,
+    category: "gadget",
+    sellingPoints: ["เงียบ", "พกง่าย"],
+    painPoints: ["ร้อนในห้อง"],
+    targetAudience: "คนทำงานบ้าน",
+    videoEase: 4,
+    seasonalScore: 4,
+    active: true,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-01T00:00:00.000Z",
+  };
+  const roiOther = {
+    ...roiProduct,
+    id: "prod_roi_cold",
+    name: "สายชาร์จถูก",
+    price: 39,
+    commissionRate: 5,
+  };
+  const roiSchedule = [
+    {
+      id: "sch_roi_1",
+      date: "2026-08-20",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_roi",
+      contentPackId: "pack_roi",
+      status: "posted" as const,
+      captionPreview: `แคป1 ${roiDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2000,
+        clicks: 80,
+        orders: 4,
+        commissionEarned: 60,
+        promoSpend: 20,
+      },
+    },
+    {
+      id: "sch_roi_2",
+      date: "2026-08-21",
+      suggestedTime: "13:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_roi",
+      contentPackId: "pack_roi",
+      status: "posted" as const,
+      captionPreview: `แคป2 ${roiDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 1,
+      metrics: {
+        views: 1500,
+        clicks: 50,
+        orders: 3,
+        commissionEarned: 45,
+        promoSpend: 10,
+      },
+    },
+    {
+      id: "sch_roi_3",
+      date: "2026-08-22",
+      suggestedTime: "19:30",
+      channel: "facebook_post" as const,
+      productId: "prod_roi",
+      contentPackId: "pack_roi",
+      status: "posted" as const,
+      captionPreview: `แคป3 ${roiDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 900,
+        clicks: 30,
+        orders: 2,
+        commissionEarned: 30,
+      },
+    },
+    {
+      id: "sch_roi_today",
+      date: "2026-08-23",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_roi",
+      contentPackId: "pack_roi",
+      status: "approved" as const,
+      captionPreview: `วันนี้ ${roiDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+  const roiLab = buildSoftRoiLab(
+    {
+      products: [roiProduct, roiOther],
+      contentPacks: [],
+      schedule: roiSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+    14,
+  );
+  assert.ok(roiLab.counts.postsWithMetrics >= 3);
+  assert.ok(roiLab.counts.spendTracked >= 2);
+  assert.ok(roiLab.baseline.avgCommissionPerPost > 0);
+  assert.ok(roiLab.baseline.avgRoi != null);
+  const roiRow = roiLab.products.find((p) => p.productId === "prod_roi");
+  assert.ok(roiRow);
+  assert.equal(roiRow!.samples, 3);
+  assert.ok(roiRow!.rangeHigh >= roiRow!.rangeMid);
+  assert.ok(roiRow!.rangeMid >= roiRow!.rangeLow);
+  assert.ok(["promising", "watch"].includes(roiRow!.band));
+  assert.ok(roiLab.projections.length >= 1);
+  assert.equal(roiLab.projections[0].productId, "prod_roi");
+  assert.ok(roiLab.projections[0].projectedMid > 0);
+  assert.ok(softRoiLabLines(roiLab, 3).length <= 3);
+  const roiMd = softRoiLabToMarkdown(roiLab);
+  assert.ok(roiMd.includes("Soft ROI Lab"));
+  assert.ok(roiMd.includes("ทดลอง"));
+  assert.ok(roiMd.includes("ไม่รับประกัน") || roiMd.includes(INCOME_DISCLAIMER.slice(0, 10)));
+
+  // empty lab still safe
+  const emptyLab = buildSoftRoiLab(
+    {
+      products: [roiOther],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyLab.counts.postsWithMetrics, 0);
+  assert.ok(emptyLab.summary.includes("ยังไม่มีเมตริก") || emptyLab.score <= 50);
 
   console.log("All unit tests passed");
 }

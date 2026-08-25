@@ -1566,6 +1566,442 @@ function publish_queue_to_markdown(array $queue): string
         . $queue['disclaimer'] . "\n";
 }
 
+/** Soft baht commission per sale from catalog (price × rate%). */
+function expected_commission_baht(float $price, float $rate): float
+{
+    return max(0.0, $price) * max(0.0, $rate) / 100.0;
+}
+
+/**
+ * Soft ROI Lab — experimental commission ranges from logged metrics.
+ * Never auto-publishes; never claims guaranteed income.
+ */
+function build_soft_roi_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+
+    $stmt = db()->prepare(
+        "SELECT s.*, p.name AS product_name, p.platform, p.price, p.commission_rate, p.active
+         FROM schedule s
+         LEFT JOIN products p ON p.id = s.product_id
+         WHERE s.post_date BETWEEN ? AND ?
+           AND s.metrics_at IS NOT NULL"
+    );
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll();
+
+    $commissions = [];
+    $totalViews = 0;
+    $totalClicks = 0;
+    $totalOrders = 0;
+    $roiSamples = [];
+    $byProduct = [];
+
+    foreach ($posted as $s) {
+        $views = max(0, (int)$s['views']);
+        $clicks = max(0, (int)$s['clicks']);
+        $orders = max(0, (int)$s['orders_count']);
+        $comm = max(0.0, (float)$s['commission_earned']);
+        $spend = max(0.0, (float)($s['promo_spend'] ?? 0));
+        $commissions[] = $comm;
+        $totalViews += $views;
+        $totalClicks += $clicks;
+        $totalOrders += $orders;
+        if ($spend > 0) {
+            $roiSamples[] = ($comm - $spend) / $spend;
+        }
+        $pid = (string)$s['product_id'];
+        if (!isset($byProduct[$pid])) {
+            $byProduct[$pid] = [
+                'name' => (string)($s['product_name'] ?: $pid),
+                'platform' => (string)($s['platform'] ?: 'shopee'),
+                'price' => (float)($s['price'] ?? 0),
+                'rate' => (float)($s['commission_rate'] ?? 0),
+                'commissions' => [],
+                'views' => [],
+                'clicks' => [],
+                'orders' => [],
+                'rois' => [],
+            ];
+        }
+        $byProduct[$pid]['commissions'][] = $comm;
+        $byProduct[$pid]['views'][] = $views;
+        $byProduct[$pid]['clicks'][] = $clicks;
+        $byProduct[$pid]['orders'][] = $orders;
+        if ($spend > 0) {
+            $byProduct[$pid]['rois'][] = ($comm - $spend) / $spend;
+        }
+    }
+
+    $avgCommission = $commissions ? array_sum($commissions) / count($commissions) : 0.0;
+    $baseline = [
+        'avgCtr' => $totalViews > 0 ? round($totalClicks / $totalViews, 2) : 0.0,
+        'avgOrdersPerClick' => $totalClicks > 0 ? round($totalOrders / $totalClicks, 2) : 0.0,
+        'avgCommissionPerPost' => round($avgCommission, 1),
+        'avgRoi' => $roiSamples ? round(array_sum($roiSamples) / count($roiSamples), 2) : null,
+    ];
+
+    $percentile = static function (array $sorted, float $p): float {
+        $n = count($sorted);
+        if ($n === 0) return 0.0;
+        if ($n === 1) return (float)$sorted[0];
+        $idx = ($n - 1) * $p;
+        $lo = (int)floor($idx);
+        $hi = (int)ceil($idx);
+        if ($lo === $hi) return (float)$sorted[$lo];
+        $w = $idx - $lo;
+        return $sorted[$lo] * (1 - $w) + $sorted[$hi] * $w;
+    };
+
+    $productsOut = [];
+    $allProducts = all_products();
+    $seen = [];
+    foreach ($allProducts as $p) {
+        if (($p['active'] ?? true) === false && !isset($byProduct[$p['id']])) continue;
+        $seen[$p['id']] = true;
+        $agg = $byProduct[$p['id']] ?? null;
+        $samples = $agg ? count($agg['commissions']) : 0;
+        $sorted = $agg ? $agg['commissions'] : [];
+        sort($sorted, SORT_NUMERIC);
+        $rangeLow = $samples ? round($percentile($sorted, 0.25), 1) : 0.0;
+        $rangeMid = $samples ? round($percentile($sorted, 0.5), 1) : 0.0;
+        $rangeHigh = $samples ? round($percentile($sorted, 0.75), 1) : 0.0;
+        $sumViews = $agg ? array_sum($agg['views']) : 0;
+        $sumClicks = $agg ? array_sum($agg['clicks']) : 0;
+        $sumOrders = $agg ? array_sum($agg['orders']) : 0;
+        $avgCtr = $sumViews > 0 ? $sumClicks / $sumViews : 0.0;
+        $avgOpc = $sumClicks > 0 ? $sumOrders / $sumClicks : 0.0;
+        $avgRoi = ($agg && $agg['rois']) ? array_sum($agg['rois']) / count($agg['rois']) : null;
+        $confidence = $samples >= 5 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        $catalogBaht = round(expected_commission_baht((float)$p['price'], (float)$p['commissionRate']), 1);
+
+        if ($samples === 0) {
+            $band = 'no_data';
+        } elseif ($samples < 2) {
+            $band = 'watch';
+        } elseif ($rangeMid >= 30 && $avgCtr >= 0.02 && ($avgRoi === null || $avgRoi >= 0)) {
+            $band = 'promising';
+        } elseif ($rangeMid < 5 && $avgCtr < 0.01) {
+            $band = 'cold';
+        } else {
+            $band = 'watch';
+        }
+
+        if ($band === 'no_data') {
+            $tip = 'ยังไม่มีเมตริก — Approve → โพสต์มือ 1–2 ชิ้น แล้วกรอกผลก่อนอ่านช่วงนี้';
+        } elseif ($confidence === 'thin') {
+            $tip = "n={$samples} ยังบาง — ใช้ช่วง ฿{$rangeLow}–{$rangeHigh} เป็นสมมติฐานทดลองเท่านั้น";
+        } elseif ($band === 'promising') {
+            $tip = "ช่วงกลาง ~฿{$rangeMid}/โพสต์ (ทดลอง) — ลองมุมเดิม + hook ใหม่ 1 แบบ";
+        } elseif ($band === 'cold') {
+            $tip = 'สัญญาณอ่อน — พักหรือเปลี่ยนมุมขาย/ช่องทางก่อนลงแรงถ่าย';
+        } elseif ($avgRoi !== null && $avgRoi < 0) {
+            $tip = 'ROI จากต้นทุนที่กรอกติดลบ — ลดสเปนหรือปรับคอนเทนต์';
+        } else {
+            $tip = "ติดตามต่อ — ช่วงทดลอง ฿{$rangeLow}–{$rangeHigh}";
+        }
+
+        $productsOut[] = [
+            'productId' => $p['id'],
+            'productName' => $p['name'],
+            'platform' => $p['platform'],
+            'samples' => $samples,
+            'avgCommission' => $samples ? round(array_sum($agg['commissions']) / $samples, 1) : 0.0,
+            'rangeLow' => $rangeLow,
+            'rangeMid' => $rangeMid,
+            'rangeHigh' => $rangeHigh,
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOpc, 2),
+            'avgRoi' => $avgRoi !== null ? round($avgRoi, 2) : null,
+            'spendSamples' => $agg ? count($agg['rois']) : 0,
+            'catalogBaht' => $catalogBaht,
+            'confidence' => $confidence,
+            'band' => $band,
+            'tip' => $tip,
+        ];
+    }
+
+    // Include orphan product ids from metrics
+    foreach ($byProduct as $pid => $agg) {
+        if (isset($seen[$pid])) continue;
+        $samples = count($agg['commissions']);
+        $sorted = $agg['commissions'];
+        sort($sorted, SORT_NUMERIC);
+        $rangeLow = round($percentile($sorted, 0.25), 1);
+        $rangeMid = round($percentile($sorted, 0.5), 1);
+        $rangeHigh = round($percentile($sorted, 0.75), 1);
+        $productsOut[] = [
+            'productId' => $pid,
+            'productName' => $agg['name'],
+            'platform' => $agg['platform'],
+            'samples' => $samples,
+            'avgCommission' => round(array_sum($agg['commissions']) / max(1, $samples), 1),
+            'rangeLow' => $rangeLow,
+            'rangeMid' => $rangeMid,
+            'rangeHigh' => $rangeHigh,
+            'avgCtr' => 0.0,
+            'avgOrdersPerClick' => 0.0,
+            'avgRoi' => $agg['rois'] ? round(array_sum($agg['rois']) / count($agg['rois']), 2) : null,
+            'spendSamples' => count($agg['rois']),
+            'catalogBaht' => round(expected_commission_baht($agg['price'], $agg['rate']), 1),
+            'confidence' => $samples >= 5 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin'),
+            'band' => $samples >= 2 ? 'watch' : 'watch',
+            'tip' => "n={$samples} — ช่วงทดลอง ฿{$rangeLow}–{$rangeHigh}",
+        ];
+    }
+
+    usort($productsOut, static function ($a, $b) {
+        $bandRank = ['promising' => 0, 'watch' => 1, 'cold' => 2, 'no_data' => 3];
+        $ar = $bandRank[$a['band']] ?? 9;
+        $br = $bandRank[$b['band']] ?? 9;
+        if ($ar !== $br) return $ar <=> $br;
+        $aw = $a['rangeMid'] * ($a['confidence'] === 'solid' ? 1.2 : ($a['confidence'] === 'ok' ? 1.0 : 0.6));
+        $bw = $b['rangeMid'] * ($b['confidence'] === 'solid' ? 1.2 : ($b['confidence'] === 'ok' ? 1.0 : 0.6));
+        if ($bw != $aw) return $bw <=> $aw;
+        return $b['catalogBaht'] <=> $a['catalogBaht'];
+    });
+
+    // Projections for today's draft/approved
+    $stmt = db()->prepare(
+        "SELECT s.*, p.name AS product_name, p.price, p.commission_rate
+         FROM schedule s LEFT JOIN products p ON p.id=s.product_id
+         WHERE s.post_date=? AND s.status IN ('draft','approved')
+         ORDER BY s.suggested_time"
+    );
+    $stmt->execute([$date]);
+    $todaySlots = $stmt->fetchAll();
+    $histById = [];
+    foreach ($productsOut as $row) {
+        $histById[$row['productId']] = $row;
+    }
+    $projections = [];
+    foreach ($todaySlots as $s) {
+        $pid = (string)$s['product_id'];
+        $hist = $histById[$pid] ?? null;
+        $name = (string)($s['product_name'] ?: $pid);
+        $ch = channel_label((string)$s['channel']);
+        if ($hist && $hist['samples'] >= 2) {
+            $low = $hist['rangeLow'];
+            $mid = $hist['rangeMid'];
+            $high = $hist['rangeHigh'];
+            $conf = $hist['confidence'];
+            $basis = 'จากประวัติ ' . $hist['samples'] . ' โพสต์ของสินค้านี้';
+        } elseif ($hist && $hist['samples'] === 1) {
+            $mid = $hist['rangeMid'];
+            $low = round($mid * 0.5, 1);
+            $high = round($mid * 1.5, 1);
+            $conf = 'thin';
+            $basis = 'จาก 1 โพสต์ก่อนหน้า (ช่วงกว้าง — ทดลอง)';
+        } elseif ($avgCommission > 0) {
+            $mid = round($avgCommission, 1);
+            $low = round($avgCommission * 0.4, 1);
+            $high = round($avgCommission * 1.6, 1);
+            $conf = count($posted) >= 5 ? 'solid' : (count($posted) >= 2 ? 'ok' : 'thin');
+            $basis = 'จากค่าเฉลี่ยทั้งแล็บ (' . count($posted) . ' โพสต์ในหน้าต่าง)';
+        } else {
+            $catalog = expected_commission_baht((float)($s['price'] ?? 0), (float)($s['commission_rate'] ?? 0));
+            $mid = round($catalog * 0.3, 1);
+            $low = 0.0;
+            $high = round($catalog * 0.8, 1);
+            $conf = 'thin';
+            $basis = 'ยังไม่มีเมตริก — ใช้ค่าคอมแคตตาล็อกแบบลดน้ำหนัก (prior ทดลอง)';
+        }
+        $projections[] = [
+            'scheduleId' => $s['id'],
+            'productId' => $pid,
+            'productName' => $name,
+            'channel' => $s['channel'],
+            'channelLabel' => $ch,
+            'status' => $s['status'],
+            'date' => $s['post_date'],
+            'projectedMid' => $mid,
+            'projectedLow' => $low,
+            'projectedHigh' => $high,
+            'confidence' => $conf,
+            'basis' => $basis,
+            'tip' => $s['status'] === 'draft'
+                ? 'ยังเป็น draft — ตรวจ disclosure แล้ว Approve ก่อนโพสต์มือ'
+                : 'Approve แล้ว — คัดลอกไปโพสต์ด้วยมือ แล้ว Mark posted + กรอกผล',
+        ];
+    }
+    usort($projections, static fn($a, $b) => $b['projectedMid'] <=> $a['projectedMid']);
+
+    $promising = count(array_filter($productsOut, fn($p) => $p['band'] === 'promising'));
+    $thin = count(array_filter($productsOut, fn($p) => $p['samples'] > 0 && $p['confidence'] === 'thin'));
+    $withData = count(array_filter($productsOut, fn($p) => $p['samples'] > 0));
+
+    $score = 35;
+    $score += min(25, count($posted) * 4);
+    $score += min(15, $withData * 3);
+    $score += min(10, $promising * 5);
+    $score += min(10, count($roiSamples) * 3);
+    if (!count($posted)) $score = min($score, 40);
+    if ($baseline['avgRoi'] !== null && $baseline['avgRoi'] < 0) $score -= 8;
+    $score = (int)max(0, min(100, round($score)));
+    $grade = $score >= 85 ? 'A' : ($score >= 70 ? 'B' : ($score >= 50 ? 'C' : 'D'));
+
+    $summary = !count($posted)
+        ? 'Soft ROI Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อน ช่วงคาดการณ์ยังเป็น prior ทดลอง'
+        : 'Soft ROI Lab: ' . count($posted) . ' โพสต์มีเมตริก · สินค้าที่มีข้อมูล ' . $withData
+            . ' · ช่วงค่าคอมเฉลี่ย/โพสต์ ~฿' . $baseline['avgCommissionPerPost'] . ' (ทดลอง ไม่การันตี)';
+
+    $actions = [];
+    if (!count($posted)) {
+        $actions[] = [
+            'id' => 'fill-first',
+            'title' => 'กรอกผลโพสต์แรก',
+            'detail' => 'Approve → โพสต์มือ → Mark posted → กรอก views/clicks/orders/ค่าคอม',
+        ];
+    } else {
+        $actions[] = [
+            'id' => 'log-spend',
+            'title' => 'บันทึกต้นทุนโปรโมทเมื่อมี',
+            'detail' => 'ใส่ promo spend ในเมตริกเพื่อคำนวณ ROI% จริง — ถ้าไม่กรอก ระบบจะไม่เคลม ROI',
+        ];
+    }
+    if ($promising > 0) {
+        $actions[] = [
+            'id' => 'test-promising',
+            'title' => 'ทดลองสินค้ากลุ่มน่าลอง',
+            'detail' => "มี {$promising} ชิ้นสัญญาณดี — ใช้ hook ใหม่ 1 แบบต่อชิ้น ไม่สแปมข้อความเดิม",
+        ];
+    }
+    if ($thin > 0) {
+        $actions[] = [
+            'id' => 'thicken-data',
+            'title' => 'เพิ่มตัวอย่างก่อนสรุป',
+            'detail' => "{$thin} สินค้าข้อมูลยังบาง — อ่านช่วงค่าคอมแบบสมมติฐาน ไม่ใช่เป้าขาย",
+        ];
+    }
+    $actions[] = [
+        'id' => 'no-guarantee',
+        'title' => 'ไม่ใช้ตัวเลขนี้การันตีรายได้',
+        'detail' => INCOME_DISCLAIMER,
+    ];
+
+    $checklist = [
+        'ทุกตัวเลขในแล็บมาจากเมตริกที่คุณกรอกเอง — ไม่ดึงจาก API แพลตฟอร์ม',
+        'ช่วง low/mid/high เป็นค่าทดลอง (percentile) ไม่ใช่คำสัญญา',
+        'ROI% คำนวณเฉพาะโพสต์ที่มี promo spend > 0',
+        'โพสต์จริงต้องมี disclosure และต้อง Approve ก่อน — ระบบไม่โพสต์อัตโนมัติ',
+        'ถ้าข้อมูลบาง (n<2) ให้ทดลองต่อ ไม่ล็อคมุมขาย',
+    ];
+
+    $bandLabel = ['promising' => 'น่าลอง', 'watch' => 'เฝ้าดู', 'cold' => 'อ่อน', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $lines = ["Soft ROI Lab {$date}: เกรด {$grade} ({$score}/100) · {$summary}"];
+    if ($baseline['avgRoi'] !== null) {
+        $lines[] = 'ROI เฉลี่ยจากต้นทุนที่กรอก ~' . round($baseline['avgRoi'] * 100, 1) . '% (n=' . count($roiSamples) . ') — ทดลอง';
+    } elseif (count($posted) > 0) {
+        $lines[] = 'ยังไม่มี promo spend — ยังคำนวณ ROI% ไม่ได้ (แสดงแค่ช่วงค่าคอม/โพสต์)';
+    }
+    $withSamples = array_values(array_filter($productsOut, fn($p) => $p['samples'] > 0));
+    foreach (array_slice($withSamples, 0, 3) as $p) {
+        $lines[] = ($bandLabel[$p['band']] ?? $p['band']) . ' · ' . $p['productName']
+            . ': ฿' . $p['rangeLow'] . '–' . $p['rangeHigh'] . '/โพสต์ ('
+            . ($confLabel[$p['confidence']] ?? $p['confidence']) . ', n=' . $p['samples'] . ')';
+    }
+    foreach (array_slice($projections, 0, 2) as $pr) {
+        $lines[] = 'คาดการณ์ทดลองวันนี้ · ' . $pr['productName'] . ' (' . $pr['channelLabel'] . '): ~฿'
+            . $pr['projectedMid'] . ' [' . $pr['projectedLow'] . '–' . $pr['projectedHigh'] . ']';
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $score,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => count($posted),
+            'productsWithData' => $withData,
+            'spendTracked' => count($roiSamples),
+            'promising' => $promising,
+            'thin' => $thin,
+            'projections' => count($projections),
+        ],
+        'baseline' => $baseline,
+        'products' => $productsOut,
+        'projections' => $projections,
+        'actions' => array_slice($actions, 0, 5),
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function soft_roi_lab_to_markdown(array $lab): string
+{
+    $bandLabel = ['promising' => 'น่าลอง', 'watch' => 'เฝ้าดู', 'cold' => 'อ่อน', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $productRows = [];
+    $idx = 0;
+    foreach ($lab['products'] as $p) {
+        if (($p['samples'] ?? 0) <= 0) continue;
+        $idx++;
+        $band = $bandLabel[$p['band']] ?? $p['band'];
+        $conf = $confLabel[$p['confidence']] ?? $p['confidence'];
+        $roi = $p['avgRoi'] !== null
+            ? ' · ROI ~' . round($p['avgRoi'] * 100, 1) . '% (มีต้นทุน)'
+            : ' · ยังไม่มี ROI% (ไม่กรอกต้นทุน)';
+        $productRows[] = "{$idx}. **[{$band}]** {$p['productName']} · n={$p['samples']} · {$conf}\n"
+            . "   ช่วงค่าคอม/โพสต์ (ทดลอง): ฿{$p['rangeLow']} – ฿{$p['rangeMid']} – ฿{$p['rangeHigh']}\n"
+            . '   CTR ~' . round($p['avgCtr'] * 100, 1) . '% · ออเดอร์/คลิก ~' . $p['avgOrdersPerClick'] . $roi . "\n"
+            . "   {$p['tip']}";
+    }
+    if (!$productRows) {
+        $productRows[] = '_(ยังไม่มีเมตริก — กรอกผลหลังโพสต์มือ)_';
+    }
+    $projectionRows = [];
+    foreach ($lab['projections'] as $i => $p) {
+        $n = $i + 1;
+        $conf = $confLabel[$p['confidence']] ?? $p['confidence'];
+        $projectionRows[] = "{$n}. {$p['productName']} · {$p['channelLabel']} · {$p['status']}\n"
+            . "   คาดการณ์ทดลอง: ~฿{$p['projectedMid']} [{$p['projectedLow']}–{$p['projectedHigh']}] ({$conf})\n"
+            . "   ฐาน: {$p['basis']}\n"
+            . "   {$p['tip']}";
+    }
+    if (!$projectionRows) {
+        $projectionRows[] = '_(ไม่มี draft/approved วันนี้)_';
+    }
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = [];
+    foreach ($lab['checklist'] as $c) {
+        $checkLines[] = "- {$c}";
+    }
+    $roiLine = $lab['baseline']['avgRoi'] !== null
+        ? '- ROI เฉลี่ย (มีต้นทุน): ~' . round($lab['baseline']['avgRoi'] * 100, 1) . "%\n"
+        : "- ROI%: ยังคำนวณไม่ได้ (ยังไม่กรอก promo spend)\n";
+
+    return "# Soft ROI Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- สินค้าที่มีข้อมูล: {$lab['counts']['productsWithData']}\n"
+        . "- มีต้นทุนโปรโมท: {$lab['counts']['spendTracked']}\n"
+        . '- CTR เฉลี่ย: ~' . round($lab['baseline']['avgCtr'] * 100, 1) . "%\n"
+        . "- ค่าคอมเฉลี่ย/โพสต์: ~฿{$lab['baseline']['avgCommissionPerPost']}\n"
+        . $roiLine . "\n"
+        . "## สินค้าในช่วงทดลอง\n"
+        . implode("\n", $productRows) . "\n\n"
+        . "## คาดการณ์คิววันนี้ (ทดลอง)\n"
+        . implode("\n", $projectionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . "> ตัวเลขทั้งหมดเป็นการทดลองจากข้อมูลที่กรอก — ไม่รับประกันรายได้ และระบบไม่โพสต์อัตโนมัติ\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
 /**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
@@ -3531,6 +3967,7 @@ function run_morning_workflow(?string $date = null): array
     $intakeLines = array_slice(build_results_intake($date)['lines'], 0, 4);
     $creativeLines = array_slice(build_creative_performance($date)['lines'], 0, 4);
     $publishLines = array_slice(build_publish_queue($date)['lines'], 0, 5);
+    $roiLines = array_slice(build_soft_roi_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -3547,6 +3984,7 @@ function run_morning_workflow(?string $date = null): array
         ...$intakeLines,
         ...$creativeLines,
         ...$publishLines,
+        ...$roiLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -3632,6 +4070,7 @@ function run_evening_workflow(?string $date = null): array
     $intake = build_results_intake($date);
     $creative = build_creative_performance($date);
     $publish = build_publish_queue($date);
+    $roiLab = build_soft_roi_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -3654,6 +4093,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($publish['lines'], 0, 6) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($roiLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -3664,6 +4106,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($publish['counts']['needsAttention'] ?? 0) > 0) {
         $recs[] = 'ยังมี approved รอโพสต์มือ ' . $publish['counts']['needsAttention'] . ' ชิ้นที่ควรสนใจ — ดู Publish Queue';
+    }
+    if (($roiLab['counts']['promising'] ?? 0) > 0) {
+        $recs[] = 'Soft ROI Lab มี ' . $roiLab['counts']['promising'] . ' สินค้ากลุ่มน่าลอง — ใช้ช่วงค่าคอมเป็นสมมติฐานทดลอง ไม่การันตีรายได้';
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

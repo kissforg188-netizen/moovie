@@ -25,6 +25,7 @@ import { postingHygieneToMarkdown } from "@/lib/posting-hygiene";
 import { resultsIntakeToMarkdown } from "@/lib/results-intake";
 import { creativePerformanceToMarkdown } from "@/lib/creative-performance";
 import { publishQueueToMarkdown } from "@/lib/publish-queue";
+import { softRoiLabToMarkdown } from "@/lib/roi-lab";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -118,6 +119,14 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = publishQueueToMarkdown(snap.publishQueue);
       filename = `affiliate-publish-queue-${todayISO()}.md`;
+    } else if (
+      scope === "roi" ||
+      scope === "roi-lab" ||
+      scope === "soft-roi"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = softRoiLabToMarkdown(snap.softRoiLab);
+      filename = `affiliate-soft-roi-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

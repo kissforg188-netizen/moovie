@@ -31,6 +31,7 @@ export default async function AutomationPage() {
     resultsIntake,
     creativePerformance,
     publishQueue,
+    softRoiLab,
   } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
@@ -278,6 +279,118 @@ export default async function AutomationPage() {
         </ul>
         <p className="text-xs text-[var(--ink-soft)]">
           {publishQueue.disclaimer}
+        </p>
+      </section>
+
+      <section className="surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Soft ROI Lab
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              {softRoiLab.summary}
+            </p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href="/api/export?format=md&scope=roi"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-xs text-[var(--ink-soft)]">
+          เกรดแล็บ {softRoiLab.grade} · {softRoiLab.score}/100 · หน้าต่าง{" "}
+          {softRoiLab.windowDays} วัน · CTR ~{(softRoiLab.baseline.avgCtr * 100).toFixed(1)}%
+        </p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">มีเมตริก</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {softRoiLab.counts.postsWithMetrics}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">น่าลอง</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {softRoiLab.counts.promising}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">มีต้นทุน</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {softRoiLab.counts.spendTracked}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">ค่าคอมเฉลี่ย</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              ฿{softRoiLab.baseline.avgCommissionPerPost}
+            </p>
+          </div>
+        </div>
+        {softRoiLab.products.filter((p) => p.samples > 0).length === 0 ? (
+          <p className="text-sm text-[var(--ink-soft)]">
+            ยังไม่มีเมตริกพอสร้างช่วงทดลอง — โพสต์มือแล้วกรอกผลที่ /results
+          </p>
+        ) : (
+          <ol className="list-decimal space-y-3 pl-5 text-sm text-[var(--ink-soft)]">
+            {softRoiLab.products
+              .filter((p) => p.samples > 0)
+              .slice(0, 5)
+              .map((p) => (
+                <li key={p.productId}>
+                  <span className="text-[var(--sage-deep)]">
+                    [{p.band === "promising"
+                      ? "น่าลอง"
+                      : p.band === "cold"
+                        ? "อ่อน"
+                        : p.band === "watch"
+                          ? "เฝ้าดู"
+                          : "ยังไม่มีข้อมูล"}
+                    ] {p.productName}
+                  </span>
+                  <p className="mt-0.5 text-xs">
+                    ช่วงทดลอง ฿{p.rangeLow}–{p.rangeHigh}/โพสต์ · n={p.samples} ·{" "}
+                    {p.confidence === "solid"
+                      ? "หนาขึ้น"
+                      : p.confidence === "ok"
+                        ? "พอใช้"
+                        : "ข้อมูลบาง"}
+                    {p.avgRoi != null
+                      ? ` · ROI ~${(p.avgRoi * 100).toFixed(0)}%`
+                      : ""}
+                  </p>
+                  <p className="mt-0.5 text-xs">{p.tip}</p>
+                </li>
+              ))}
+          </ol>
+        )}
+        {softRoiLab.projections.length > 0 ? (
+          <div className="rounded-xl border border-[var(--line)] bg-white/50 p-3">
+            <p className="text-sm text-[var(--sage-deep)]">
+              คาดการณ์คิววันนี้ (ทดลอง)
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+              {softRoiLab.projections.slice(0, 4).map((pr) => (
+                <li key={pr.scheduleId}>
+                  {pr.productName} · {pr.channelLabel}: ~฿{pr.projectedMid} [
+                  {pr.projectedLow}–{pr.projectedHigh}]
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+          {softRoiLab.actions.slice(0, 3).map((a) => (
+            <li key={a.id}>
+              <span className="text-[var(--sage-deep)]">{a.title}</span> —{" "}
+              {a.detail}
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-[var(--ink-soft)]">
+          {softRoiLab.disclaimer}
         </p>
       </section>
 
@@ -873,6 +986,12 @@ export default async function AutomationPage() {
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >
           Export Publish Queue (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=roi"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Soft ROI Lab (.md)
         </a>
         <a
           href="/api/export?format=csv&scope=schedule"

@@ -37,6 +37,7 @@ $postingHygiene = build_posting_hygiene($date);
 $resultsIntake = build_results_intake($date);
 $creativePerformance = build_creative_performance($date);
 $publishQueue = build_publish_queue($date);
+$softRoiLab = build_soft_roi_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -329,6 +330,52 @@ $publishQueue = build_publish_queue($date);
           <a class="btn" href="?page=calendar">ไปตารางโพสต์</a>
         </div>
         <p class="note"><?= h($publishQueue['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Soft ROI Lab</h2>
+        <p class="muted"><?= h($softRoiLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($softRoiLab['grade']) ?> · <?= (int)$softRoiLab['score'] ?>/100 · หน้าต่าง <?= (int)$softRoiLab['windowDays'] ?> วัน</p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$softRoiLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>น่าลอง</p><strong><?= (int)$softRoiLab['counts']['promising'] ?></strong></article>
+          <article><p>มีต้นทุน</p><strong><?= (int)$softRoiLab['counts']['spendTracked'] ?></strong></article>
+          <article><p>ค่าคอมเฉลี่ย</p><strong>฿<?= h((string)$softRoiLab['baseline']['avgCommissionPerPost']) ?></strong></article>
+        </div>
+        <?php
+          $roiRows = array_values(array_filter($softRoiLab['products'], fn($p) => ($p['samples'] ?? 0) > 0));
+          if (!$roiRows): ?>
+          <p class="muted">ยังไม่มีเมตริกพอสร้างช่วงทดลอง — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($roiRows, 0, 5) as $p): ?>
+              <li>
+                <strong>[<?= h($p['band'] === 'promising' ? 'น่าลอง' : ($p['band'] === 'cold' ? 'อ่อน' : ($p['band'] === 'watch' ? 'เฝ้าดู' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($p['productName']) ?>
+                <div class="muted">ช่วงทดลอง ฿<?= h((string)$p['rangeLow']) ?>–<?= h((string)$p['rangeHigh']) ?>/โพสต์ · n=<?= (int)$p['samples'] ?></div>
+                <div class="muted"><?= h($p['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($softRoiLab['projections']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คาดการณ์คิววันนี้ (ทดลอง)</strong></p>
+          <ul>
+            <?php foreach (array_slice($softRoiLab['projections'], 0, 4) as $pr): ?>
+              <li><?= h($pr['productName']) ?> · <?= h($pr['channelLabel']) ?>: ~฿<?= h((string)$pr['projectedMid']) ?> [<?= h((string)$pr['projectedLow']) ?>–<?= h((string)$pr['projectedHigh']) ?>]</li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($softRoiLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=roi">Export Soft ROI Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($softRoiLab['disclaimer']) ?></p>
       </section>
 
       <section class="card fade-up">

@@ -249,6 +249,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md publish-queue');
                 exit;
             }
+            if (in_array($scope, ['roi', 'roi-lab', 'soft-roi'], true)) {
+                $lab = build_soft_roi_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-soft-roi-lab-'.today_iso().'.md"');
+                echo soft_roi_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md soft-roi-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

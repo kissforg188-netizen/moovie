@@ -51,3 +51,11 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 ### Latest incremental feature
 
 - **Manual Publish Queue** (`src/lib/publish-queue.ts` + PHP `build_publish_queue`) — ranks approved-but-not-posted items (overdue / due_now / today / upcoming) with copy checklist; morning/evening brief lines; export `scope=publish`
+
+### Soft ROI Lab (this branch)
+
+- `src/lib/roi-lab.ts` — experimental commission ranges + ROI% from logged metrics
+- UI: `/automation`, `/results` · export `scope=roi`
+- PHP: `build_soft_roi_lab` / `soft_roi_lab_to_markdown`
+- Never claims guaranteed income; never auto-publishes
+

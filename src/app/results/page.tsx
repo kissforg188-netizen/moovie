@@ -10,6 +10,7 @@ import { buildWeeklyReview } from "@/lib/weekly-review";
 import { buildPostingHygiene } from "@/lib/posting-hygiene";
 import { buildResultsIntake } from "@/lib/results-intake";
 import { buildCreativePerformance } from "@/lib/creative-performance";
+import { buildSoftRoiLab } from "@/lib/roi-lab";
 import { weeklyInsightLines, weeklyProductRollup } from "@/lib/weekly";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,7 @@ export default async function ResultsPage() {
   const postingHygiene = buildPostingHygiene(db, date);
   const resultsIntake = buildResultsIntake(db, date);
   const creativePerformance = buildCreativePerformance(db, date);
+  const softRoiLab = buildSoftRoiLab(db, date);
 
   return (
     <div className="space-y-8">
@@ -201,6 +203,69 @@ export default async function ResultsPage() {
         <p className="text-xs text-[var(--ink-soft)]">
           {creativePerformance.disclaimer}
         </p>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="brand-mark text-3xl text-[var(--sage-deep)]">
+            Soft ROI Lab
+          </h2>
+          <a
+            href="/api/export?format=md&scope=roi"
+            className="text-xs text-[var(--sage)] hover:underline"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-sm text-[var(--ink-soft)]">{softRoiLab.summary}</p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">เกรดแล็บ</p>
+            <p className="text-lg text-[var(--sage-deep)]">{softRoiLab.grade}</p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">มีเมตริก</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {softRoiLab.counts.postsWithMetrics}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">น่าลอง</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {softRoiLab.counts.promising}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">ค่าคอมเฉลี่ย</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              ฿{softRoiLab.baseline.avgCommissionPerPost}
+            </p>
+          </div>
+        </div>
+        {softRoiLab.products.filter((p) => p.samples > 0).length === 0 ? (
+          <p className="text-xs text-[var(--ink-soft)]">
+            กรอกเมตริกด้านล่างเพื่อสร้างช่วงค่าคอมทดลอง — ไม่ใช่การันตีรายได้
+          </p>
+        ) : (
+          <ul className="list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+            {softRoiLab.products
+              .filter((p) => p.samples > 0)
+              .slice(0, 6)
+              .map((p) => (
+                <li key={p.productId}>
+                  <span className="text-[var(--ink)]">{p.productName}</span>
+                  {" · "}
+                  ฿{p.rangeLow}–{p.rangeHigh}/โพสต์ (n={p.samples})
+                  {p.avgRoi != null
+                    ? ` · ROI ~${(p.avgRoi * 100).toFixed(0)}%`
+                    : ""}
+                  <br />
+                  {p.tip}
+                </li>
+              ))}
+          </ul>
+        )}
+        <p className="text-xs text-[var(--ink-soft)]">{softRoiLab.disclaimer}</p>
       </section>
 
       <section className="space-y-3">

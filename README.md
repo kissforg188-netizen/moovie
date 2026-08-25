@@ -47,6 +47,7 @@
 - **Results Intake**: คิวกรอกผลเย็น (ค้าง / วันนี้ / บางส่วน / ครบ) — คู่กับ Approve Queue ของเช้า
 - **Creative Performance**: จัดอันดับ hook / CTA / คู่ที่เคยลองจากเมตริกที่กรอก (ทดลอง ไม่การันตี)
 - **Manual Publish Queue**: คิวโพสต์มือหลัง Approve (ค้าง / ถึงเวลา / วันนี้) พร้อม checklist — ระบบไม่โพสต์อัตโนมัติ
+- **Soft ROI Lab**: ช่วงค่าคอม/โพสต์ + ROI% จากเมตริกที่กรอก (percentile ทดลอง) — ไม่รับประกันรายได้
 
 
 ## Production (cPanel / MySQL)
@@ -103,10 +104,10 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
 - `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
+- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
 - `/calendar` ตารางโพสต์วันนี้ + คิว Approve + Manual Publish Queue + Approve / ข้าม / Mark posted
-- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
+- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
 - `/guide` คู่มือการใช้งาน
 
 ### Export
@@ -131,6 +132,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown Results Intake (evening metrics queue): `/api/export?format=md&scope=intake`
 - Markdown Creative Performance (hook/CTA board): `/api/export?format=md&scope=creative`
 - Markdown Manual Publish Queue: `/api/export?format=md&scope=publish`
+- Markdown Soft ROI Lab: `/api/export?format=md&scope=roi`
 
 ## Workflow แนะนำ
 

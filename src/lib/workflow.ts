@@ -65,6 +65,11 @@ import {
   publishQueueLines,
   type PublishQueue,
 } from "./publish-queue";
+import {
+  buildSoftRoiLab,
+  softRoiLabLines,
+  type SoftRoiLab,
+} from "./roi-lab";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -245,6 +250,7 @@ export async function runMorningWorkflow(
         ...resultsIntakeLines(buildResultsIntake(db, date), 4),
         ...creativePerformanceLines(buildCreativePerformance(db, date), 4),
         ...publishQueueLines(buildPublishQueue(db, date), 5),
+        ...softRoiLabLines(buildSoftRoiLab(db, date), 4),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -344,6 +350,7 @@ export async function runEveningWorkflow(
       const resultsIntake = buildResultsIntake(db, date);
       const creativePerformance = buildCreativePerformance(db, date);
       const publishQueue = buildPublishQueue(db, date);
+      const softRoiLab = buildSoftRoiLab(db, date);
 
       const recommendations = [
         ...analysis.recommendations,
@@ -357,6 +364,7 @@ export async function runEveningWorkflow(
         ...resultsIntakeLines(resultsIntake, 6),
         ...creativePerformanceLines(creativePerformance, 6),
         ...publishQueueLines(publishQueue, 6),
+        ...softRoiLabLines(softRoiLab, 5),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -370,6 +378,9 @@ export async function runEveningWorkflow(
           : null,
         publishQueue.counts.needsAttention > 0
           ? `ยังมี approved รอโพสต์มือ ${publishQueue.counts.needsAttention} ชิ้นที่ควรสนใจ — ดู Publish Queue ที่ /calendar`
+          : null,
+        softRoiLab.counts.promising > 0
+          ? `Soft ROI Lab มี ${softRoiLab.counts.promising} สินค้ากลุ่มน่าลอง — ใช้ช่วงค่าคอมเป็นสมมติฐานทดลอง ไม่การันตีรายได้`
           : null,
       ].filter(Boolean) as string[];
 
@@ -424,6 +435,7 @@ export async function getDashboardSnapshot(): Promise<{
   resultsIntake: ResultsIntake;
   creativePerformance: CreativePerformance;
   publishQueue: PublishQueue;
+  softRoiLab: SoftRoiLab;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -467,6 +479,7 @@ export async function getDashboardSnapshot(): Promise<{
   const resultsIntake = buildResultsIntake(db, date);
   const creativePerformance = buildCreativePerformance(db, date);
   const publishQueue = buildPublishQueue(db, date);
+  const softRoiLab = buildSoftRoiLab(db, date);
   return {
     db,
     ranked,
@@ -484,5 +497,6 @@ export async function getDashboardSnapshot(): Promise<{
     resultsIntake,
     creativePerformance,
     publishQueue,
+    softRoiLab,
   };
 }
