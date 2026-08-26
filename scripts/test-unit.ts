@@ -56,6 +56,11 @@ import {
   softRoiLabToMarkdown,
 } from "../src/lib/roi-lab";
 import {
+  buildChannelFitLab,
+  channelFitLabLines,
+  channelFitLabToMarkdown,
+} from "../src/lib/channel-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -2331,6 +2336,159 @@ function run() {
   );
   assert.equal(emptyLab.counts.postsWithMetrics, 0);
   assert.ok(emptyLab.summary.includes("ยังไม่มีเมตริก") || emptyLab.score <= 50);
+
+  // --- Channel Fit Lab ---
+  const fitDisclosure =
+    "ลิงก์นี้เป็นลิงก์ affiliate ผู้เขียนอาจได้รับค่าคอมมิชชัน";
+  const fitProduct = {
+    id: "prod_fit",
+    name: "กันแดดทาหน้าบางเบา",
+    platform: "shopee" as const,
+    affiliateUrl: "https://s.shopee.co.th/fit",
+    price: 259,
+    commissionRate: 15,
+    category: "beauty",
+    sellingPoints: ["บางเบา", "ไม่วอก"],
+    painPoints: ["หน้ามันกลางวัน"],
+    targetAudience: "คนทำงานออฟฟิศ",
+    videoEase: 5,
+    seasonalScore: 4,
+    active: true,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    updatedAt: "2026-08-01T00:00:00.000Z",
+  };
+  const fitSchedule = [
+    {
+      id: "sch_fit_tt1",
+      date: "2026-08-18",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_fit",
+      contentPackId: "pack_fit",
+      status: "posted" as const,
+      captionPreview: `tt1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 3000,
+        clicks: 120,
+        orders: 6,
+        commissionEarned: 90,
+      },
+    },
+    {
+      id: "sch_fit_tt2",
+      date: "2026-08-19",
+      suggestedTime: "11:00",
+      channel: "tiktok" as const,
+      productId: "prod_fit",
+      contentPackId: "pack_fit",
+      status: "posted" as const,
+      captionPreview: `tt2 ${fitDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 0,
+      metrics: {
+        views: 2800,
+        clicks: 100,
+        orders: 5,
+        commissionEarned: 75,
+      },
+    },
+    {
+      id: "sch_fit_tt3",
+      date: "2026-08-20",
+      suggestedTime: "12:00",
+      channel: "tiktok" as const,
+      productId: "prod_fit",
+      contentPackId: "pack_fit",
+      status: "posted" as const,
+      captionPreview: `tt3 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 1,
+      metrics: {
+        views: 2500,
+        clicks: 90,
+        orders: 4,
+        commissionEarned: 60,
+      },
+    },
+    {
+      id: "sch_fit_reels",
+      date: "2026-08-21",
+      suggestedTime: "13:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_fit",
+      contentPackId: "pack_fit",
+      status: "posted" as const,
+      captionPreview: `reels ${fitDisclosure}`,
+      hookIndex: 2,
+      ctaIndex: 1,
+      metrics: {
+        views: 800,
+        clicks: 15,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_fit_today_weak",
+      date: "2026-08-23",
+      suggestedTime: "10:30",
+      channel: "facebook_reels" as const,
+      productId: "prod_fit",
+      contentPackId: "pack_fit",
+      status: "draft" as const,
+      captionPreview: `today ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+  const fitLab = buildChannelFitLab(
+    {
+      products: [fitProduct],
+      contentPacks: [],
+      schedule: fitSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+    14,
+  );
+  assert.ok(fitLab.counts.postsWithMetrics >= 4);
+  assert.ok(fitLab.counts.channelsWithData >= 2);
+  const ttRow = fitLab.channels.find((c) => c.channel === "tiktok");
+  const reelsRow = fitLab.channels.find((c) => c.channel === "facebook_reels");
+  assert.ok(ttRow);
+  assert.ok(reelsRow);
+  assert.ok(ttRow!.score > reelsRow!.score);
+  assert.ok(["strong", "ok"].includes(ttRow!.band));
+  assert.ok(fitLab.counts.unbalanced === true || ttRow!.shareOfPosts >= 0.5);
+  assert.ok(fitLab.suggestions.length >= 1);
+  assert.equal(fitLab.suggestions[0].suggestedChannel, "tiktok");
+  assert.ok(channelFitLabLines(fitLab, 3).length <= 3);
+  const fitMd = channelFitLabToMarkdown(fitLab);
+  assert.ok(fitMd.includes("Channel Fit Lab"));
+  assert.ok(fitMd.includes("ทดลอง"));
+  assert.ok(fitMd.includes("ไม่เปลี่ยนอัตโนมัติ") || fitMd.includes("Approve"));
+  assert.ok(
+    fitMd.includes("ไม่รับประกัน") ||
+      fitMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyFit = buildChannelFitLab(
+    {
+      products: [fitProduct],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyFit.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyFit.summary.includes("ยังไม่มีเมตริก") || emptyFit.score <= 50,
+  );
 
   console.log("All unit tests passed");
 }

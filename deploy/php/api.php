@@ -256,6 +256,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md soft-roi-lab');
                 exit;
             }
+            if (in_array($scope, ['channel-fit', 'channel', 'channels'], true)) {
+                $lab = build_channel_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-channel-fit-lab-'.today_iso().'.md"');
+                echo channel_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md channel-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

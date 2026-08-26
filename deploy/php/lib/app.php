@@ -2003,6 +2003,429 @@ function soft_roi_lab_to_markdown(array $lab): string
 }
 
 /**
+ * Channel Fit Lab — soft ranking of TikTok / Facebook / Reels from logged metrics.
+ * Never auto-publishes; never claims guaranteed income.
+ */
+function build_channel_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $allChannels = ['tiktok', 'facebook_reels', 'facebook_post', 'facebook_group'];
+
+    $stmt = db()->prepare(
+        "SELECT s.*, p.name AS product_name
+         FROM schedule s
+         LEFT JOIN products p ON p.id = s.product_id
+         WHERE s.post_date BETWEEN ? AND ?
+           AND s.metrics_at IS NOT NULL"
+    );
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $byChannel = [];
+    foreach ($allChannels as $ch) {
+        $byChannel[$ch] = [];
+    }
+    $totalCommission = 0.0;
+    foreach ($posted as $s) {
+        $ch = (string)$s['channel'];
+        if (!isset($byChannel[$ch])) {
+            $byChannel[$ch] = [];
+        }
+        $byChannel[$ch][] = $s;
+        $totalCommission += max(0.0, (float)$s['commission_earned']);
+    }
+    $globalAvgCommission = $posted ? $totalCommission / count($posted) : 0.0;
+
+    $channelsOut = [];
+    foreach ($allChannels as $ch) {
+        $list = $byChannel[$ch] ?? [];
+        $samples = count($list);
+        $views = [];
+        $clicks = [];
+        $orders = [];
+        $comms = [];
+        $sumViews = 0;
+        $sumClicks = 0;
+        $sumOrders = 0;
+        foreach ($list as $s) {
+            $v = max(0, (int)$s['views']);
+            $c = max(0, (int)$s['clicks']);
+            $o = max(0, (int)$s['orders_count']);
+            $views[] = $v;
+            $clicks[] = $c;
+            $orders[] = $o;
+            $comms[] = max(0.0, (float)$s['commission_earned']);
+            $sumViews += $v;
+            $sumClicks += $c;
+            $sumOrders += $o;
+        }
+        $avgViews = $samples ? array_sum($views) / $samples : 0.0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0.0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0.0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0.0;
+        $avgCtr = $sumViews > 0 ? $sumClicks / $sumViews : 0.0;
+        $avgOpc = $sumClicks > 0 ? $sumOrders / $sumClicks : 0.0;
+        $share = count($posted) > 0 ? $samples / count($posted) : 0.0;
+
+        $score = 0.0;
+        if ($samples > 0) {
+            $commBase = $globalAvgCommission > 0
+                ? max(0.0, min(70.0, ($avgCommission / $globalAvgCommission) * 50))
+                : max(0.0, min(50.0, $avgCommission * 2));
+            $ctrScore = max(0.0, min(20.0, $avgCtr * 200));
+            $opcScore = max(0.0, min(15.0, $avgOpc * 100));
+            $orderScore = max(0.0, min(15.0, $avgOrders * 8));
+            $score = $commBase + $ctrScore + $opcScore + $orderScore;
+            if ($share >= 0.7 && $samples >= 3) {
+                $score -= 12;
+            } elseif ($share >= 0.55 && $samples >= 2) {
+                $score -= 6;
+            }
+            if ($samples === 1) {
+                $score *= 0.75;
+            }
+            $score = (int)round(max(0.0, min(100.0, $score)));
+        }
+
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        if ($samples === 0) {
+            $band = 'no_data';
+        } elseif ($score >= 65 && $samples >= 2) {
+            $band = 'strong';
+        } elseif ($score >= 45) {
+            $band = 'ok';
+        } else {
+            $band = 'weak';
+        }
+
+        if ($samples === 0) {
+            $tip = 'ยังไม่มีผลในช่องนี้ — ลอง draft 1 ชิ้นแล้วกรอกเมตริก (อย่าโพสต์ซ้ำวันเดียวกัน)';
+        } elseif ($band === 'strong') {
+            $tip = 'ช่องนี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ต่อได้ แต่สลับมุมขาย/สินค้าเพื่อไม่ให้ซ้ำ';
+        } elseif ($band === 'weak') {
+            $tip = 'ผลอ่อนในช่องนี้ — ลองเปลี่ยน hook/มุม หรือย้ายไปช่องที่แข็งแรงกว่าในรอบถัดไป';
+        } elseif ($share >= 0.55) {
+            $tip = 'ใช้ช่องนี้บ่อย (' . round($share * 100) . '%) — กระจายไปช่องอื่นเพื่อลดความซ้ำ';
+        } else {
+            $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในช่องนี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        }
+
+        $channelsOut[] = [
+            'channel' => $ch,
+            'channelLabel' => channel_label($ch),
+            'samples' => $samples,
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOpc, 2),
+            'score' => $score,
+            'band' => $band,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => $tip,
+        ];
+    }
+
+    usort($channelsOut, static function ($a, $b) {
+        if ($a['score'] === $b['score']) {
+            return $b['samples'] <=> $a['samples'];
+        }
+        return $b['score'] <=> $a['score'];
+    });
+
+    $withData = array_values(array_filter($channelsOut, fn($c) => $c['samples'] > 0));
+    $strong = count(array_filter($channelsOut, fn($c) => $c['band'] === 'strong'));
+    $topShare = 0.0;
+    foreach ($channelsOut as $c) {
+        $topShare = max($topShare, (float)$c['shareOfPosts']);
+    }
+    $unbalanced = $topShare >= 0.55 && count($posted) >= 3;
+
+    $scoredAvg = $withData
+        ? array_sum(array_column($withData, 'score')) / count($withData)
+        : 0.0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) {
+        $labScore = min(100, $labScore + 8);
+    } elseif (count($withData) === 1 && count($posted) >= 3) {
+        $labScore = max(0, $labScore - 10);
+    }
+    if ($unbalanced) {
+        $labScore = max(0, $labScore - 8);
+    }
+    $labScore = max(0, min(100, $labScore));
+
+    if (count($withData) === 0) {
+        $grade = 'D';
+    } elseif ($labScore >= 75) {
+        $grade = 'A';
+    } elseif ($labScore >= 58) {
+        $grade = 'B';
+    } elseif ($labScore >= 40) {
+        $grade = 'C';
+    } else {
+        $grade = 'D';
+    }
+
+    $best = null;
+    foreach ($withData as $c) {
+        if ($c['band'] === 'strong') {
+            $best = $c;
+            break;
+        }
+    }
+    if (!$best && $withData) {
+        $best = $withData[0];
+    }
+    $weak = array_values(array_filter($withData, fn($c) => $c['band'] === 'weak'));
+
+    if (!$posted) {
+        $mixTip = 'ยังไม่มีเมตริกช่องทาง — โพสต์มือแล้วกรอกผลที่ Results ก่อนจัดมิกซ์';
+    } elseif ($unbalanced && $best) {
+        $mixTip = 'มิกซ์เอนไปทาง ' . $best['channelLabel'] . ' มาก — วันถัดไปลองสลับช่องอื่น 1 ชิ้น (ทดลอง)';
+    } elseif ($best) {
+        $mixTip = 'ช่องเด่นช่วงนี้: ' . $best['channelLabel'] . ' — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์ไว้ช่องเดียว';
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามช่องทางก่อนจัดอันดับมิกซ์';
+    }
+
+    $slotStmt = db()->prepare(
+        "SELECT s.*, p.name AS product_name
+         FROM schedule s
+         LEFT JOIN products p ON p.id = s.product_id
+         WHERE s.post_date = ?
+           AND s.status IN ('draft','approved')
+         ORDER BY s.suggested_time"
+    );
+    $slotStmt->execute([$date]);
+    $todaySlots = $slotStmt->fetchAll() ?: [];
+
+    $preferred = null;
+    foreach ($channelsOut as $c) {
+        if ($c['band'] === 'strong') {
+            $preferred = $c;
+            break;
+        }
+    }
+    if (!$preferred) {
+        foreach ($channelsOut as $c) {
+            if ($c['band'] === 'ok' && $c['samples'] > 0) {
+                $preferred = $c;
+                break;
+            }
+        }
+    }
+
+    $suggestions = [];
+    foreach (array_slice($todaySlots, 0, 6) as $slot) {
+        if (!$preferred) {
+            break;
+        }
+        $currentRow = null;
+        foreach ($channelsOut as $c) {
+            if ($c['channel'] === $slot['channel']) {
+                $currentRow = $c;
+                break;
+            }
+        }
+        $productName = (string)($slot['product_name'] ?: $slot['product_id']);
+        $sameAsPreferred = $slot['channel'] === $preferred['channel'];
+        $currentWeak = $currentRow && (
+            $currentRow['band'] === 'weak' ||
+            ($currentRow['band'] === 'no_data' && $preferred['band'] === 'strong')
+        );
+
+        if ($currentWeak && !$sameAsPreferred) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $slot['product_id'],
+                'productName' => $productName,
+                'currentChannel' => $slot['channel'],
+                'currentLabel' => channel_label((string)$slot['channel']),
+                'suggestedChannel' => $preferred['channel'],
+                'suggestedLabel' => $preferred['channelLabel'],
+                'status' => $slot['status'],
+                'reason' => channel_label((string)$slot['channel']) . ' อ่อน/ข้อมูลน้อยกว่า · ' . $preferred['channelLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่เปลี่ยนอัตโนมัติ — ถ้าย้ายช่อง ให้สร้างแคปชันใหม่ + Approve ใหม่ก่อนโพสต์มือ',
+            ];
+        } elseif ($unbalanced && $sameAsPreferred && $weak && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($channelsOut as $c) {
+                if ($c['channel'] !== $slot['channel'] && in_array($c['band'], ['ok', 'no_data'], true)) {
+                    $alt = $c;
+                    break;
+                }
+            }
+            if (!$alt) {
+                $alt = $weak[0];
+            }
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $slot['product_id'],
+                'productName' => $productName,
+                'currentChannel' => $slot['channel'],
+                'currentLabel' => channel_label((string)$slot['channel']),
+                'suggestedChannel' => $alt['channel'],
+                'suggestedLabel' => $alt['channelLabel'],
+                'status' => $slot['status'],
+                'reason' => 'วันนี้ซ้อนช่อง ' . channel_label((string)$slot['channel']) . ' — ลองกระจายไป ' . $alt['channelLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่ย้ายช่องเอง — แก้ที่ตารางโพสต์แล้ว Approve ใหม่',
+            ];
+        }
+    }
+    $suggestions = array_slice($suggestions, 0, 5);
+
+    $actions = [];
+    if (!$posted) {
+        $actions[] = [
+            'id' => 'need-metrics',
+            'title' => 'เริ่มเก็บผลรายช่องทาง',
+            'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ Results อย่างน้อย 1 ชิ้นต่อช่อง',
+        ];
+    }
+    if ($best && $best['band'] === 'strong') {
+        $actions[] = [
+            'id' => 'lean-best',
+            'title' => 'เอียงทดลองไป ' . $best['channelLabel'],
+            'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต ไม่ถล่มทุกช่อง',
+        ];
+    }
+    if ($unbalanced) {
+        $actions[] = [
+            'id' => 'diversify',
+            'title' => 'กระจายมิกซ์ช่องทาง',
+            'detail' => 'ช่องเด่นกินสัดส่วนสูง — เพิ่ม draft คนละช่อง 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)',
+        ];
+    }
+    if ($weak) {
+        $actions[] = [
+            'id' => 'review-weak',
+            'title' => 'ทบทวนช่องอ่อน: ' . implode(', ', array_column($weak, 'channelLabel')),
+            'detail' => 'เปลี่ยน hook/มุมขาย หรือพักช่องนั้นชั่วคราว — อย่าโพสต์ซ้ำข้อความเดิม',
+        ];
+    }
+    $actions[] = [
+        'id' => 'compliance',
+        'title' => 'คงกฎ Approve + disclosure',
+        'detail' => 'ทุกช่องต้องมีข้อความ affiliate และผ่าน Approve ก่อนโพสต์มือ — ระบบไม่โพสต์อัตโนมัติ',
+    ];
+    $actions = array_slice($actions, 0, 5);
+
+    $summary = !$posted
+        ? 'Channel Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับช่องทาง'
+        : 'Channel Fit Lab: ' . count($posted) . ' โพสต์มีเมตริก · ช่องที่มีข้อมูล ' . count($withData)
+            . ' · แข็งแรง ' . $strong . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+
+    $checklist = [
+        'อันดับช่องทางมาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำย้ายช่องเป็นคำแนะนำเท่านั้น — ต้องแก้ draft + Approve เอง',
+        'อย่าถล่มช่องเดียวซ้ำ ๆ ในวันเดียวกัน (กันสแปม)',
+        'ทุกโพสต์ต้องมี disclosure และไม่ใช้คำโฆษณาเกินจริง',
+    ];
+
+    $bandLabel = ['strong' => 'แข็งแรง', 'ok' => 'พอใช้', 'weak' => 'อ่อน', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+
+    $lines = ["Channel Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}", $mixTip];
+    foreach (array_slice($withData, 0, 3) as $c) {
+        $lines[] = ($bandLabel[$c['band']] ?? $c['band']) . ' · ' . $c['channelLabel']
+            . ': คะแนน ' . $c['score'] . ' (' . ($confLabel[$c['confidence']] ?? $c['confidence'])
+            . ', n=' . $c['samples'] . ', CTR ~' . round($c['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => count($posted),
+            'channelsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'strong' => $strong,
+        ],
+        'channels' => $channelsOut,
+        'mixTip' => $mixTip,
+        'suggestions' => $suggestions,
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function channel_fit_lab_to_markdown(array $lab): string
+{
+    $bandLabel = ['strong' => 'แข็งแรง', 'ok' => 'พอใช้', 'weak' => 'อ่อน', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $channelRows = [];
+    foreach ($lab['channels'] as $i => $c) {
+        $n = $i + 1;
+        $band = $bandLabel[$c['band']] ?? $c['band'];
+        $conf = $confLabel[$c['confidence']] ?? $c['confidence'];
+        $channelRows[] = "{$n}. **[{$band}]** {$c['channelLabel']} · คะแนน {$c['score']}/100 · n={$c['samples']} · {$conf}\n"
+            . '   CTR ~' . round($c['avgCtr'] * 100, 1) . '% · ออเดอร์/คลิก ~' . $c['avgOrdersPerClick']
+            . ' · ค่าคอมเฉลี่ย ฿' . $c['avgCommission'] . "\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($c['shareOfPosts'] * 100) . "%\n"
+            . "   {$c['tip']}";
+    }
+    if (!$channelRows) {
+        $channelRows[] = '_(ยังไม่มีข้อมูล)_';
+    }
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) {
+        $suggestionRows[] = '_(ไม่มีคำแนะนำย้ายช่องวันนี้)_';
+    }
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = [];
+    foreach ($lab['checklist'] as $c) {
+        $checkLines[] = "- {$c}";
+    }
+
+    return "# Channel Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- ช่องที่มีข้อมูล: {$lab['counts']['channelsWithData']}\n"
+        . "- ช่องแข็งแรง: {$lab['counts']['strong']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . ($lab['counts']['unbalanced'] ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับช่องทาง (ทดลอง)\n"
+        . implode("\n", $channelRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+/**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
  */
@@ -3968,6 +4391,7 @@ function run_morning_workflow(?string $date = null): array
     $creativeLines = array_slice(build_creative_performance($date)['lines'], 0, 4);
     $publishLines = array_slice(build_publish_queue($date)['lines'], 0, 5);
     $roiLines = array_slice(build_soft_roi_lab($date)['lines'], 0, 4);
+    $channelFitLines = array_slice(build_channel_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -3985,6 +4409,7 @@ function run_morning_workflow(?string $date = null): array
         ...$creativeLines,
         ...$publishLines,
         ...$roiLines,
+        ...$channelFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -4071,6 +4496,7 @@ function run_evening_workflow(?string $date = null): array
     $creative = build_creative_performance($date);
     $publish = build_publish_queue($date);
     $roiLab = build_soft_roi_lab($date);
+    $channelFitLab = build_channel_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -4096,6 +4522,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($roiLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($channelFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -4109,6 +4538,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($roiLab['counts']['promising'] ?? 0) > 0) {
         $recs[] = 'Soft ROI Lab มี ' . $roiLab['counts']['promising'] . ' สินค้ากลุ่มน่าลอง — ใช้ช่วงค่าคอมเป็นสมมติฐานทดลอง ไม่การันตีรายได้';
+    }
+    if (($channelFitLab['counts']['strong'] ?? 0) > 0 || !empty($channelFitLab['counts']['unbalanced'])) {
+        $recs[] = 'Channel Fit: ช่องแข็งแรง ' . $channelFitLab['counts']['strong'] . ' · ' . $channelFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

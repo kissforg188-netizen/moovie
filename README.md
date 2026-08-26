@@ -48,6 +48,7 @@
 - **Creative Performance**: จัดอันดับ hook / CTA / คู่ที่เคยลองจากเมตริกที่กรอก (ทดลอง ไม่การันตี)
 - **Manual Publish Queue**: คิวโพสต์มือหลัง Approve (ค้าง / ถึงเวลา / วันนี้) พร้อม checklist — ระบบไม่โพสต์อัตโนมัติ
 - **Soft ROI Lab**: ช่วงค่าคอม/โพสต์ + ROI% จากเมตริกที่กรอก (percentile ทดลอง) — ไม่รับประกันรายได้
+- **Channel Fit Lab**: จัดอันดับช่องทาง TikTok / Facebook / Reels จากเมตริกที่กรอก + แนะนำมิกซ์ (ไม่ย้ายช่องอัตโนมัติ)
 
 
 ## Production (cPanel / MySQL)
@@ -104,10 +105,10 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
 - `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
+- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Channel Fit Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
 - `/calendar` ตารางโพสต์วันนี้ + คิว Approve + Manual Publish Queue + Approve / ข้าม / Mark posted
-- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
+- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Channel Fit Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
 - `/guide` คู่มือการใช้งาน
 
 ### Export
@@ -133,6 +134,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown Creative Performance (hook/CTA board): `/api/export?format=md&scope=creative`
 - Markdown Manual Publish Queue: `/api/export?format=md&scope=publish`
 - Markdown Soft ROI Lab: `/api/export?format=md&scope=roi`
+- Markdown Channel Fit Lab: `/api/export?format=md&scope=channel-fit`
 
 ## Workflow แนะนำ
 

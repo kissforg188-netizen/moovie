@@ -38,6 +38,7 @@ $resultsIntake = build_results_intake($date);
 $creativePerformance = build_creative_performance($date);
 $publishQueue = build_publish_queue($date);
 $softRoiLab = build_soft_roi_lab($date);
+$channelFitLab = build_channel_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -379,6 +380,53 @@ $softRoiLab = build_soft_roi_lab($date);
       </section>
 
       <section class="card fade-up">
+        <h2>Channel Fit Lab</h2>
+        <p class="muted"><?= h($channelFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($channelFitLab['grade']) ?> · <?= (int)$channelFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$channelFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($channelFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$channelFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>ช่องมีข้อมูล</p><strong><?= (int)$channelFitLab['counts']['channelsWithData'] ?></strong></article>
+          <article><p>แข็งแรง</p><strong><?= (int)$channelFitLab['counts']['strong'] ?></strong></article>
+          <article><p>คำแนะนำ</p><strong><?= (int)$channelFitLab['counts']['suggestions'] ?></strong></article>
+        </div>
+        <?php
+          $fitRows = array_values(array_filter($channelFitLab['channels'], fn($c) => ($c['samples'] ?? 0) > 0));
+          if (!$fitRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายช่องทาง — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($fitRows, 0, 4) as $c): ?>
+              <li>
+                <strong>[<?= h($c['band'] === 'strong' ? 'แข็งแรง' : ($c['band'] === 'weak' ? 'อ่อน' : ($c['band'] === 'ok' ? 'พอใช้' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($c['channelLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$c['score'] ?>/100 · n=<?= (int)$c['samples'] ?> · CTR ~<?= h((string)round($c['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($c['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($channelFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($channelFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentLabel']) ?> → <?= h($s['suggestedLabel']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($channelFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=channel-fit">Export Channel Fit Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($channelFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
         <h2>Tomorrow Plan · <?= h($tomorrowPlan['tomorrowDate']) ?></h2>
         <p class="muted"><?= h($tomorrowPlan['summary']) ?></p>
         <?php if (!$tomorrowPlan['picks']): ?>
@@ -622,6 +670,7 @@ $softRoiLab = build_soft_roi_lab($date);
         <div class="actions">
           <a class="btn" href="api.php?action=export&format=md&scope=creative">Export Creative Performance (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=publish">Export Publish Queue (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=channel-fit">Export Channel Fit Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>
