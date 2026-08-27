@@ -27,6 +27,7 @@ import { creativePerformanceToMarkdown } from "@/lib/creative-performance";
 import { publishQueueToMarkdown } from "@/lib/publish-queue";
 import { softRoiLabToMarkdown } from "@/lib/roi-lab";
 import { channelFitLabToMarkdown } from "@/lib/channel-fit";
+import { categoryFitLabToMarkdown } from "@/lib/category-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -136,6 +137,14 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = channelFitLabToMarkdown(snap.channelFitLab);
       filename = `affiliate-channel-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "category-fit" ||
+      scope === "category" ||
+      scope === "categories"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = categoryFitLabToMarkdown(snap.categoryFitLab);
+      filename = `affiliate-category-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

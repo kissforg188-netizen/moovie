@@ -2426,6 +2426,464 @@ function channel_fit_lab_to_markdown(array $lab): string
 }
 
 /**
+ * Category Fit Lab — soft ranking of product categories from logged metrics.
+ * Never auto-publishes; never claims guaranteed income.
+ */
+function normalize_category(?string $raw): string
+{
+    $t = mb_strtolower(trim((string)$raw), 'UTF-8');
+    $t = preg_replace('/[\/_\-]+/u', ' ', $t) ?? '';
+    // Keep letters, numbers, marks (Thai tone/vowel marks), and spaces.
+    $t = preg_replace('/[^\p{L}\p{N}\p{M}\s]/u', ' ', $t) ?? '';
+    $t = preg_replace('/\s+/u', ' ', $t) ?? '';
+    $t = trim($t);
+    return $t !== '' ? $t : 'uncategorized';
+}
+
+function category_label_th(string $key): string
+{
+    if ($key === 'uncategorized') {
+        return 'ยังไม่ระบุหมวด';
+    }
+    // Prefer original form for Thai (avoid noisy case transforms).
+    if (preg_match('/[\x{0E00}-\x{0E7F}]/u', $key)) {
+        $parts = preg_split('/\s+/u', $key) ?: [];
+        return implode(' ', array_values(array_filter($parts, fn($w) => $w !== '')));
+    }
+    $parts = preg_split('/\s+/u', $key) ?: [];
+    $out = [];
+    foreach ($parts as $w) {
+        if ($w === '') continue;
+        $out[] = mb_strtoupper(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($w, 1, null, 'UTF-8');
+    }
+    return $out ? implode(' ', $out) : $key;
+}
+
+function build_category_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+
+    $products = all_products();
+    $productById = [];
+    $catalogCats = [];
+    foreach ($products as $p) {
+        $productById[$p['id']] = $p;
+        $key = normalize_category($p['category'] ?? '');
+        $catalogCats[$key] = true;
+    }
+
+    $stmt = db()->prepare(
+        "SELECT s.*, p.name AS product_name, p.category AS product_category, p.price AS product_price, p.commission_rate AS product_commission_rate
+         FROM schedule s
+         LEFT JOIN products p ON p.id = s.product_id
+         WHERE s.post_date BETWEEN ? AND ?
+           AND s.metrics_at IS NOT NULL"
+    );
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    foreach ($posted as $s) {
+        $key = normalize_category($s['product_category'] ?? '');
+        $catalogCats[$key] = true;
+    }
+
+    $byCategory = [];
+    $productsByCategory = [];
+    foreach (array_keys($catalogCats) as $key) {
+        $byCategory[$key] = [];
+        $productsByCategory[$key] = [];
+    }
+    foreach ($products as $p) {
+        $key = normalize_category($p['category'] ?? '');
+        $productsByCategory[$key][$p['id']] = true;
+    }
+
+    $totalCommission = 0.0;
+    foreach ($posted as $s) {
+        $key = normalize_category($s['product_category'] ?? '');
+        if (!isset($byCategory[$key])) {
+            $byCategory[$key] = [];
+            $productsByCategory[$key] = $productsByCategory[$key] ?? [];
+        }
+        $byCategory[$key][] = $s;
+        $pid = (string)$s['product_id'];
+        $productsByCategory[$key][$pid] = true;
+        $totalCommission += max(0.0, (float)$s['commission_earned']);
+    }
+    $globalAvgCommission = $posted ? $totalCommission / count($posted) : 0.0;
+
+    $bandLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+
+    $categoriesOut = [];
+    foreach (array_keys($catalogCats) as $cat) {
+        $list = $byCategory[$cat] ?? [];
+        $samples = count($list);
+        $productIds = array_keys($productsByCategory[$cat] ?? []);
+        $views = [];
+        $clicks = [];
+        $orders = [];
+        $comms = [];
+        $sumViews = 0;
+        $sumClicks = 0;
+        $sumOrders = 0;
+        foreach ($list as $s) {
+            $v = max(0, (int)$s['views']);
+            $c = max(0, (int)$s['clicks']);
+            $o = max(0, (int)$s['orders_count']);
+            $views[] = $v;
+            $clicks[] = $c;
+            $orders[] = $o;
+            $comms[] = max(0.0, (float)$s['commission_earned']);
+            $sumViews += $v;
+            $sumClicks += $c;
+            $sumOrders += $o;
+        }
+        $avgViews = $samples ? array_sum($views) / $samples : 0.0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0.0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0.0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0.0;
+        $avgCtr = $sumViews > 0 ? $sumClicks / $sumViews : 0.0;
+        $avgOrdersPerClick = $sumClicks > 0 ? $sumOrders / $sumClicks : 0.0;
+        $share = count($posted) > 0 ? $samples / count($posted) : 0.0;
+
+        $prices = [];
+        $rates = [];
+        foreach ($productIds as $pid) {
+            if (!isset($productById[$pid])) continue;
+            $prices[] = (float)$productById[$pid]['price'];
+            $rates[] = (float)$productById[$pid]['commission_rate'];
+        }
+        $avgPrice = $prices ? array_sum($prices) / count($prices) : 0.0;
+        $avgRate = $rates ? array_sum($rates) / count($rates) : 0.0;
+
+        $score = 0.0;
+        if ($samples > 0) {
+            $commBase = $globalAvgCommission > 0
+                ? max(0.0, min(70.0, ($avgCommission / $globalAvgCommission) * 50))
+                : max(0.0, min(50.0, $avgCommission * 2));
+            $ctrScore = max(0.0, min(20.0, $avgCtr * 200));
+            $opcScore = max(0.0, min(15.0, $avgOrdersPerClick * 100));
+            $orderScore = max(0.0, min(15.0, $avgOrders * 8));
+            $score = $commBase + $ctrScore + $opcScore + $orderScore;
+            if ($avgPrice > 0 && $avgPrice <= 499) $score += 4;
+            elseif ($avgPrice > 1500) $score -= 3;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = max(0.0, min(100.0, $score));
+        }
+
+        if ($samples === 0) $band = 'no_data';
+        elseif ($score >= 65 && $samples >= 2) $band = 'hot';
+        elseif ($score >= 45) $band = 'steady';
+        else $band = 'cold';
+
+        if ($samples >= 4) $confidence = 'solid';
+        elseif ($samples >= 2) $confidence = 'ok';
+        else $confidence = 'thin';
+
+        $label = category_label_th($cat);
+        if ($samples === 0) {
+            $tip = 'ยังไม่มีผลในหมวดนี้ — ลอง draft 1 ชิ้นแล้วกรอกเมตริก (อย่าโพสต์ซ้ำข้อความเดิม)';
+        } elseif ($band === 'hot') {
+            $tip = 'หมวดนี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ต่อได้ แต่สลับสินค้า/มุมขายเพื่อไม่ให้ซ้ำ';
+        } elseif ($band === 'cold') {
+            $tip = 'ผลเย็นในหมวดนี้ — ลองเปลี่ยน hook/มุม หรือพักหมวดชั่วคราวในรอบถัดไป';
+        } elseif ($share >= 0.55) {
+            $tip = 'ใช้หมวดนี้บ่อย (' . round($share * 100) . '%) — กระจายไปหมวดอื่นเพื่อลดความซ้ำ';
+        } else {
+            $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในหมวดนี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        }
+
+        $categoriesOut[] = [
+            'category' => $cat,
+            'categoryLabel' => $label,
+            'samples' => $samples,
+            'productCount' => count($productIds),
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOrdersPerClick, 2),
+            'avgPrice' => round($avgPrice, 1),
+            'avgCommissionRate' => round($avgRate, 1),
+            'score' => (int)round($score),
+            'band' => $band,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => $tip,
+        ];
+    }
+
+    usort($categoriesOut, function ($a, $b) {
+        if ($a['score'] === $b['score']) return $b['samples'] <=> $a['samples'];
+        return $b['score'] <=> $a['score'];
+    });
+
+    $withData = array_values(array_filter($categoriesOut, fn($c) => $c['samples'] > 0));
+    $hot = count(array_filter($categoriesOut, fn($c) => $c['band'] === 'hot'));
+    $topShare = 0.0;
+    foreach ($categoriesOut as $c) {
+        $topShare = max($topShare, (float)$c['shareOfPosts']);
+    }
+    $unbalanced = $topShare >= 0.55 && count($posted) >= 3;
+
+    $scoredAvg = $withData ? array_sum(array_column($withData, 'score')) / count($withData) : 0.0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && count($posted) >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    $labScore = max(0, min(100, $labScore));
+
+    if (count($withData) === 0) $grade = 'D';
+    elseif ($labScore >= 75) $grade = 'A';
+    elseif ($labScore >= 58) $grade = 'B';
+    elseif ($labScore >= 40) $grade = 'C';
+    else $grade = 'D';
+
+    $best = null;
+    foreach ($withData as $c) {
+        if ($c['band'] === 'hot') { $best = $c; break; }
+    }
+    if (!$best && $withData) $best = $withData[0];
+    $cold = array_values(array_filter($withData, fn($c) => $c['band'] === 'cold'));
+
+    if (count($posted) === 0) {
+        $mixTip = 'ยังไม่มีเมตริกหมวดหมู่ — โพสต์มือแล้วกรอกผลที่ Results ก่อนจัดมิกซ์หมวด';
+    } elseif ($unbalanced && $best) {
+        $mixTip = 'มิกซ์เอนไปหมวด ' . $best['categoryLabel'] . ' มาก — วันถัดไปลองสลับหมวดอื่น 1 ชิ้น (ทดลอง)';
+    } elseif ($best) {
+        $mixTip = 'หมวดเด่นช่วงนี้: ' . $best['categoryLabel'] . ' — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์ไว้หมวดเดียว';
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามหมวดก่อนจัดอันดับมิกซ์';
+    }
+
+    $preferred = null;
+    foreach ($categoriesOut as $c) {
+        if ($c['band'] === 'hot') { $preferred = $c; break; }
+    }
+    if (!$preferred) {
+        foreach ($categoriesOut as $c) {
+            if ($c['band'] === 'steady' && $c['samples'] > 0) { $preferred = $c; break; }
+        }
+    }
+
+    $stmt2 = db()->prepare(
+        "SELECT s.*, p.name AS product_name, p.category AS product_category
+         FROM schedule s
+         LEFT JOIN products p ON p.id = s.product_id
+         WHERE s.post_date = ?
+           AND s.status IN ('draft','approved')
+         ORDER BY s.suggested_time
+         LIMIT 6"
+    );
+    $stmt2->execute([$date]);
+    $todaySlots = $stmt2->fetchAll() ?: [];
+
+    $suggestions = [];
+    foreach ($todaySlots as $slot) {
+        if (!$preferred) break;
+        $currentKey = normalize_category($slot['product_category'] ?? '');
+        $currentRow = null;
+        foreach ($categoriesOut as $c) {
+            if ($c['category'] === $currentKey) { $currentRow = $c; break; }
+        }
+        $same = $currentKey === $preferred['category'];
+        $currentCold = $currentRow && (
+            $currentRow['band'] === 'cold'
+            || ($currentRow['band'] === 'no_data' && $preferred['band'] === 'hot')
+        );
+
+        if ($currentCold && !$same) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $slot['product_id'],
+                'productName' => $slot['product_name'] ?: $slot['product_id'],
+                'currentCategory' => category_label_th($currentKey),
+                'suggestedCategory' => $preferred['categoryLabel'],
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => category_label_th($currentKey) . ' เย็น/ข้อมูลน้อยกว่า · ' . $preferred['categoryLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่สลับสินค้าอัตโนมัติ — ถ้าจะเปลี่ยนหมวด ให้เลือกสินค้าใหม่ + สร้างแคปชัน + Approve ก่อนโพสต์มือ',
+            ];
+        } elseif ($unbalanced && $same && $cold && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($categoriesOut as $c) {
+                if ($c['category'] !== $currentKey && in_array($c['band'], ['steady', 'no_data'], true)) {
+                    $alt = $c;
+                    break;
+                }
+            }
+            if (!$alt) $alt = $cold[0];
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $slot['product_id'],
+                'productName' => $slot['product_name'] ?: $slot['product_id'],
+                'currentCategory' => category_label_th($currentKey),
+                'suggestedCategory' => $alt['categoryLabel'],
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => 'วันนี้ซ้อนหมวด ' . category_label_th($currentKey) . ' — ลองกระจายไป ' . $alt['categoryLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยนสินค้าเอง — แก้ที่คิว/สินค้าแล้ว Approve ใหม่',
+            ];
+        }
+    }
+    $suggestions = array_slice($suggestions, 0, 5);
+
+    $actions = [];
+    if (count($posted) === 0) {
+        $actions[] = [
+            'id' => 'need-metrics',
+            'title' => 'เริ่มเก็บผลรายหมวด',
+            'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ Results อย่างน้อย 1 ชิ้นต่อหมวด',
+        ];
+    }
+    if ($best && $best['band'] === 'hot') {
+        $actions[] = [
+            'id' => 'lean-best',
+            'title' => 'เอียงทดลองไปหมวด ' . $best['categoryLabel'],
+            'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต ไม่ถล่มทุกโพสต์',
+        ];
+    }
+    if ($unbalanced) {
+        $actions[] = [
+            'id' => 'diversify',
+            'title' => 'กระจายมิกซ์หมวดหมู่',
+            'detail' => 'หมวดเด่นกินสัดส่วนสูง — เพิ่ม draft คนละหมวด 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)',
+        ];
+    }
+    if ($cold) {
+        $actions[] = [
+            'id' => 'review-cold',
+            'title' => 'ทบทวนหมวดเย็น: ' . implode(', ', array_map(fn($c) => $c['categoryLabel'], $cold)),
+            'detail' => 'เปลี่ยน hook/มุมขาย หรือพักหมวดนั้นชั่วคราว — อย่าโพสต์ซ้ำข้อความเดิม',
+        ];
+    }
+    $actions[] = [
+        'id' => 'compliance',
+        'title' => 'คงกฎ Approve + disclosure',
+        'detail' => 'ทุกหมวดต้องมีข้อความ affiliate และผ่าน Approve ก่อนโพสต์มือ — ระบบไม่โพสต์อัตโนมัติ',
+    ];
+    $actions = array_slice($actions, 0, 5);
+
+    if (count($posted) === 0) {
+        $summary = 'Category Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับหมวด';
+    } else {
+        $summary = 'Category Fit Lab: ' . count($posted) . ' โพสต์มีเมตริก · หมวดที่มีข้อมูล ' . count($withData)
+            . ' · ร้อน ' . $hot . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    }
+
+    $checklist = [
+        'อันดับหมวดมาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับหมวดเป็นคำแนะนำเท่านั้น — ต้องเลือกสินค้า + Approve เอง',
+        'อย่าถล่มหมวดเดียวซ้ำ ๆ ในวันเดียวกัน (กันสแปม)',
+        'ทุกโพสต์ต้องมี disclosure และไม่ใช้คำโฆษณาเกินจริง',
+    ];
+
+    $lines = [
+        "Category Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $c) {
+        $lines[] = $bandLabel[$c['band']] . ' · ' . $c['categoryLabel']
+            . ': คะแนน ' . $c['score'] . ' (' . $confLabel[$c['confidence']]
+            . ', n=' . $c['samples'] . ', CTR ~' . round($c['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentCategory'] . ' → ' . $s['suggestedCategory'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => count($posted),
+            'categoriesWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+        ],
+        'categories' => $categoriesOut,
+        'mixTip' => $mixTip,
+        'suggestions' => $suggestions,
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function category_fit_lab_to_markdown(array $lab): string
+{
+    $bandLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $categoryRows = [];
+    $idx = 0;
+    foreach ($lab['categories'] as $c) {
+        if (($c['samples'] ?? 0) <= 0 && ($c['productCount'] ?? 0) <= 0) continue;
+        $idx++;
+        $categoryRows[] = "{$idx}. **[{$bandLabel[$c['band']]}]** {$c['categoryLabel']} · คะแนน {$c['score']}/100 · n={$c['samples']} · {$confLabel[$c['confidence']]}\n"
+            . "   สินค้าในแคตตาล็อก {$c['productCount']} · ราคาเฉลี่ย ฿{$c['avgPrice']} · คอมฯ ~{$c['avgCommissionRate']}%\n"
+            . '   CTR ~' . round($c['avgCtr'] * 100, 1) . '% · ออเดอร์/คลิก ~' . $c['avgOrdersPerClick']
+            . ' · ค่าคอมเฉลี่ย ฿' . $c['avgCommission'] . "\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($c['shareOfPosts'] * 100) . "%\n"
+            . "   {$c['tip']}";
+    }
+    if (!$categoryRows) {
+        $categoryRows[] = '_(ยังไม่มีข้อมูล)_';
+    }
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']}\n"
+            . "   {$s['currentCategory']} → **{$s['suggestedCategory']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) {
+        $suggestionRows[] = '_(ไม่มีคำแนะนำสลับหมวดวันนี้)_';
+    }
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = [];
+    foreach ($lab['checklist'] as $c) {
+        $checkLines[] = "- {$c}";
+    }
+
+    return "# Category Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- หมวดที่มีข้อมูล: {$lab['counts']['categoriesWithData']}\n"
+        . "- หมวดร้อน: {$lab['counts']['hot']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . ($lab['counts']['unbalanced'] ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับหมวดหมู่ (ทดลอง)\n"
+        . implode("\n", $categoryRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+/**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
  */
@@ -4392,6 +4850,7 @@ function run_morning_workflow(?string $date = null): array
     $publishLines = array_slice(build_publish_queue($date)['lines'], 0, 5);
     $roiLines = array_slice(build_soft_roi_lab($date)['lines'], 0, 4);
     $channelFitLines = array_slice(build_channel_fit_lab($date)['lines'], 0, 4);
+    $categoryFitLines = array_slice(build_category_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -4410,6 +4869,7 @@ function run_morning_workflow(?string $date = null): array
         ...$publishLines,
         ...$roiLines,
         ...$channelFitLines,
+        ...$categoryFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -4497,6 +4957,7 @@ function run_evening_workflow(?string $date = null): array
     $publish = build_publish_queue($date);
     $roiLab = build_soft_roi_lab($date);
     $channelFitLab = build_channel_fit_lab($date);
+    $categoryFitLab = build_category_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -4525,6 +4986,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($channelFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($categoryFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -4541,6 +5005,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($channelFitLab['counts']['strong'] ?? 0) > 0 || !empty($channelFitLab['counts']['unbalanced'])) {
         $recs[] = 'Channel Fit: ช่องแข็งแรง ' . $channelFitLab['counts']['strong'] . ' · ' . $channelFitLab['mixTip'];
+    }
+    if (($categoryFitLab['counts']['hot'] ?? 0) > 0 || !empty($categoryFitLab['counts']['unbalanced'])) {
+        $recs[] = 'Category Fit: หมวดร้อน ' . $categoryFitLab['counts']['hot'] . ' · ' . $categoryFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

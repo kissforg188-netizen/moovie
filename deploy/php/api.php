@@ -263,6 +263,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md channel-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['category-fit', 'category', 'categories'], true)) {
+                $lab = build_category_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-category-fit-lab-'.today_iso().'.md"');
+                echo category_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md category-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

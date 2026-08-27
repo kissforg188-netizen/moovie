@@ -61,6 +61,12 @@ import {
   channelFitLabToMarkdown,
 } from "../src/lib/channel-fit";
 import {
+  buildCategoryFitLab,
+  categoryFitLabLines,
+  categoryFitLabToMarkdown,
+  normalizeCategory,
+} from "../src/lib/category-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -2488,6 +2494,161 @@ function run() {
   assert.equal(emptyFit.counts.postsWithMetrics, 0);
   assert.ok(
     emptyFit.summary.includes("ยังไม่มีเมตริก") || emptyFit.score <= 50,
+  );
+
+  // --- Category Fit Lab ---
+  assert.equal(normalizeCategory("  Beauty / Skincare "), "beauty skincare");
+  assert.equal(normalizeCategory(""), "uncategorized");
+  assert.equal(normalizeCategory("แกเจ็ต"), "แกเจ็ต");
+  assert.equal(normalizeCategory("สกินแคร์"), "สกินแคร์");
+
+  const catBeauty = {
+    ...fitProduct,
+    id: "prod_cat_beauty",
+    name: "กันแดดหมวดความงาม",
+    category: "beauty",
+  };
+  const catHome = {
+    ...fitProduct,
+    id: "prod_cat_home",
+    name: "กล่องเก็บสายไฟ",
+    category: "home",
+    price: 189,
+    commissionRate: 12,
+  };
+  const catSchedule = [
+    {
+      id: "sch_cat_b1",
+      date: "2026-08-18",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_cat_beauty",
+      contentPackId: "pack_cat",
+      status: "posted" as const,
+      captionPreview: `b1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 3200,
+        clicks: 130,
+        orders: 7,
+        commissionEarned: 95,
+      },
+    },
+    {
+      id: "sch_cat_b2",
+      date: "2026-08-19",
+      suggestedTime: "11:00",
+      channel: "tiktok" as const,
+      productId: "prod_cat_beauty",
+      contentPackId: "pack_cat",
+      status: "posted" as const,
+      captionPreview: `b2 ${fitDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 0,
+      metrics: {
+        views: 2900,
+        clicks: 110,
+        orders: 5,
+        commissionEarned: 80,
+      },
+    },
+    {
+      id: "sch_cat_b3",
+      date: "2026-08-20",
+      suggestedTime: "12:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_cat_beauty",
+      contentPackId: "pack_cat",
+      status: "posted" as const,
+      captionPreview: `b3 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 1,
+      metrics: {
+        views: 2600,
+        clicks: 95,
+        orders: 4,
+        commissionEarned: 70,
+      },
+    },
+    {
+      id: "sch_cat_h1",
+      date: "2026-08-21",
+      suggestedTime: "13:00",
+      channel: "facebook_post" as const,
+      productId: "prod_cat_home",
+      contentPackId: "pack_cat_h",
+      status: "posted" as const,
+      captionPreview: `h1 ${fitDisclosure}`,
+      hookIndex: 2,
+      ctaIndex: 1,
+      metrics: {
+        views: 700,
+        clicks: 12,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_cat_today_cold",
+      date: "2026-08-23",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_cat_home",
+      contentPackId: "pack_cat_h",
+      status: "draft" as const,
+      captionPreview: `today ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+  const catLab = buildCategoryFitLab(
+    {
+      products: [catBeauty, catHome],
+      contentPacks: [],
+      schedule: catSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+    14,
+  );
+  assert.ok(catLab.counts.postsWithMetrics >= 4);
+  assert.ok(catLab.counts.categoriesWithData >= 2);
+  const beautyRow = catLab.categories.find((c) => c.category === "beauty");
+  const homeRow = catLab.categories.find((c) => c.category === "home");
+  assert.ok(beautyRow);
+  assert.ok(homeRow);
+  assert.ok(beautyRow!.score > homeRow!.score);
+  assert.ok(["hot", "steady"].includes(beautyRow!.band));
+  assert.ok(catLab.counts.unbalanced === true || beautyRow!.shareOfPosts >= 0.5);
+  assert.ok(catLab.suggestions.length >= 1);
+  assert.ok(
+    catLab.suggestions[0].suggestedCategory.toLowerCase().includes("beauty"),
+  );
+  assert.ok(categoryFitLabLines(catLab, 3).length <= 3);
+  const catMd = categoryFitLabToMarkdown(catLab);
+  assert.ok(catMd.includes("Category Fit Lab"));
+  assert.ok(catMd.includes("ทดลอง"));
+  assert.ok(catMd.includes("ไม่เปลี่ยนอัตโนมัติ") || catMd.includes("Approve"));
+  assert.ok(
+    catMd.includes("ไม่รับประกัน") ||
+      catMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyCat = buildCategoryFitLab(
+    {
+      products: [catBeauty, catHome],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyCat.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyCat.summary.includes("ยังไม่มีเมตริก") || emptyCat.score <= 50,
   );
 
   console.log("All unit tests passed");

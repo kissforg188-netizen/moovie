@@ -39,6 +39,7 @@ $creativePerformance = build_creative_performance($date);
 $publishQueue = build_publish_queue($date);
 $softRoiLab = build_soft_roi_lab($date);
 $channelFitLab = build_channel_fit_lab($date);
+$categoryFitLab = build_category_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -427,6 +428,53 @@ $channelFitLab = build_channel_fit_lab($date);
       </section>
 
       <section class="card fade-up">
+        <h2>Category Fit Lab</h2>
+        <p class="muted"><?= h($categoryFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($categoryFitLab['grade']) ?> · <?= (int)$categoryFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$categoryFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($categoryFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$categoryFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>หมวดมีข้อมูล</p><strong><?= (int)$categoryFitLab['counts']['categoriesWithData'] ?></strong></article>
+          <article><p>ร้อน</p><strong><?= (int)$categoryFitLab['counts']['hot'] ?></strong></article>
+          <article><p>คำแนะนำ</p><strong><?= (int)$categoryFitLab['counts']['suggestions'] ?></strong></article>
+        </div>
+        <?php
+          $catRows = array_values(array_filter($categoryFitLab['categories'], fn($c) => ($c['samples'] ?? 0) > 0));
+          if (!$catRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายหมวด — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($catRows, 0, 4) as $c): ?>
+              <li>
+                <strong>[<?= h($c['band'] === 'hot' ? 'ร้อน' : ($c['band'] === 'cold' ? 'เย็น' : ($c['band'] === 'steady' ? 'นิ่ง' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($c['categoryLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$c['score'] ?>/100 · n=<?= (int)$c['samples'] ?> · CTR ~<?= h((string)round($c['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($c['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($categoryFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($categoryFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentCategory']) ?> → <?= h($s['suggestedCategory']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($categoryFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=category-fit">Export Category Fit Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($categoryFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
         <h2>Tomorrow Plan · <?= h($tomorrowPlan['tomorrowDate']) ?></h2>
         <p class="muted"><?= h($tomorrowPlan['summary']) ?></p>
         <?php if (!$tomorrowPlan['picks']): ?>
@@ -671,6 +719,7 @@ $channelFitLab = build_channel_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=creative">Export Creative Performance (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=publish">Export Publish Queue (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=channel-fit">Export Channel Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=category-fit">Export Category Fit Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>
