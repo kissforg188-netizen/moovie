@@ -28,6 +28,7 @@ import { publishQueueToMarkdown } from "@/lib/publish-queue";
 import { softRoiLabToMarkdown } from "@/lib/roi-lab";
 import { channelFitLabToMarkdown } from "@/lib/channel-fit";
 import { categoryFitLabToMarkdown } from "@/lib/category-fit";
+import { priceBandFitLabToMarkdown } from "@/lib/price-band";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -145,6 +146,15 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = categoryFitLabToMarkdown(snap.categoryFitLab);
       filename = `affiliate-category-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "price-band" ||
+      scope === "price-band-fit" ||
+      scope === "impulse" ||
+      scope === "price"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = priceBandFitLabToMarkdown(snap.priceBandFitLab);
+      filename = `affiliate-price-band-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

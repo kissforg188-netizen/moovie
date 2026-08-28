@@ -270,6 +270,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md category-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['price-band', 'price-band-fit', 'impulse', 'price'], true)) {
+                $lab = build_price_band_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-price-band-lab-'.today_iso().'.md"');
+                echo price_band_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md price-band-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

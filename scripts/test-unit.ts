@@ -67,6 +67,12 @@ import {
   normalizeCategory,
 } from "../src/lib/category-fit";
 import {
+  buildPriceBandFitLab,
+  priceBandFitLabLines,
+  priceBandFitLabToMarkdown,
+  priceBandOf,
+} from "../src/lib/price-band";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -2649,6 +2655,177 @@ function run() {
   assert.equal(emptyCat.counts.postsWithMetrics, 0);
   assert.ok(
     emptyCat.summary.includes("ยังไม่มีเมตริก") || emptyCat.score <= 50,
+  );
+
+  // --- Price Band Lab ---
+  assert.equal(priceBandOf(50), "under99");
+  assert.equal(priceBandOf(199), "impulse99_399");
+  assert.equal(priceBandOf(500), "mid400_799");
+  assert.equal(priceBandOf(1000), "mid800_1499");
+  assert.equal(priceBandOf(2000), "premium1500");
+
+  const bandImpulse: Product = {
+    ...fitProduct,
+    id: "prod_band_impulse",
+    name: "ครีมทาแก้ม Impulse",
+    price: 199,
+    commissionRate: 15,
+    category: "beauty",
+    painPoints: ["ผิวแห้ง"],
+    sellingPoints: ["ซึมเร็ว"],
+    targetAudience: "คนงบไม่เกินสามร้อย",
+    videoEase: 5,
+    seasonalScore: 4,
+  };
+  const bandPremium: Product = {
+    ...fitProduct,
+    id: "prod_band_premium",
+    name: "เครื่องนวดพรีเมียม",
+    price: 1890,
+    commissionRate: 8,
+    category: "home",
+    painPoints: ["ปวดไหล่"],
+    sellingPoints: ["เงียบ"],
+    targetAudience: "คนทำงานออฟฟิศ",
+    videoEase: 3,
+    seasonalScore: 3,
+  };
+  const bandSchedule = [
+    {
+      id: "sch_band_i1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_band_impulse",
+      contentPackId: "pack_band_i",
+      status: "posted" as const,
+      captionPreview: `i1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2000,
+        clicks: 120,
+        orders: 8,
+        commissionEarned: 240,
+      },
+    },
+    {
+      id: "sch_band_i2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_band_impulse",
+      contentPackId: "pack_band_i",
+      status: "posted" as const,
+      captionPreview: `i2 ${fitDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 0,
+      metrics: {
+        views: 1800,
+        clicks: 100,
+        orders: 7,
+        commissionEarned: 210,
+      },
+    },
+    {
+      id: "sch_band_i3",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_band_impulse",
+      contentPackId: "pack_band_i",
+      status: "posted" as const,
+      captionPreview: `i3 ${fitDisclosure}`,
+      hookIndex: 2,
+      ctaIndex: 1,
+      metrics: {
+        views: 1600,
+        clicks: 90,
+        orders: 6,
+        commissionEarned: 180,
+      },
+    },
+    {
+      id: "sch_band_p1",
+      date: "2026-08-20",
+      suggestedTime: "14:00",
+      channel: "tiktok" as const,
+      productId: "prod_band_premium",
+      contentPackId: "pack_band_p",
+      status: "posted" as const,
+      captionPreview: `p1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 500,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_band_today_cold",
+      date: "2026-08-23",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_band_premium",
+      contentPackId: "pack_band_p",
+      status: "draft" as const,
+      captionPreview: `today ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+  const bandLab = buildPriceBandFitLab(
+    {
+      products: [bandImpulse, bandPremium],
+      contentPacks: [],
+      schedule: bandSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+    14,
+  );
+  assert.ok(bandLab.counts.postsWithMetrics >= 4);
+  assert.ok(bandLab.counts.bandsWithData >= 2);
+  const impulseRow = bandLab.bands.find((b) => b.band === "impulse99_399");
+  const premiumRow = bandLab.bands.find((b) => b.band === "premium1500");
+  assert.ok(impulseRow);
+  assert.ok(premiumRow);
+  assert.ok(impulseRow!.score > premiumRow!.score);
+  assert.ok(["hot", "steady"].includes(impulseRow!.status));
+  assert.ok(
+    bandLab.counts.unbalanced === true || impulseRow!.shareOfPosts >= 0.5,
+  );
+  assert.ok(bandLab.suggestions.length >= 1);
+  assert.ok(
+    bandLab.suggestions[0].suggestedLabel.toLowerCase().includes("impulse") ||
+      bandLab.suggestions[0].suggestedBand === "impulse99_399",
+  );
+  assert.ok(priceBandFitLabLines(bandLab, 3).length <= 3);
+  const bandMd = priceBandFitLabToMarkdown(bandLab);
+  assert.ok(bandMd.includes("Price Band Lab"));
+  assert.ok(bandMd.includes("ทดลอง"));
+  assert.ok(bandMd.includes("ไม่เปลี่ยนอัตโนมัติ") || bandMd.includes("Approve"));
+  assert.ok(
+    bandMd.includes("ไม่รับประกัน") ||
+      bandMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyBand = buildPriceBandFitLab(
+    {
+      products: [bandImpulse, bandPremium],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyBand.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyBand.summary.includes("ยังไม่มีเมตริก") || emptyBand.score <= 50,
   );
 
   console.log("All unit tests passed");

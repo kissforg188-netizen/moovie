@@ -80,6 +80,11 @@ import {
   categoryFitLabLines,
   type CategoryFitLab,
 } from "./category-fit";
+import {
+  buildPriceBandFitLab,
+  priceBandFitLabLines,
+  type PriceBandFitLab,
+} from "./price-band";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -263,6 +268,7 @@ export async function runMorningWorkflow(
         ...softRoiLabLines(buildSoftRoiLab(db, date), 4),
         ...channelFitLabLines(buildChannelFitLab(db, date), 4),
         ...categoryFitLabLines(buildCategoryFitLab(db, date), 4),
+        ...priceBandFitLabLines(buildPriceBandFitLab(db, date), 4),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -365,6 +371,7 @@ export async function runEveningWorkflow(
       const softRoiLab = buildSoftRoiLab(db, date);
       const channelFitLab = buildChannelFitLab(db, date);
       const categoryFitLab = buildCategoryFitLab(db, date);
+      const priceBandFitLab = buildPriceBandFitLab(db, date);
 
       const recommendations = [
         ...analysis.recommendations,
@@ -381,6 +388,7 @@ export async function runEveningWorkflow(
         ...softRoiLabLines(softRoiLab, 5),
         ...channelFitLabLines(channelFitLab, 5),
         ...categoryFitLabLines(categoryFitLab, 5),
+        ...priceBandFitLabLines(priceBandFitLab, 5),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -403,6 +411,9 @@ export async function runEveningWorkflow(
           : null,
         categoryFitLab.counts.hot > 0 || categoryFitLab.counts.unbalanced
           ? `Category Fit: หมวดร้อน ${categoryFitLab.counts.hot} · ${categoryFitLab.mixTip}`
+          : null,
+        priceBandFitLab.counts.hot > 0 || priceBandFitLab.counts.unbalanced
+          ? `Price Band: ช่วงร้อน ${priceBandFitLab.counts.hot} · ${priceBandFitLab.mixTip}`
           : null,
       ].filter(Boolean) as string[];
 
@@ -460,6 +471,7 @@ export async function getDashboardSnapshot(): Promise<{
   softRoiLab: SoftRoiLab;
   channelFitLab: ChannelFitLab;
   categoryFitLab: CategoryFitLab;
+  priceBandFitLab: PriceBandFitLab;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -506,6 +518,7 @@ export async function getDashboardSnapshot(): Promise<{
   const softRoiLab = buildSoftRoiLab(db, date);
   const channelFitLab = buildChannelFitLab(db, date);
   const categoryFitLab = buildCategoryFitLab(db, date);
+  const priceBandFitLab = buildPriceBandFitLab(db, date);
   return {
     db,
     ranked,
@@ -526,5 +539,6 @@ export async function getDashboardSnapshot(): Promise<{
     softRoiLab,
     channelFitLab,
     categoryFitLab,
+    priceBandFitLab,
   };
 }
