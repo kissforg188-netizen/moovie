@@ -3312,6 +3312,435 @@ function price_band_fit_lab_to_markdown(array $lab): string
 }
 
 /**
+ * Commission Band Lab — soft ranking of commission-rate bands from logged metrics.
+ * Never auto-publishes; never claims guaranteed income.
+ */
+function commission_band_of(float $rate): string
+{
+    if (!is_finite($rate) || $rate < 8) return 'under8';
+    if ($rate < 12) return 'mid8_11';
+    if ($rate < 20) return 'good12_19';
+    if ($rate < 30) return 'strong20_29';
+    return 'high30';
+}
+
+function commission_band_label_th(string $band): string
+{
+    $labels = [
+        'under8' => 'ต่ำกว่า 8%',
+        'mid8_11' => 'กลาง 8–11%',
+        'good12_19' => 'ดี 12–19%',
+        'strong20_29' => 'แข็ง 20–29%',
+        'high30' => 'สูง ≥30%',
+    ];
+    return $labels[$band] ?? $band;
+}
+
+function commission_band_range_label(string $band): string
+{
+    $labels = [
+        'under8' => '<8%',
+        'mid8_11' => '8–11%',
+        'good12_19' => '12–19%',
+        'strong20_29' => '20–29%',
+        'high30' => '≥30%',
+    ];
+    return $labels[$band] ?? $band;
+}
+
+function build_commission_band_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = ['under8', 'mid8_11', 'good12_19', 'strong20_29', 'high30'];
+
+    $products = all_products();
+    $productById = [];
+    $productsByBand = [];
+    $byBand = [];
+    foreach ($order as $band) {
+        $byBand[$band] = [];
+        $productsByBand[$band] = [];
+    }
+    foreach ($products as $p) {
+        $productById[$p['id']] = $p;
+        $key = commission_band_of((float)$p['commissionRate']);
+        $productsByBand[$key][$p['id']] = true;
+    }
+
+    $stmt = db()->prepare(
+        "SELECT s.*, p.name AS product_name, p.price AS product_price, p.commission_rate AS product_commission_rate
+         FROM schedule s
+         LEFT JOIN products p ON p.id = s.product_id
+         WHERE s.post_date BETWEEN ? AND ?
+           AND s.metrics_at IS NOT NULL"
+    );
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $totalCommission = 0.0;
+    foreach ($posted as $s) {
+        $rate = isset($s['product_commission_rate']) ? (float)$s['product_commission_rate'] : 0.0;
+        $key = commission_band_of($rate);
+        $byBand[$key][] = $s;
+        $pid = (string)$s['product_id'];
+        $productsByBand[$key][$pid] = true;
+        $totalCommission += max(0.0, (float)$s['commission_earned']);
+    }
+    $globalAvgCommission = $posted ? $totalCommission / count($posted) : 0.0;
+
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band] ?? [];
+        $samples = count($list);
+        $productIds = array_keys($productsByBand[$band] ?? []);
+        $productsInBand = [];
+        foreach ($productIds as $pid) {
+            if (isset($productById[$pid])) $productsInBand[] = $productById[$pid];
+        }
+        $views = array_map(fn($s) => (float)$s['views'], $list);
+        $clicks = array_map(fn($s) => (float)$s['clicks'], $list);
+        $orders = array_map(fn($s) => (float)$s['orders_count'], $list);
+        $commissions = array_map(fn($s) => (float)$s['commission_earned'], $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0.0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0.0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0.0;
+        $avgCommission = $samples ? array_sum($commissions) / $samples : 0.0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0.0;
+        $avgOrdersPerClick = $totalClicks > 0 ? $totalOrders / $totalClicks : 0.0;
+        $shareOfPosts = $posted ? $samples / count($posted) : 0.0;
+        $avgPrice = $productsInBand ? array_sum(array_map(fn($p) => (float)$p['price'], $productsInBand)) / count($productsInBand) : 0.0;
+        $avgCommissionRate = $productsInBand ? array_sum(array_map(fn($p) => (float)$p['commissionRate'], $productsInBand)) / count($productsInBand) : 0.0;
+
+        $score = 0.0;
+        if ($samples > 0) {
+            $commBase = $globalAvgCommission > 0
+                ? max(0.0, min(70.0, ($avgCommission / $globalAvgCommission) * 50))
+                : max(0.0, min(50.0, $avgCommission * 2));
+            $ctrScore = max(0.0, min(20.0, $avgCtr * 200));
+            $opcScore = max(0.0, min(15.0, $avgOrdersPerClick * 100));
+            $orderScore = max(0.0, min(15.0, $avgOrders * 8));
+            $score = $commBase + $ctrScore + $opcScore + $orderScore;
+            if ($band === 'good12_19') $score += 5;
+            elseif ($band === 'strong20_29') $score += 4;
+            elseif ($band === 'mid8_11') $score += 2;
+            elseif ($band === 'under8') $score -= 3;
+            elseif ($band === 'high30') $score += 1;
+            if ($shareOfPosts >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($shareOfPosts >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = max(0.0, min(100.0, $score));
+        }
+        $score = (int)round($score);
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        if ($samples === 0) $status = 'no_data';
+        elseif ($score >= 65 && $samples >= 2) $status = 'hot';
+        elseif ($score >= 45) $status = 'steady';
+        else $status = 'cold';
+
+        if ($samples === 0) {
+            $tip = 'ยังไม่มีผลในช่วงคอมฯ นี้ — ลอง draft 1 ชิ้นแล้วกรอกเมตริก (อย่าโพสต์ซ้ำข้อความเดิม)';
+        } elseif ($status === 'hot') {
+            $tip = 'ช่วงคอมฯ นี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ต่อได้ แต่สลับสินค้า/มุมขายเพื่อไม่ให้ซ้ำ';
+        } elseif ($status === 'cold') {
+            $tip = 'ผลเย็นในช่วงคอมฯ นี้ — ลองเปลี่ยน hook/มุม หรือเลี่ยงช่วงนี้ชั่วคราวในรอบถัดไป';
+        } elseif ($shareOfPosts >= 0.55) {
+            $tip = 'ใช้ช่วงคอมฯ นี้บ่อย (' . round($shareOfPosts * 100) . '%) — กระจายไปช่วงอื่นเพื่อลดความซ้ำ';
+        } else {
+            $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในช่วงคอมฯ นี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        }
+
+        $bands[] = [
+            'band' => $band,
+            'bandLabel' => commission_band_label_th($band),
+            'rangeLabel' => commission_band_range_label($band),
+            'samples' => $samples,
+            'productCount' => count($productIds),
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOrdersPerClick, 2),
+            'avgPrice' => round($avgPrice, 1),
+            'avgCommissionRate' => round($avgCommissionRate, 1),
+            'score' => $score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($shareOfPosts, 2),
+            'tip' => $tip,
+        ];
+    }
+
+    usort($bands, function ($a, $b) {
+        if ($a['score'] === $b['score']) return $b['samples'] <=> $a['samples'];
+        return $b['score'] <=> $a['score'];
+    });
+
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $topShare = 0.0;
+    foreach ($bands as $b) $topShare = max($topShare, (float)$b['shareOfPosts']);
+    $unbalanced = $topShare >= 0.55 && count($posted) >= 3;
+
+    $scoredAvg = $withData ? array_sum(array_map(fn($b) => $b['score'], $withData)) / count($withData) : 0.0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && count($posted) >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    $labScore = max(0, min(100, $labScore));
+    if (count($withData) === 0) $grade = 'D';
+    elseif ($labScore >= 75) $grade = 'A';
+    elseif ($labScore >= 58) $grade = 'B';
+    elseif ($labScore >= 40) $grade = 'C';
+    else $grade = 'D';
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot') { $best = $b; break; }
+    }
+    if (!$best && $withData) $best = $withData[0];
+    $cold = array_values(array_filter($withData, fn($b) => $b['status'] === 'cold'));
+
+    if (!$posted) {
+        $mixTip = 'ยังไม่มีเมตริกช่วงคอมฯ — โพสต์มือแล้วกรอกผลที่ Results ก่อนจัดมิกซ์ค่าคอม';
+    } elseif ($unbalanced && $best) {
+        $mixTip = 'มิกซ์เอนไปช่วง ' . $best['bandLabel'] . ' มาก — วันถัดไปลองสลับช่วงคอมฯ อื่น 1 ชิ้น (ทดลอง)';
+    } elseif ($best) {
+        $mixTip = 'ช่วงคอมฯ เด่น: ' . $best['bandLabel'] . ' — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์ไว้ช่วงเดียว';
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามช่วงคอมฯ ก่อนจัดอันดับมิกซ์';
+    }
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE post_date=? AND status IN ('draft','approved') ORDER BY suggested_time ASC LIMIT 6");
+    $stmt->execute([$date]);
+    $todaySlots = $stmt->fetchAll() ?: [];
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0) { $preferred = $b; break; }
+        }
+    }
+
+    $suggestions = [];
+    foreach ($todaySlots as $slot) {
+        $product = $productById[$slot['product_id']] ?? null;
+        if (!$product || !$preferred) continue;
+        $currentKey = commission_band_of((float)$product['commissionRate']);
+        $currentRow = null;
+        foreach ($bands as $b) {
+            if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        }
+        $sameAsPreferred = $currentKey === $preferred['band'];
+        $currentCold = $currentRow && (
+            $currentRow['status'] === 'cold' ||
+            ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')
+        );
+
+        if ($currentCold && !$sameAsPreferred) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => commission_band_label_th($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'commissionRate' => (float)$product['commissionRate'],
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => commission_band_label_th($currentKey) . ' เย็น/ข้อมูลน้อยกว่า · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่สลับสินค้าอัตโนมัติ — ถ้าจะเปลี่ยนช่วงคอมฯ ให้เลือกสินค้าใหม่ + สร้างแคปชัน + Approve ก่อนโพสต์มือ',
+            ];
+        } elseif ($unbalanced && $sameAsPreferred && $cold && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($bands as $b) {
+                if ($b['band'] !== $currentKey && in_array($b['status'], ['steady', 'no_data'], true)) {
+                    $alt = $b;
+                    break;
+                }
+            }
+            if (!$alt) $alt = $cold[0];
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => commission_band_label_th($currentKey),
+                'suggestedBand' => $alt['band'],
+                'suggestedLabel' => $alt['bandLabel'],
+                'commissionRate' => (float)$product['commissionRate'],
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => 'วันนี้ซ้อนช่วง ' . commission_band_label_th($currentKey) . ' — ลองกระจายไป ' . $alt['bandLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยนสินค้าเอง — แก้ที่คิว/สินค้าแล้ว Approve ใหม่',
+            ];
+        }
+        if (count($suggestions) >= 5) break;
+    }
+
+    $actions = [];
+    if (!$posted) {
+        $actions[] = [
+            'id' => 'need-metrics',
+            'title' => 'เริ่มเก็บผลรายช่วงคอมฯ',
+            'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ Results อย่างน้อย 1 ชิ้นต่อช่วงคอมฯ',
+        ];
+    }
+    if ($best && $best['status'] === 'hot') {
+        $actions[] = [
+            'id' => 'lean-best',
+            'title' => 'เอียงทดลองไปช่วง ' . $best['bandLabel'],
+            'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต ไม่ถล่มทุกโพสต์',
+        ];
+    }
+    if ($unbalanced) {
+        $actions[] = [
+            'id' => 'diversify',
+            'title' => 'กระจายมิกซ์ช่วงคอมฯ',
+            'detail' => 'ช่วงคอมฯ เด่นกินสัดส่วนสูง — เพิ่ม draft คนละช่วง 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)',
+        ];
+    }
+    if ($cold) {
+        $coldLabels = implode(', ', array_map(fn($b) => $b['bandLabel'], $cold));
+        $actions[] = [
+            'id' => 'review-cold',
+            'title' => 'ทบทวนช่วงเย็น: ' . $coldLabels,
+            'detail' => 'เปลี่ยน hook/มุมขาย หรือพักช่วงคอมฯ นั้นชั่วคราว — อย่าโพสต์ซ้ำข้อความเดิม',
+        ];
+    }
+    $actions[] = [
+        'id' => 'compliance',
+        'title' => 'คงกฎ Approve + disclosure',
+        'detail' => 'ทุกช่วงคอมฯ ต้องมีข้อความ affiliate และผ่าน Approve ก่อนโพสต์มือ — ระบบไม่โพสต์อัตโนมัติ',
+    ];
+    $actions = array_slice($actions, 0, 5);
+
+    if (!$posted) {
+        $summary = 'Commission Band Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับช่วงคอมฯ';
+    } else {
+        $summary = 'Commission Band Lab: ' . count($posted) . ' โพสต์มีเมตริก · ช่วงที่มีข้อมูล ' . count($withData)
+            . ' · ร้อน ' . $hot . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    }
+
+    $checklist = [
+        'อันดับช่วงคอมฯ มาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับช่วงคอมฯ เป็นคำแนะนำเท่านั้น — ต้องเลือกสินค้า + Approve เอง',
+        'อย่าถล่มช่วงคอมฯ เดียวซ้ำ ๆ ในวันเดียวกัน (กันสแปม)',
+        'ทุกโพสต์ต้องมี disclosure และไม่ใช้คำโฆษณาเกินจริง',
+    ];
+
+    $lines = [
+        "Commission Band Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = $statusLabel[$b['status']] . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score']
+            . ' (' . $confLabel[$b['confidence']] . ', n=' . $b['samples']
+            . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => count($posted),
+            'bandsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => array_slice($suggestions, 0, 5),
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function commission_band_fit_lab_to_markdown(array $lab): string
+{
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $bandRows = [];
+    $idx = 0;
+    foreach ($lab['bands'] as $b) {
+        if (($b['samples'] ?? 0) <= 0 && ($b['productCount'] ?? 0) <= 0) continue;
+        $idx++;
+        $bandRows[] = "{$idx}. **[{$statusLabel[$b['status']]}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel[$b['confidence']]}\n"
+            . "   สินค้าในแคตตาล็อก {$b['productCount']} · ราคาเฉลี่ย ฿{$b['avgPrice']} · คอมฯ ~{$b['avgCommissionRate']}%\n"
+            . '   CTR ~' . round($b['avgCtr'] * 100, 1) . '% · ออเดอร์/คลิก ~' . $b['avgOrdersPerClick']
+            . ' · ค่าคอมเฉลี่ย ฿' . $b['avgCommission'] . "\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) {
+        $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+    }
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']} · คอมฯ {$s['commissionRate']}%\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) {
+        $suggestionRows[] = '_(ไม่มีคำแนะนำสลับช่วงคอมฯ วันนี้)_';
+    }
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = [];
+    foreach ($lab['checklist'] as $c) {
+        $checkLines[] = "- {$c}";
+    }
+
+    return "# Commission Band Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- ช่วงคอมฯ ที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . ($lab['counts']['unbalanced'] ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับช่วงคอมฯ (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+/**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
  */
@@ -5280,6 +5709,7 @@ function run_morning_workflow(?string $date = null): array
     $channelFitLines = array_slice(build_channel_fit_lab($date)['lines'], 0, 4);
     $categoryFitLines = array_slice(build_category_fit_lab($date)['lines'], 0, 4);
     $priceBandFitLines = array_slice(build_price_band_fit_lab($date)['lines'], 0, 4);
+    $commissionBandFitLines = array_slice(build_commission_band_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -5300,6 +5730,7 @@ function run_morning_workflow(?string $date = null): array
         ...$channelFitLines,
         ...$categoryFitLines,
         ...$priceBandFitLines,
+        ...$commissionBandFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -5389,6 +5820,7 @@ function run_evening_workflow(?string $date = null): array
     $channelFitLab = build_channel_fit_lab($date);
     $categoryFitLab = build_category_fit_lab($date);
     $priceBandFitLab = build_price_band_fit_lab($date);
+    $commissionBandFitLab = build_commission_band_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -5423,6 +5855,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($priceBandFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($commissionBandFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -5445,6 +5880,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($priceBandFitLab['counts']['hot'] ?? 0) > 0 || !empty($priceBandFitLab['counts']['unbalanced'])) {
         $recs[] = 'Price Band: ช่วงร้อน ' . $priceBandFitLab['counts']['hot'] . ' · ' . $priceBandFitLab['mixTip'];
+    }
+    if (($commissionBandFitLab['counts']['hot'] ?? 0) > 0 || !empty($commissionBandFitLab['counts']['unbalanced'])) {
+        $recs[] = 'Commission Band: ช่วงร้อน ' . $commissionBandFitLab['counts']['hot'] . ' · ' . $commissionBandFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

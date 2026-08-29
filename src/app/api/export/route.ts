@@ -29,6 +29,7 @@ import { softRoiLabToMarkdown } from "@/lib/roi-lab";
 import { channelFitLabToMarkdown } from "@/lib/channel-fit";
 import { categoryFitLabToMarkdown } from "@/lib/category-fit";
 import { priceBandFitLabToMarkdown } from "@/lib/price-band";
+import { commissionBandFitLabToMarkdown } from "@/lib/commission-band";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -155,6 +156,15 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = priceBandFitLabToMarkdown(snap.priceBandFitLab);
       filename = `affiliate-price-band-lab-${todayISO()}.md`;
+    } else if (
+      scope === "commission-band" ||
+      scope === "commission-band-fit" ||
+      scope === "commission" ||
+      scope === "rate-band"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = commissionBandFitLabToMarkdown(snap.commissionBandFitLab);
+      filename = `affiliate-commission-band-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

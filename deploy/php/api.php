@@ -277,6 +277,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md price-band-lab');
                 exit;
             }
+            if (in_array($scope, ['commission-band', 'commission-band-fit', 'commission', 'rate-band'], true)) {
+                $lab = build_commission_band_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-commission-band-lab-'.today_iso().'.md"');
+                echo commission_band_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md commission-band-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

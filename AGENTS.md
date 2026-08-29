@@ -39,7 +39,7 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 - `src/lib/` — scoring, content, schedule, compliance, workflows, playbooks, results-intake
 - `src/app/` — dashboard pages + API routes
 - `scripts/` — seed, morning/evening CLI, unit tests
-- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-b1cd`)
+- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-7e81`)
 
 ### Rules agents must keep
 
@@ -50,12 +50,4 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 
 ### Latest incremental feature
 
-- **Manual Publish Queue** (`src/lib/publish-queue.ts` + PHP `build_publish_queue`) — ranks approved-but-not-posted items (overdue / due_now / today / upcoming) with copy checklist; morning/evening brief lines; export `scope=publish`
-
-### Soft ROI Lab (this branch)
-
-- `src/lib/roi-lab.ts` — experimental commission ranges + ROI% from logged metrics
-- UI: `/automation`, `/results` · export `scope=roi`
-- PHP: `build_soft_roi_lab` / `soft_roi_lab_to_markdown`
-- Never claims guaranteed income; never auto-publishes
-
+- **Commission Band Lab** (`src/lib/commission-band.ts` + PHP `build_commission_band_fit_lab`) — soft ranking of commission-rate bands (under8 / mid8_11 / good12_19 / strong20_29 / high30) from logged metrics; mix tips + queue suggestions (never auto-swap); morning/evening brief lines; export `scope=commission-band`

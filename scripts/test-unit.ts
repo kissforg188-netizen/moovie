@@ -73,6 +73,12 @@ import {
   priceBandOf,
 } from "../src/lib/price-band";
 import {
+  buildCommissionBandFitLab,
+  commissionBandFitLabLines,
+  commissionBandFitLabToMarkdown,
+  commissionBandOf,
+} from "../src/lib/commission-band";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -2826,6 +2832,177 @@ function run() {
   assert.equal(emptyBand.counts.postsWithMetrics, 0);
   assert.ok(
     emptyBand.summary.includes("ยังไม่มีเมตริก") || emptyBand.score <= 50,
+  );
+
+  // --- Commission Band Lab ---
+  assert.equal(commissionBandOf(5), "under8");
+  assert.equal(commissionBandOf(10), "mid8_11");
+  assert.equal(commissionBandOf(15), "good12_19");
+  assert.equal(commissionBandOf(25), "strong20_29");
+  assert.equal(commissionBandOf(35), "high30");
+
+  const rateGood: Product = {
+    ...fitProduct,
+    id: "prod_rate_good",
+    name: "ครีมทาแก้ม คอมดี",
+    price: 199,
+    commissionRate: 15,
+    category: "beauty",
+    painPoints: ["ผิวแห้ง"],
+    sellingPoints: ["ซึมเร็ว"],
+    targetAudience: "คนงบไม่เกินสามร้อย",
+    videoEase: 5,
+    seasonalScore: 4,
+  };
+  const rateThin: Product = {
+    ...fitProduct,
+    id: "prod_rate_thin",
+    name: "สายชาร์จ คอมต่ำ",
+    price: 89,
+    commissionRate: 4,
+    category: "gadget",
+    painPoints: ["สายพัน"],
+    sellingPoints: ["สั้น"],
+    targetAudience: "นักศึกษา",
+    videoEase: 4,
+    seasonalScore: 2,
+  };
+  const rateSchedule = [
+    {
+      id: "sch_rate_g1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_rate_good",
+      contentPackId: "pack_rate_g",
+      status: "posted" as const,
+      captionPreview: `g1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2000,
+        clicks: 120,
+        orders: 8,
+        commissionEarned: 240,
+      },
+    },
+    {
+      id: "sch_rate_g2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_rate_good",
+      contentPackId: "pack_rate_g",
+      status: "posted" as const,
+      captionPreview: `g2 ${fitDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 0,
+      metrics: {
+        views: 1800,
+        clicks: 100,
+        orders: 7,
+        commissionEarned: 210,
+      },
+    },
+    {
+      id: "sch_rate_g3",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_rate_good",
+      contentPackId: "pack_rate_g",
+      status: "posted" as const,
+      captionPreview: `g3 ${fitDisclosure}`,
+      hookIndex: 2,
+      ctaIndex: 1,
+      metrics: {
+        views: 1600,
+        clicks: 90,
+        orders: 6,
+        commissionEarned: 180,
+      },
+    },
+    {
+      id: "sch_rate_t1",
+      date: "2026-08-20",
+      suggestedTime: "14:00",
+      channel: "tiktok" as const,
+      productId: "prod_rate_thin",
+      contentPackId: "pack_rate_t",
+      status: "posted" as const,
+      captionPreview: `t1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 500,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_rate_today_cold",
+      date: "2026-08-23",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_rate_thin",
+      contentPackId: "pack_rate_t",
+      status: "draft" as const,
+      captionPreview: `today ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+  const rateLab = buildCommissionBandFitLab(
+    {
+      products: [rateGood, rateThin],
+      contentPacks: [],
+      schedule: rateSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+    14,
+  );
+  assert.ok(rateLab.counts.postsWithMetrics >= 4);
+  assert.ok(rateLab.counts.bandsWithData >= 2);
+  const goodRow = rateLab.bands.find((b) => b.band === "good12_19");
+  const thinRow = rateLab.bands.find((b) => b.band === "under8");
+  assert.ok(goodRow);
+  assert.ok(thinRow);
+  assert.ok(goodRow!.score > thinRow!.score);
+  assert.ok(["hot", "steady"].includes(goodRow!.status));
+  assert.ok(
+    rateLab.counts.unbalanced === true || goodRow!.shareOfPosts >= 0.5,
+  );
+  assert.ok(rateLab.suggestions.length >= 1);
+  assert.ok(
+    rateLab.suggestions[0].suggestedLabel.includes("12") ||
+      rateLab.suggestions[0].suggestedBand === "good12_19",
+  );
+  assert.ok(commissionBandFitLabLines(rateLab, 3).length <= 3);
+  const rateMd = commissionBandFitLabToMarkdown(rateLab);
+  assert.ok(rateMd.includes("Commission Band Lab"));
+  assert.ok(rateMd.includes("ทดลอง"));
+  assert.ok(rateMd.includes("ไม่เปลี่ยนอัตโนมัติ") || rateMd.includes("Approve"));
+  assert.ok(
+    rateMd.includes("ไม่รับประกัน") ||
+      rateMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyRate = buildCommissionBandFitLab(
+    {
+      products: [rateGood, rateThin],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyRate.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyRate.summary.includes("ยังไม่มีเมตริก") || emptyRate.score <= 50,
   );
 
   console.log("All unit tests passed");

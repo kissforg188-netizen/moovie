@@ -41,6 +41,7 @@ $softRoiLab = build_soft_roi_lab($date);
 $channelFitLab = build_channel_fit_lab($date);
 $categoryFitLab = build_category_fit_lab($date);
 $priceBandFitLab = build_price_band_fit_lab($date);
+$commissionBandFitLab = build_commission_band_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -523,6 +524,53 @@ $priceBandFitLab = build_price_band_fit_lab($date);
       </section>
 
       <section class="card fade-up">
+        <h2>Commission Band Lab</h2>
+        <p class="muted"><?= h($commissionBandFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($commissionBandFitLab['grade']) ?> · <?= (int)$commissionBandFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$commissionBandFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($commissionBandFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$commissionBandFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>ช่วงมีข้อมูล</p><strong><?= (int)$commissionBandFitLab['counts']['bandsWithData'] ?></strong></article>
+          <article><p>ร้อน</p><strong><?= (int)$commissionBandFitLab['counts']['hot'] ?></strong></article>
+          <article><p>คำแนะนำ</p><strong><?= (int)$commissionBandFitLab['counts']['suggestions'] ?></strong></article>
+        </div>
+        <?php
+          $rateBandRows = array_values(array_filter($commissionBandFitLab['bands'], fn($b) => ($b['samples'] ?? 0) > 0));
+          if (!$rateBandRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายช่วงคอมฯ — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($rateBandRows, 0, 4) as $b): ?>
+              <li>
+                <strong>[<?= h($b['status'] === 'hot' ? 'ร้อน' : ($b['status'] === 'cold' ? 'เย็น' : ($b['status'] === 'steady' ? 'นิ่ง' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($b['bandLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$b['score'] ?>/100 · n=<?= (int)$b['samples'] ?> · CTR ~<?= h((string)round($b['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($b['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($commissionBandFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($commissionBandFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentLabel']) ?> → <?= h($s['suggestedLabel']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($commissionBandFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=commission-band">Export Commission Band Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($commissionBandFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
         <h2>Tomorrow Plan · <?= h($tomorrowPlan['tomorrowDate']) ?></h2>
         <p class="muted"><?= h($tomorrowPlan['summary']) ?></p>
         <?php if (!$tomorrowPlan['picks']): ?>
@@ -769,6 +817,7 @@ $priceBandFitLab = build_price_band_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=channel-fit">Export Channel Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=category-fit">Export Category Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=price-band">Export Price Band Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=commission-band">Export Commission Band Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>
