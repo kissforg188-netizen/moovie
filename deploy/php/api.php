@@ -284,6 +284,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md commission-band-lab');
                 exit;
             }
+            if (in_array($scope, ['pain-clarity', 'pain-clarity-fit', 'pain', 'pain-band'], true)) {
+                $lab = build_pain_clarity_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-pain-clarity-lab-'.today_iso().'.md"');
+                echo pain_clarity_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md pain-clarity-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

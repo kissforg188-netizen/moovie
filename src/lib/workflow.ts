@@ -90,6 +90,11 @@ import {
   commissionBandFitLabLines,
   type CommissionBandFitLab,
 } from "./commission-band";
+import {
+  buildPainClarityFitLab,
+  painClarityFitLabLines,
+  type PainClarityFitLab,
+} from "./pain-clarity";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -275,6 +280,7 @@ export async function runMorningWorkflow(
         ...categoryFitLabLines(buildCategoryFitLab(db, date), 4),
         ...priceBandFitLabLines(buildPriceBandFitLab(db, date), 4),
         ...commissionBandFitLabLines(buildCommissionBandFitLab(db, date), 4),
+        ...painClarityFitLabLines(buildPainClarityFitLab(db, date), 4),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -379,6 +385,7 @@ export async function runEveningWorkflow(
       const categoryFitLab = buildCategoryFitLab(db, date);
       const priceBandFitLab = buildPriceBandFitLab(db, date);
       const commissionBandFitLab = buildCommissionBandFitLab(db, date);
+      const painClarityFitLab = buildPainClarityFitLab(db, date);
 
       const recommendations = [
         ...analysis.recommendations,
@@ -397,6 +404,7 @@ export async function runEveningWorkflow(
         ...categoryFitLabLines(categoryFitLab, 5),
         ...priceBandFitLabLines(priceBandFitLab, 5),
         ...commissionBandFitLabLines(commissionBandFitLab, 5),
+        ...painClarityFitLabLines(painClarityFitLab, 5),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -426,6 +434,9 @@ export async function runEveningWorkflow(
         commissionBandFitLab.counts.hot > 0 ||
           commissionBandFitLab.counts.unbalanced
           ? `Commission Band: ช่วงร้อน ${commissionBandFitLab.counts.hot} · ${commissionBandFitLab.mixTip}`
+          : null,
+        painClarityFitLab.counts.hot > 0 || painClarityFitLab.counts.unbalanced
+          ? `Pain Clarity: ช่วงร้อน ${painClarityFitLab.counts.hot} · ${painClarityFitLab.mixTip}`
           : null,
       ].filter(Boolean) as string[];
 
@@ -485,6 +496,7 @@ export async function getDashboardSnapshot(): Promise<{
   categoryFitLab: CategoryFitLab;
   priceBandFitLab: PriceBandFitLab;
   commissionBandFitLab: CommissionBandFitLab;
+  painClarityFitLab: PainClarityFitLab;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -533,6 +545,7 @@ export async function getDashboardSnapshot(): Promise<{
   const categoryFitLab = buildCategoryFitLab(db, date);
   const priceBandFitLab = buildPriceBandFitLab(db, date);
   const commissionBandFitLab = buildCommissionBandFitLab(db, date);
+  const painClarityFitLab = buildPainClarityFitLab(db, date);
   return {
     db,
     ranked,
@@ -555,5 +568,6 @@ export async function getDashboardSnapshot(): Promise<{
     categoryFitLab,
     priceBandFitLab,
     commissionBandFitLab,
+    painClarityFitLab,
   };
 }

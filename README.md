@@ -52,6 +52,7 @@
 - **Category Fit Lab**: จัดอันดับหมวดสินค้าจากเมตริกที่กรอก + แนะนำมิกซ์หมวด (ไม่สลับสินค้าอัตโนมัติ)
 - **Price Band Lab**: จัดอันดับช่วงราคา impulse จากเมตริกที่กรอก + แนะนำมิกซ์ราคา (ไม่สลับสินค้าอัตโนมัติ)
 - **Commission Band Lab**: จัดอันดับช่วงอัตราค่าคอมจากเมตริกที่กรอก + แนะนำมิกซ์คอมฯ (ไม่สลับสินค้าอัตโนมัติ)
+- **Pain Clarity Lab**: จัดอันดับระดับความชัดของ pain point จากเมตริกที่กรอก + แนะนำเติม brief (ไม่สลับสินค้าอัตโนมัติ)
 
 
 ## Production (cPanel / MySQL)
@@ -108,10 +109,10 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
 - `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Channel Fit Lab, Category Fit Lab, Price Band Lab, Commission Band Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
+- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Channel Fit Lab, Category Fit Lab, Price Band Lab, Commission Band Lab, Pain Clarity Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
 - `/calendar` ตารางโพสต์วันนี้ + คิว Approve + Manual Publish Queue + Approve / ข้าม / Mark posted
-- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Channel Fit Lab + Category Fit Lab + Price Band Lab + Commission Band Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
+- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Channel Fit Lab + Category Fit Lab + Price Band Lab + Commission Band Lab + Pain Clarity Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
 - `/guide` คู่มือการใช้งาน
 
 ### Export
@@ -141,6 +142,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown Category Fit Lab: `/api/export?format=md&scope=category-fit`
 - Markdown Price Band Lab: `/api/export?format=md&scope=price-band`
 - Markdown Commission Band Lab: `/api/export?format=md&scope=commission-band`
+- Markdown Pain Clarity Lab: `/api/export?format=md&scope=pain-clarity`
 
 ## Workflow แนะนำ
 

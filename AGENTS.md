@@ -39,7 +39,7 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 - `src/lib/` — scoring, content, schedule, compliance, workflows, playbooks, results-intake
 - `src/app/` — dashboard pages + API routes
 - `scripts/` — seed, morning/evening CLI, unit tests
-- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-7e81`)
+- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-3b7c`)
 
 ### Rules agents must keep
 
@@ -50,4 +50,4 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 
 ### Latest incremental feature
 
-- **Commission Band Lab** (`src/lib/commission-band.ts` + PHP `build_commission_band_fit_lab`) — soft ranking of commission-rate bands (under8 / mid8_11 / good12_19 / strong20_29 / high30) from logged metrics; mix tips + queue suggestions (never auto-swap); morning/evening brief lines; export `scope=commission-band`
+- **Pain Clarity Lab** (`src/lib/pain-clarity.ts` + PHP `build_pain_clarity_fit_lab`) — soft ranking of pain-point clarity bands (empty / thin / solid / clear / sharp) from logged metrics; mix tips + queue suggestions (never auto-swap); morning/evening brief lines; export `scope=pain-clarity`

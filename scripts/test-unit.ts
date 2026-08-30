@@ -79,6 +79,13 @@ import {
   commissionBandOf,
 } from "../src/lib/commission-band";
 import {
+  buildPainClarityFitLab,
+  painClarityBandOf,
+  painClarityFitLabLines,
+  painClarityFitLabToMarkdown,
+  painClarityScoreOf,
+} from "../src/lib/pain-clarity";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -3003,6 +3010,183 @@ function run() {
   assert.equal(emptyRate.counts.postsWithMetrics, 0);
   assert.ok(
     emptyRate.summary.includes("ยังไม่มีเมตริก") || emptyRate.score <= 50,
+  );
+
+  // --- Pain Clarity Lab ---
+  assert.equal(painClarityBandOf(0), "empty");
+  assert.equal(painClarityBandOf(30), "thin");
+  assert.equal(painClarityBandOf(50), "solid");
+  assert.equal(painClarityBandOf(70), "clear");
+  assert.equal(painClarityBandOf(90), "sharp");
+
+  const painSharp: Product = {
+    ...fitProduct,
+    id: "prod_pain_sharp",
+    name: "ที่แขวนผนัง แก้ปัญหาชัด",
+    price: 199,
+    commissionRate: 12,
+    category: "home",
+    painPoints: ["ของรกบนโต๊ะ", "หาของไม่เจอ", "เสียเวลาเก็บทุกเช้า"],
+    sellingPoints: ["ติดง่าย", "ประหยัดพื้นที่", "ถอดล้างได้"],
+    targetAudience: "คนอยู่คอนโดพื้นที่จำกัด",
+    videoEase: 5,
+    seasonalScore: 4,
+  };
+  assert.ok(painClarityScoreOf(painSharp) >= 85);
+  assert.equal(painClarityBandOf(painClarityScoreOf(painSharp)), "sharp");
+
+  const painEmpty: Product = {
+    ...fitProduct,
+    id: "prod_pain_empty",
+    name: "สายชาร์จ ไม่มี brief",
+    price: 89,
+    commissionRate: 8,
+    category: "gadget",
+    painPoints: [],
+    sellingPoints: [],
+    targetAudience: "",
+    videoEase: 3,
+    seasonalScore: 2,
+  };
+  assert.equal(painClarityScoreOf(painEmpty), 0);
+  assert.equal(painClarityBandOf(painClarityScoreOf(painEmpty)), "empty");
+
+  const painSchedule = [
+    {
+      id: "sch_pain_s1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_pain_sharp",
+      contentPackId: "pack_pain_s",
+      status: "posted" as const,
+      captionPreview: `s1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2200,
+        clicks: 130,
+        orders: 9,
+        commissionEarned: 260,
+      },
+    },
+    {
+      id: "sch_pain_s2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_pain_sharp",
+      contentPackId: "pack_pain_s",
+      status: "posted" as const,
+      captionPreview: `s2 ${fitDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 0,
+      metrics: {
+        views: 1900,
+        clicks: 110,
+        orders: 8,
+        commissionEarned: 220,
+      },
+    },
+    {
+      id: "sch_pain_s3",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_pain_sharp",
+      contentPackId: "pack_pain_s",
+      status: "posted" as const,
+      captionPreview: `s3 ${fitDisclosure}`,
+      hookIndex: 2,
+      ctaIndex: 1,
+      metrics: {
+        views: 1700,
+        clicks: 95,
+        orders: 7,
+        commissionEarned: 190,
+      },
+    },
+    {
+      id: "sch_pain_e1",
+      date: "2026-08-20",
+      suggestedTime: "14:00",
+      channel: "tiktok" as const,
+      productId: "prod_pain_empty",
+      contentPackId: "pack_pain_e",
+      status: "posted" as const,
+      captionPreview: `e1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 400,
+        clicks: 5,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_pain_today_cold",
+      date: "2026-08-23",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_pain_empty",
+      contentPackId: "pack_pain_e",
+      status: "draft" as const,
+      captionPreview: `today ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+  const painLab = buildPainClarityFitLab(
+    {
+      products: [painSharp, painEmpty],
+      contentPacks: [],
+      schedule: painSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+    14,
+  );
+  assert.ok(painLab.counts.postsWithMetrics >= 4);
+  assert.ok(painLab.counts.bandsWithData >= 2);
+  const sharpRow = painLab.bands.find((b) => b.band === "sharp");
+  const emptyRow = painLab.bands.find((b) => b.band === "empty");
+  assert.ok(sharpRow);
+  assert.ok(emptyRow);
+  assert.ok(sharpRow!.score > emptyRow!.score);
+  assert.ok(["hot", "steady"].includes(sharpRow!.status));
+  assert.ok(
+    painLab.counts.unbalanced === true || sharpRow!.shareOfPosts >= 0.5,
+  );
+  assert.ok(painLab.suggestions.length >= 1);
+  assert.ok(
+    painLab.suggestions[0].suggestedBand === "sharp" ||
+      painLab.suggestions[0].suggestedLabel.includes("คม"),
+  );
+  assert.ok(painClarityFitLabLines(painLab, 3).length <= 3);
+  const painMd = painClarityFitLabToMarkdown(painLab);
+  assert.ok(painMd.includes("Pain Clarity Lab"));
+  assert.ok(painMd.includes("ทดลอง"));
+  assert.ok(painMd.includes("ไม่เปลี่ยนอัตโนมัติ") || painMd.includes("Approve"));
+  assert.ok(
+    painMd.includes("ไม่รับประกัน") ||
+      painMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyPain = buildPainClarityFitLab(
+    {
+      products: [painSharp, painEmpty],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyPain.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyPain.summary.includes("ยังไม่มีเมตริก") || emptyPain.score <= 50,
   );
 
   console.log("All unit tests passed");
