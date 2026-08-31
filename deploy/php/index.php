@@ -43,6 +43,7 @@ $categoryFitLab = build_category_fit_lab($date);
 $priceBandFitLab = build_price_band_fit_lab($date);
 $commissionBandFitLab = build_commission_band_fit_lab($date);
 $painClarityFitLab = build_pain_clarity_fit_lab($date);
+$videoEaseFitLab = build_video_ease_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -613,9 +614,57 @@ $painClarityFitLab = build_pain_clarity_fit_lab($date);
         </ul>
         <div class="actions">
           <a class="btn" href="api.php?action=export&format=md&scope=pain-clarity">Export Pain Clarity Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=video-ease">Export Video Ease Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($painClarityFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Video Ease Lab</h2>
+        <p class="muted"><?= h($videoEaseFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($videoEaseFitLab['grade']) ?> · <?= (int)$videoEaseFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$videoEaseFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($videoEaseFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$videoEaseFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>ช่วงมีข้อมูล</p><strong><?= (int)$videoEaseFitLab['counts']['bandsWithData'] ?></strong></article>
+          <article><p>ร้อน</p><strong><?= (int)$videoEaseFitLab['counts']['hot'] ?></strong></article>
+          <article><p>คำแนะนำ</p><strong><?= (int)$videoEaseFitLab['counts']['suggestions'] ?></strong></article>
+        </div>
+        <?php
+          $videoEaseBandRows = array_values(array_filter($videoEaseFitLab['bands'], fn($b) => ($b['samples'] ?? 0) > 0));
+          if (!$videoEaseBandRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายระดับความง่ายวิดีโอ — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($videoEaseBandRows, 0, 4) as $b): ?>
+              <li>
+                <strong>[<?= h($b['status'] === 'hot' ? 'ร้อน' : ($b['status'] === 'cold' ? 'เย็น' : ($b['status'] === 'steady' ? 'นิ่ง' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($b['bandLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$b['score'] ?>/100 · n=<?= (int)$b['samples'] ?> · CTR ~<?= h((string)round($b['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($b['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($videoEaseFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($videoEaseFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentLabel']) ?> → <?= h($s['suggestedLabel']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($videoEaseFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=video-ease">Export Video Ease Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($videoEaseFitLab['disclaimer']) ?></p>
       </section>
 
       <section class="card fade-up">
@@ -867,6 +916,7 @@ $painClarityFitLab = build_pain_clarity_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=price-band">Export Price Band Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=commission-band">Export Commission Band Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=pain-clarity">Export Pain Clarity Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=video-ease">Export Video Ease Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>

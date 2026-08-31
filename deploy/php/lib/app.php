@@ -4169,6 +4169,446 @@ function pain_clarity_fit_lab_to_markdown(array $lab): string
         . $lab['disclaimer'] . "\n";
 }
 
+
+/**
+ * Video Ease Lab — soft ranking of short-video filming ease bands from logged metrics.
+ * Aligns with product videoEase 1–5 (scoring.scale1to5).
+ */
+function video_ease_of(array $p): int
+{
+    if (!isset($p['videoEase']) || !is_numeric($p['videoEase'])) {
+        return 3;
+    }
+    $raw = (float)$p['videoEase'];
+    return (int)max(1, min(5, round($raw)));
+}
+
+function video_ease_band_of(int $ease): string
+{
+    $e = max(1, min(5, $ease));
+    return match ($e) {
+        1 => 'hard1',
+        2 => 'tough2',
+        3 => 'ok3',
+        4 => 'easy4',
+        default => 'snap5',
+    };
+}
+
+function video_ease_band_label_th(string $band): string
+{
+    return match ($band) {
+        'hard1' => 'ยากมาก (1)',
+        'tough2' => 'ยาก (2)',
+        'ok3' => 'ปานกลาง (3)',
+        'easy4' => 'ง่าย (4)',
+        'snap5' => 'ถ่ายเร็วมาก (5)',
+        default => $band,
+    };
+}
+
+function video_ease_band_range_label(string $band): string
+{
+    return match ($band) {
+        'hard1' => 'videoEase = 1',
+        'tough2' => 'videoEase = 2',
+        'ok3' => 'videoEase = 3',
+        'easy4' => 'videoEase = 4',
+        'snap5' => 'videoEase = 5',
+        default => '',
+    };
+}
+
+function build_video_ease_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = ['hard1', 'tough2', 'ok3', 'easy4', 'snap5'];
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+
+    $products = all_products();
+    $byId = [];
+    $productsByBand = [];
+    foreach ($order as $b) $productsByBand[$b] = [];
+    foreach ($products as $p) {
+        $byId[$p['id']] = $p;
+        $key = video_ease_band_of(video_ease_of($p));
+        $productsByBand[$key][$p['id']] = true;
+    }
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE status='posted' AND metrics_at IS NOT NULL AND post_date BETWEEN ? AND ?");
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $byBand = [];
+    foreach ($order as $b) $byBand[$b] = [];
+    $allComm = [];
+    foreach ($posted as $row) {
+        $product = $byId[$row['product_id']] ?? null;
+        $ease = $product ? video_ease_of($product) : 3;
+        $key = video_ease_band_of($ease);
+        $byBand[$key][] = $row;
+        $productsByBand[$key][$row['product_id']] = true;
+        $allComm[] = (float)$row['commission_earned'];
+    }
+    $globalAvg = $allComm ? array_sum($allComm) / count($allComm) : 0.0;
+    $postedN = count($posted);
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band];
+        $samples = count($list);
+        $productIds = array_keys($productsByBand[$band]);
+        $productsInBand = [];
+        foreach ($productIds as $pid) {
+            if (isset($byId[$pid])) $productsInBand[] = $byId[$pid];
+        }
+        $views = array_map(fn($r) => (int)$r['views'], $list);
+        $clicks = array_map(fn($r) => (int)$r['clicks'], $list);
+        $orders = array_map(fn($r) => (int)$r['orders_count'], $list);
+        $comms = array_map(fn($r) => (float)$r['commission_earned'], $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0;
+        $avgOpc = $totalClicks > 0 ? $totalOrders / $totalClicks : 0;
+        $share = $postedN > 0 ? $samples / $postedN : 0;
+        $avgPrice = $productsInBand ? array_sum(array_map(fn($p) => (float)$p['price'], $productsInBand)) / count($productsInBand) : 0;
+        $avgVideoEase = $productsInBand ? array_sum(array_map(fn($p) => video_ease_of($p), $productsInBand)) / count($productsInBand) : 0;
+
+        $score = 0;
+        if ($samples > 0) {
+            $commBase = $globalAvg > 0
+                ? max(0, min(70, ($avgCommission / $globalAvg) * 50))
+                : max(0, min(50, $avgCommission * 2));
+            $score = $commBase
+                + max(0, min(20, $avgCtr * 200))
+                + max(0, min(15, $avgOpc * 100))
+                + max(0, min(15, $avgOrders * 8));
+            if ($band === 'snap5') $score += 6;
+            elseif ($band === 'easy4') $score += 5;
+            elseif ($band === 'ok3') $score += 2;
+            elseif ($band === 'tough2') $score -= 1;
+            elseif ($band === 'hard1') $score -= 4;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = (int)round(max(0, min(100, $score)));
+        }
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        if ($samples === 0) $status = 'no_data';
+        elseif ($score >= 65 && $samples >= 2) $status = 'hot';
+        elseif ($score >= 45) $status = 'steady';
+        else $status = 'cold';
+
+        $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในช่วงความง่ายนี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        if ($samples === 0) {
+            $tip = 'ยังไม่มีผลในช่วงความง่ายนี้ — ลอง draft 1 ชิ้นแล้วกรอกเมตริก (อย่าโพสต์ซ้ำข้อความเดิม)';
+        } elseif ($status === 'hot') {
+            $tip = 'ช่วงถ่ายง่ายนี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ต่อได้ แต่สลับสินค้า/มุมเพื่อไม่ให้ซ้ำ';
+        } elseif ($status === 'cold') {
+            $tip = 'ผลเย็นในช่วงความง่ายนี้ — เลือกสินค้าถ่ายง่ายกว่า หรือลดเซ็ตอัพวิดีโอ';
+        } elseif ($share >= 0.55) {
+            $tip = 'ใช้ช่วงความง่ายนี้บ่อย (' . round($share * 100) . '%) — กระจายระดับความง่ายเพื่อลดความซ้ำ';
+        }
+
+        $bands[] = [
+            'band' => $band,
+            'bandLabel' => video_ease_band_label_th($band),
+            'rangeLabel' => video_ease_band_range_label($band),
+            'samples' => $samples,
+            'productCount' => count($productIds),
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOpc, 2),
+            'avgPrice' => round($avgPrice, 1),
+            'avgVideoEase' => round($avgVideoEase, 1),
+            'score' => $score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => $tip,
+        ];
+    }
+    usort($bands, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['samples'] <=> $a['samples']));
+
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $topShare = 0.0;
+    foreach ($bands as $b) $topShare = max($topShare, (float)$b['shareOfPosts']);
+    $unbalanced = $topShare >= 0.55 && $postedN >= 3;
+
+    $scoredAvg = $withData ? array_sum(array_map(fn($b) => $b['score'], $withData)) / count($withData) : 0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && $postedN >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    $labScore = max(0, min(100, $labScore));
+    if (count($withData) === 0) $grade = 'D';
+    elseif ($labScore >= 75) $grade = 'A';
+    elseif ($labScore >= 58) $grade = 'B';
+    elseif ($labScore >= 40) $grade = 'C';
+    else $grade = 'D';
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot') { $best = $b; break; }
+    }
+    if (!$best && $withData) $best = $withData[0];
+    $cold = array_values(array_filter($withData, fn($b) => $b['status'] === 'cold'));
+
+    if ($postedN === 0) {
+        $mixTip = 'ยังไม่มีเมตริกช่วงความง่ายของวิดีโอ — โพสต์มือแล้วกรอกผลที่ Results ก่อนจัดมิกซ์';
+    } elseif ($unbalanced && $best) {
+        $mixTip = 'มิกซ์เอนไปช่วง ' . $best['bandLabel'] . ' มาก — วันถัดไปลองสลับระดับความง่ายอื่น 1 ชิ้น (ทดลอง)';
+    } elseif ($best) {
+        $mixTip = 'ช่วงถ่ายวิดีโอเด่น: ' . $best['bandLabel'] . ' — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์ไว้ระดับเดียว';
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามระดับความง่ายก่อนจัดอันดับมิกซ์';
+    }
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE post_date=? AND status IN ('draft','approved') ORDER BY suggested_time");
+    $stmt->execute([$date]);
+    $todaySlots = $stmt->fetchAll() ?: [];
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0) { $preferred = $b; break; }
+        }
+    }
+
+    $suggestions = [];
+    foreach (array_slice($todaySlots, 0, 6) as $slot) {
+        $product = $byId[$slot['product_id']] ?? null;
+        if (!$product || !$preferred) continue;
+        $ease = video_ease_of($product);
+        $currentKey = video_ease_band_of($ease);
+        $currentRow = null;
+        foreach ($bands as $b) {
+            if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        }
+        $same = $currentKey === $preferred['band'];
+        $currentCold = $currentRow && (
+            $currentRow['status'] === 'cold'
+            || ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')
+            || $currentKey === 'hard1'
+            || $currentKey === 'tough2'
+        );
+        if ($currentCold && !$same) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => video_ease_band_label_th($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'videoEase' => $ease,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => video_ease_band_label_th($currentKey) . ' เย็น/ยากกว่า · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่สลับสินค้าอัตโนมัติ — ปรับ videoEase ที่หน้าสินค้า หรือเลือกสินค้าถ่ายง่ายกว่า แล้ว Approve ก่อนโพสต์มือ',
+            ];
+        } elseif ($unbalanced && $same && $cold && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($bands as $b) {
+                if ($b['band'] !== $currentKey && in_array($b['status'], ['steady', 'no_data'], true) && $b['band'] !== 'hard1') {
+                    $alt = $b;
+                    break;
+                }
+            }
+            if (!$alt) $alt = $cold[0];
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => video_ease_band_label_th($currentKey),
+                'suggestedBand' => $alt['band'],
+                'suggestedLabel' => $alt['bandLabel'],
+                'videoEase' => $ease,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => 'วันนี้ซ้อนช่วง ' . video_ease_band_label_th($currentKey) . ' — ลองกระจายไป ' . $alt['bandLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยนสินค้าเอง — แก้ videoEase/คิวแล้ว Approve ใหม่',
+            ];
+        }
+    }
+    $suggestions = array_slice($suggestions, 0, 5);
+
+    $actions = [];
+    if ($postedN === 0) {
+        $actions[] = [
+            'id' => 'need-metrics',
+            'title' => 'เริ่มเก็บผลรายระดับความง่ายวิดีโอ',
+            'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ Results อย่างน้อย 1 ชิ้นต่อระดับ videoEase',
+        ];
+    }
+    if ($best && $best['status'] === 'hot') {
+        $actions[] = [
+            'id' => 'lean-best',
+            'title' => 'เอียงทดลองไปช่วง ' . $best['bandLabel'],
+            'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต ไม่ถล่มทุกโพสต์',
+        ];
+    }
+    if ($unbalanced) {
+        $actions[] = [
+            'id' => 'diversify',
+            'title' => 'กระจายมิกซ์ระดับความง่าย',
+            'detail' => 'ระดับความง่ายเด่นกินสัดส่วนสูง — เพิ่ม draft คนละระดับ 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)',
+        ];
+    }
+    if ($cold) {
+        $actions[] = [
+            'id' => 'review-cold',
+            'title' => 'ทบทวนช่วงเย็น: ' . implode(', ', array_map(fn($b) => $b['bandLabel'], $cold)),
+            'detail' => 'ลดเซ็ตอัพวิดีโอ / เลือกสินค้าถ่ายง่ายกว่า หรือพักมุมนั้นชั่วคราว — อย่าโพสต์ซ้ำข้อความเดิม',
+        ];
+    }
+    $hardCatalog = 0;
+    foreach ($products as $p) {
+        if (video_ease_band_of(video_ease_of($p)) === 'hard1') $hardCatalog++;
+    }
+    if ($hardCatalog > 0) {
+        $actions[] = [
+            'id' => 'ease-hard',
+            'title' => "ทบทวนสินค้าถ่ายยาก {$hardCatalog} ชิ้น",
+            'detail' => 'สินค้า videoEase=1 กินเวลาถ่าย — ลดเซ็ตอัพหรือเลื่อนไปวันที่มีเวลา แล้วอัปเดตคะแนนความง่าย',
+        ];
+    }
+    $actions[] = [
+        'id' => 'compliance',
+        'title' => 'คงกฎ Approve + disclosure',
+        'detail' => 'ทุกระดับความง่ายต้องมีข้อความ affiliate และผ่าน Approve ก่อนโพสต์มือ — ระบบไม่โพสต์อัตโนมัติ',
+    ];
+    $actions = array_slice($actions, 0, 5);
+
+    if ($postedN === 0) {
+        $summary = 'Video Ease Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับความง่ายของวิดีโอ';
+    } else {
+        $summary = 'Video Ease Lab: ' . $postedN . ' โพสต์มีเมตริก · ช่วงที่มีข้อมูล ' . count($withData)
+            . ' · ร้อน ' . $hot . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    }
+
+    $checklist = [
+        'อันดับระดับความง่ายมาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับระดับเป็นคำแนะนำเท่านั้น — ต้องแก้เอง + Approve',
+        'อย่าถล่มมุมถ่ายแบบเดียวซ้ำ ๆ ในวันเดียวกัน (กันสแปม)',
+        'ทุกโพสต์ต้องมี disclosure และไม่ใช้คำโฆษณาเกินจริง',
+    ];
+
+    $lines = [
+        "Video Ease Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = $statusLabel[$b['status']] . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score']
+            . ' (' . $confLabel[$b['confidence']] . ', n=' . $b['samples']
+            . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => $postedN,
+            'bandsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => $suggestions,
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function video_ease_fit_lab_to_markdown(array $lab): string
+{
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $bandRows = [];
+    $idx = 0;
+    foreach ($lab['bands'] as $b) {
+        if (($b['samples'] ?? 0) <= 0 && ($b['productCount'] ?? 0) <= 0) continue;
+        $idx++;
+        $bandRows[] = "{$idx}. **[{$statusLabel[$b['status']]}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel[$b['confidence']]}\n"
+            . "   สินค้าในแคตตาล็อก {$b['productCount']} · videoEase avg ~{$b['avgVideoEase']}\n"
+            . '   CTR ~' . round($b['avgCtr'] * 100, 1) . '% · ออเดอร์/คลิก ~' . $b['avgOrdersPerClick']
+            . ' · ค่าคอมเฉลี่ย ฿' . $b['avgCommission'] . "\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) {
+        $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+    }
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']} · videoEase {$s['videoEase']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) {
+        $suggestionRows[] = '_(ไม่มีคำแนะนำสลับระดับความง่ายวันนี้)_';
+    }
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = [];
+    foreach ($lab['checklist'] as $c) {
+        $checkLines[] = "- {$c}";
+    }
+
+    return "# Video Ease Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- ระดับความง่ายที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . ($lab['counts']['unbalanced'] ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับระดับความง่ายของวิดีโอ (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
 /**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
@@ -6140,6 +6580,7 @@ function run_morning_workflow(?string $date = null): array
     $priceBandFitLines = array_slice(build_price_band_fit_lab($date)['lines'], 0, 4);
     $commissionBandFitLines = array_slice(build_commission_band_fit_lab($date)['lines'], 0, 4);
     $painClarityFitLines = array_slice(build_pain_clarity_fit_lab($date)['lines'], 0, 4);
+    $videoEaseFitLines = array_slice(build_video_ease_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -6162,6 +6603,7 @@ function run_morning_workflow(?string $date = null): array
         ...$priceBandFitLines,
         ...$commissionBandFitLines,
         ...$painClarityFitLines,
+        ...$videoEaseFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -6253,6 +6695,7 @@ function run_evening_workflow(?string $date = null): array
     $priceBandFitLab = build_price_band_fit_lab($date);
     $commissionBandFitLab = build_commission_band_fit_lab($date);
     $painClarityFitLab = build_pain_clarity_fit_lab($date);
+    $videoEaseFitLab = build_video_ease_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -6293,6 +6736,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($painClarityFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($videoEaseFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -6321,6 +6767,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($painClarityFitLab['counts']['hot'] ?? 0) > 0 || !empty($painClarityFitLab['counts']['unbalanced'])) {
         $recs[] = 'Pain Clarity: ช่วงร้อน ' . $painClarityFitLab['counts']['hot'] . ' · ' . $painClarityFitLab['mixTip'];
+    }
+    if (($videoEaseFitLab['counts']['hot'] ?? 0) > 0 || !empty($videoEaseFitLab['counts']['unbalanced'])) {
+        $recs[] = 'Video Ease: ช่วงร้อน ' . $videoEaseFitLab['counts']['hot'] . ' · ' . $videoEaseFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

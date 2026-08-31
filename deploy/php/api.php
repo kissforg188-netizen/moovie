@@ -291,6 +291,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md pain-clarity-lab');
                 exit;
             }
+            if (in_array($scope, ['video-ease', 'video-ease-fit', 'video', 'filming-ease'], true)) {
+                $lab = build_video_ease_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-video-ease-lab-'.today_iso().'.md"');
+                echo video_ease_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md video-ease-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

@@ -39,7 +39,7 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 - `src/lib/` — scoring, content, schedule, compliance, workflows, playbooks, results-intake
 - `src/app/` — dashboard pages + API routes
 - `scripts/` — seed, morning/evening CLI, unit tests
-- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-3b7c`)
+- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-5d68`)
 
 ### Rules agents must keep
 
@@ -50,4 +50,5 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 
 ### Latest incremental feature
 
-- **Pain Clarity Lab** (`src/lib/pain-clarity.ts` + PHP `build_pain_clarity_fit_lab`) — soft ranking of pain-point clarity bands (empty / thin / solid / clear / sharp) from logged metrics; mix tips + queue suggestions (never auto-swap); morning/evening brief lines; export `scope=pain-clarity`
+- **Video Ease Lab** (`src/lib/video-ease.ts` + PHP `build_video_ease_fit_lab`) — soft ranking of short-video filming ease bands (hard1 / tough2 / ok3 / easy4 / snap5 from product.videoEase 1–5) from logged metrics; mix tips + queue suggestions (never auto-swap); morning/evening brief lines; export `scope=video-ease`
+- Prior tip: **Pain Clarity Lab** (`src/lib/pain-clarity.ts` + PHP `build_pain_clarity_fit_lab`) — pain clarity bands empty/thin/solid/clear/sharp; export `scope=pain-clarity`

@@ -86,6 +86,13 @@ import {
   painClarityScoreOf,
 } from "../src/lib/pain-clarity";
 import {
+  buildVideoEaseFitLab,
+  videoEaseBandOf,
+  videoEaseFitLabLines,
+  videoEaseFitLabToMarkdown,
+  videoEaseOf,
+} from "../src/lib/video-ease";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -3187,6 +3194,183 @@ function run() {
   assert.equal(emptyPain.counts.postsWithMetrics, 0);
   assert.ok(
     emptyPain.summary.includes("ยังไม่มีเมตริก") || emptyPain.score <= 50,
+  );
+
+  // --- Video Ease Lab ---
+  assert.equal(videoEaseBandOf(1), "hard1");
+  assert.equal(videoEaseBandOf(2), "tough2");
+  assert.equal(videoEaseBandOf(3), "ok3");
+  assert.equal(videoEaseBandOf(4), "easy4");
+  assert.equal(videoEaseBandOf(5), "snap5");
+
+  const easeSnap: Product = {
+    ...fitProduct,
+    id: "prod_ease_snap",
+    name: "ที่แขวนผนัง ถ่ายง่าย",
+    price: 199,
+    commissionRate: 12,
+    category: "home",
+    painPoints: ["ของรก"],
+    sellingPoints: ["ติดง่าย"],
+    targetAudience: "คนอยู่คอนโด",
+    videoEase: 5,
+    seasonalScore: 4,
+  };
+  assert.equal(videoEaseOf(easeSnap), 5);
+  assert.equal(videoEaseBandOf(videoEaseOf(easeSnap)), "snap5");
+
+  const easeHard: Product = {
+    ...fitProduct,
+    id: "prod_ease_hard",
+    name: "ชุดติดตั้งซับซ้อน",
+    price: 890,
+    commissionRate: 8,
+    category: "gadget",
+    painPoints: ["ติดตั้งยาก"],
+    sellingPoints: ["ครบชุด"],
+    targetAudience: "ช่างมือใหม่",
+    videoEase: 1,
+    seasonalScore: 2,
+  };
+  assert.equal(videoEaseOf(easeHard), 1);
+  assert.equal(videoEaseBandOf(videoEaseOf(easeHard)), "hard1");
+
+  const easeSchedule = [
+    {
+      id: "sch_ease_s1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_ease_snap",
+      contentPackId: "pack_ease_s",
+      status: "posted" as const,
+      captionPreview: `s1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2100,
+        clicks: 120,
+        orders: 8,
+        commissionEarned: 240,
+      },
+    },
+    {
+      id: "sch_ease_s2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_ease_snap",
+      contentPackId: "pack_ease_s",
+      status: "posted" as const,
+      captionPreview: `s2 ${fitDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 0,
+      metrics: {
+        views: 1800,
+        clicks: 100,
+        orders: 7,
+        commissionEarned: 200,
+      },
+    },
+    {
+      id: "sch_ease_s3",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_ease_snap",
+      contentPackId: "pack_ease_s",
+      status: "posted" as const,
+      captionPreview: `s3 ${fitDisclosure}`,
+      hookIndex: 2,
+      ctaIndex: 1,
+      metrics: {
+        views: 1600,
+        clicks: 90,
+        orders: 6,
+        commissionEarned: 180,
+      },
+    },
+    {
+      id: "sch_ease_h1",
+      date: "2026-08-20",
+      suggestedTime: "14:00",
+      channel: "tiktok" as const,
+      productId: "prod_ease_hard",
+      contentPackId: "pack_ease_h",
+      status: "posted" as const,
+      captionPreview: `h1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 350,
+        clicks: 4,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_ease_today_cold",
+      date: "2026-08-23",
+      suggestedTime: "10:30",
+      channel: "tiktok" as const,
+      productId: "prod_ease_hard",
+      contentPackId: "pack_ease_h",
+      status: "draft" as const,
+      captionPreview: `today ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+  const easeLab = buildVideoEaseFitLab(
+    {
+      products: [easeSnap, easeHard],
+      contentPacks: [],
+      schedule: easeSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+    14,
+  );
+  assert.ok(easeLab.counts.postsWithMetrics >= 4);
+  assert.ok(easeLab.counts.bandsWithData >= 2);
+  const snapRow = easeLab.bands.find((b) => b.band === "snap5");
+  const hardRow = easeLab.bands.find((b) => b.band === "hard1");
+  assert.ok(snapRow);
+  assert.ok(hardRow);
+  assert.ok(snapRow!.score > hardRow!.score);
+  assert.ok(["hot", "steady"].includes(snapRow!.status));
+  assert.ok(
+    easeLab.counts.unbalanced === true || snapRow!.shareOfPosts >= 0.5,
+  );
+  assert.ok(easeLab.suggestions.length >= 1);
+  assert.ok(
+    easeLab.suggestions[0].suggestedBand === "snap5" ||
+      easeLab.suggestions[0].suggestedLabel.includes("ถ่ายเร็ว"),
+  );
+  assert.ok(videoEaseFitLabLines(easeLab, 3).length <= 3);
+  const easeMd = videoEaseFitLabToMarkdown(easeLab);
+  assert.ok(easeMd.includes("Video Ease Lab"));
+  assert.ok(easeMd.includes("ทดลอง"));
+  assert.ok(easeMd.includes("ไม่เปลี่ยนอัตโนมัติ") || easeMd.includes("Approve"));
+  assert.ok(
+    easeMd.includes("ไม่รับประกัน") ||
+      easeMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyEase = buildVideoEaseFitLab(
+    {
+      products: [easeSnap, easeHard],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyEase.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyEase.summary.includes("ยังไม่มีเมตริก") || emptyEase.score <= 50,
   );
 
   console.log("All unit tests passed");

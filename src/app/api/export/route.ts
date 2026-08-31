@@ -31,6 +31,7 @@ import { categoryFitLabToMarkdown } from "@/lib/category-fit";
 import { priceBandFitLabToMarkdown } from "@/lib/price-band";
 import { commissionBandFitLabToMarkdown } from "@/lib/commission-band";
 import { painClarityFitLabToMarkdown } from "@/lib/pain-clarity";
+import { videoEaseFitLabToMarkdown } from "@/lib/video-ease";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -175,6 +176,15 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = painClarityFitLabToMarkdown(snap.painClarityFitLab);
       filename = `affiliate-pain-clarity-lab-${todayISO()}.md`;
+    } else if (
+      scope === "video-ease" ||
+      scope === "video-ease-fit" ||
+      scope === "video" ||
+      scope === "filming-ease"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = videoEaseFitLabToMarkdown(snap.videoEaseFitLab);
+      filename = `affiliate-video-ease-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }
