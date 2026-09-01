@@ -93,6 +93,13 @@ import {
   videoEaseOf,
 } from "../src/lib/video-ease";
 import {
+  buildSeasonalFitLab,
+  seasonalBandOf,
+  seasonalFitLabLines,
+  seasonalFitLabToMarkdown,
+  seasonalScoreOf,
+} from "../src/lib/seasonal-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -3371,6 +3378,166 @@ function run() {
   assert.equal(emptyEase.counts.postsWithMetrics, 0);
   assert.ok(
     emptyEase.summary.includes("ยังไม่มีเมตริก") || emptyEase.score <= 50,
+  );
+
+  // --- Seasonal Fit Lab ---
+  assert.equal(seasonalBandOf(1), "cold1");
+  assert.equal(seasonalBandOf(2), "soft2");
+  assert.equal(seasonalBandOf(3), "mid3");
+  assert.equal(seasonalBandOf(4), "trend4");
+  assert.equal(seasonalBandOf(5), "peak5");
+
+  const seasonPeak: Product = {
+    ...fitProduct,
+    id: "prod_season_peak",
+    name: "ของขวัญตามซีซัน",
+    price: 299,
+    commissionRate: 15,
+    category: "ของขวัญ",
+    painPoints: ["หาของขวัญยาก"],
+    sellingPoints: ["ห่อสวย"],
+    targetAudience: "คนหาของขวัญด่วน",
+    videoEase: 4,
+    seasonalScore: 5,
+  };
+  assert.equal(seasonalScoreOf(seasonPeak), 5);
+  assert.equal(seasonalBandOf(seasonalScoreOf(seasonPeak)), "peak5");
+
+  const seasonCold: Product = {
+    ...fitProduct,
+    id: "prod_season_cold",
+    name: "สินค้าออฟซีซัน",
+    price: 450,
+    commissionRate: 8,
+    category: "ทั่วไป",
+    painPoints: ["ไม่เร่ง"],
+    sellingPoints: ["ใช้ได้"],
+    targetAudience: "ผู้ใช้ทั่วไป",
+    videoEase: 3,
+    seasonalScore: 1,
+  };
+  assert.equal(seasonalScoreOf(seasonCold), 1);
+  assert.equal(seasonalBandOf(seasonalScoreOf(seasonCold)), "cold1");
+
+  const seasonSchedule = [
+    {
+      id: "sch_season_p1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_season_peak",
+      contentPackId: "pack_season_p",
+      status: "posted" as const,
+      captionPreview: `s1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2400,
+        clicks: 140,
+        orders: 9,
+        commissionEarned: 280,
+      },
+    },
+    {
+      id: "sch_season_p2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_season_peak",
+      contentPackId: "pack_season_p",
+      status: "posted" as const,
+      captionPreview: `s2 ${fitDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 0,
+      metrics: {
+        views: 1900,
+        clicks: 100,
+        orders: 6,
+        commissionEarned: 190,
+      },
+    },
+    {
+      id: "sch_season_c1",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_season_cold",
+      contentPackId: "pack_season_c",
+      status: "posted" as const,
+      captionPreview: `c1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 1,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_season_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: "prod_season_cold",
+      contentPackId: "pack_season_c",
+      status: "draft" as const,
+      captionPreview: `today ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  const seasonLab = buildSeasonalFitLab(
+    {
+      products: [seasonPeak, seasonCold],
+      contentPacks: [],
+      schedule: seasonSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.ok(seasonLab.seasonLabel.length > 0);
+  assert.equal(seasonLab.counts.postsWithMetrics, 3);
+  const peakRow = seasonLab.bands.find((b) => b.band === "peak5");
+  const coldRow = seasonLab.bands.find((b) => b.band === "cold1");
+  assert.ok(peakRow);
+  assert.ok(coldRow);
+  assert.ok(peakRow!.score > coldRow!.score);
+  assert.ok(["hot", "steady"].includes(peakRow!.status));
+  assert.ok(
+    seasonLab.counts.unbalanced === true || peakRow!.shareOfPosts >= 0.5,
+  );
+  assert.ok(seasonLab.suggestions.length >= 1);
+  assert.ok(
+    seasonLab.suggestions[0].suggestedBand === "peak5" ||
+      seasonLab.suggestions[0].suggestedLabel.includes("ซีซันแรง"),
+  );
+  assert.ok(seasonalFitLabLines(seasonLab, 3).length <= 3);
+  const seasonMd = seasonalFitLabToMarkdown(seasonLab);
+  assert.ok(seasonMd.includes("Seasonal Fit Lab"));
+  assert.ok(seasonMd.includes("ปฏิทินไทย"));
+  assert.ok(seasonMd.includes("ทดลอง"));
+  assert.ok(seasonMd.includes("ไม่เปลี่ยนอัตโนมัติ") || seasonMd.includes("Approve"));
+  assert.ok(
+    seasonMd.includes("ไม่รับประกัน") ||
+      seasonMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptySeason = buildSeasonalFitLab(
+    {
+      products: [seasonPeak, seasonCold],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptySeason.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptySeason.summary.includes("ยังไม่มีเมตริก") || emptySeason.score <= 50,
   );
 
   console.log("All unit tests passed");

@@ -298,6 +298,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md video-ease-lab');
                 exit;
             }
+            if (in_array($scope, ['seasonal-fit', 'seasonal', 'season', 'trend-season'], true)) {
+                $lab = build_seasonal_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-seasonal-fit-lab-'.today_iso().'.md"');
+                echo seasonal_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md seasonal-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

@@ -17,6 +17,7 @@ import { buildPriceBandFitLab } from "@/lib/price-band";
 import { buildCommissionBandFitLab } from "@/lib/commission-band";
 import { buildPainClarityFitLab } from "@/lib/pain-clarity";
 import { buildVideoEaseFitLab } from "@/lib/video-ease";
+import { buildSeasonalFitLab } from "@/lib/seasonal-fit";
 import { weeklyInsightLines, weeklyProductRollup } from "@/lib/weekly";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,7 @@ export default async function ResultsPage() {
   const commissionBandFitLab = buildCommissionBandFitLab(db, date);
   const painClarityFitLab = buildPainClarityFitLab(db, date);
   const videoEaseFitLab = buildVideoEaseFitLab(db, date);
+  const seasonalFitLab = buildSeasonalFitLab(db, date);
 
   return (
     <div className="space-y-8">
@@ -673,6 +675,79 @@ export default async function ResultsPage() {
         )}
         <p className="text-xs text-[var(--ink-soft)]">
           {videoEaseFitLab.disclaimer}
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="brand-mark text-3xl text-[var(--sage-deep)]">
+            Seasonal Fit Lab
+          </h2>
+          <a
+            href="/api/export?format=md&scope=seasonal-fit"
+            className="text-xs text-[var(--sage)] hover:underline"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-sm text-[var(--ink-soft)]">
+          {seasonalFitLab.summary}
+        </p>
+        <p className="text-xs text-[var(--ink-soft)]">
+          ปฏิทินไทย: {seasonalFitLab.seasonLabel}
+        </p>
+        <p className="text-sm text-[var(--sage-deep)]">
+          {seasonalFitLab.mixTip}
+        </p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">เกรดแล็บ</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {seasonalFitLab.grade}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">มีเมตริก</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {seasonalFitLab.counts.postsWithMetrics}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">ช่วงร้อน</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {seasonalFitLab.counts.hot}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">คำแนะนำ</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {seasonalFitLab.counts.suggestions}
+            </p>
+          </div>
+        </div>
+        {seasonalFitLab.counts.postsWithMetrics === 0 ? (
+          <p className="text-xs text-[var(--ink-soft)]">
+            กรอกเมตริกด้านล่างเพื่อจัดอันดับศักยภาพซีซัน/เทรนด์ — ไม่ใช่การันตียอดขาย
+          </p>
+        ) : (
+          <ul className="list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+            {seasonalFitLab.bands
+              .filter((b) => b.samples > 0)
+              .slice(0, 4)
+              .map((b) => (
+                <li key={b.band}>
+                  <span className="text-[var(--ink)]">{b.bandLabel}</span>
+                  {" · "}
+                  คะแนน {b.score}/100 (n={b.samples}) · CTR ~
+                  {(b.avgCtr * 100).toFixed(1)}%
+                  <br />
+                  {b.tip}
+                </li>
+              ))}
+          </ul>
+        )}
+        <p className="text-xs text-[var(--ink-soft)]">
+          {seasonalFitLab.disclaimer}
         </p>
       </section>
 
