@@ -5079,6 +5079,511 @@ function seasonal_fit_lab_to_markdown(array $lab): string
 
 
 /**
+ * Audience Fit Lab — soft ranking of target-audience clarity bands from logged metrics.
+ * Aligns with scoring audience bonus (targetAudience length > 8 → +14).
+ */
+function audience_normalize(string $raw): string
+{
+    $t = trim(preg_replace('/\s+/u', ' ', $raw) ?? '');
+    return $t;
+}
+
+function audience_is_generic(string $text): bool
+{
+    $t = trim($text);
+    if ($t === '') return true;
+    if (preg_match('/^(ทุกคน|คนทั่วไป|ทั่วไป|ใครก็ได้|ทุกวัย|everyone|anyone|all|general|คนดู|follower|followers)$/iu', $t)) {
+        return true;
+    }
+    if (mb_strlen($t) <= 8 && preg_match('/ทั่วไป|ทุกคน|ใครก็ได้/u', $t)) {
+        return true;
+    }
+    return false;
+}
+
+function audience_specificity_signals(string $text): int
+{
+    $n = 0;
+    if (preg_match('/แม่|พ่อ|คุณแม่|คุณพ่อ|นักเรียน|นักศึกษา|มนุษย์เงินเดือน|ออฟฟิศ|ฟรีแลนซ์|แม่บ้าน|วัยรุ่น|สาว|หนุ่ม|ผู้หญิง|ผู้ชาย|คู่รัก|คนทำงาน|เจ้าของร้าน|พ่อค้า|แม่ค้า|ครีเอเตอร์|ครู|พยาบาล|โปรแกรมเมอร์|คนรักแมว|คนรักหมา|คนออกกำลัง|คนชอบท่องเที่ยว|มือใหม่|มือโปร|มือใหม่หัด|แม่ลูกอ่อน|คนงบน้อย|คนงบจำกัด|office|student|freelancer|mom|dad|creator/iu', $text)) {
+        $n++;
+    }
+    if (preg_match('/อยาก|ต้องการ|กำลังหา|เบื่อ|ปัญหา|ช่วย|ประหยัด|เร็ว|ง่าย|ไม่ทัน|แก้|เลือก|เปรียบเทียบ|รีวิว|แนะนำ|looking|need|want|busy|tired/iu', $text)) {
+        $n++;
+    }
+    if (preg_match('/วัย|ปี|เด็ก|ผู้ใหญ่|สูงวัย|คนท้อง|คนแก่|gen\s*[zy]|genz|millennial/iu', $text)) {
+        $n++;
+    }
+    if (preg_match('/ที่บ้าน|ตอนเช้า|ก่อนนอน|ออฟฟิศ|ทริป|หน้าร้อน|หน้าฝน|ปีใหม่|สงกรานต์/u', $text)) {
+        $n++;
+    }
+    $parts = preg_split('/\s+/u', $text) ?: [];
+    if (preg_match('/[,\/|·•]/u', $text) || count($parts) >= 6) {
+        $n++;
+    }
+    return $n;
+}
+
+function audience_clarity_score(array $p): float
+{
+    $text = audience_normalize((string)($p['targetAudience'] ?? ''));
+    if ($text === '') return 0.0;
+    $len = mb_strlen($text);
+    if ($len <= 4) $score = 8;
+    elseif ($len <= 8) $score = 22;
+    elseif ($len <= 16) $score = 42;
+    elseif ($len <= 28) $score = 58;
+    elseif ($len <= 45) $score = 72;
+    else $score = 82;
+
+    if (audience_is_generic($text)) {
+        $score = min($score, 28);
+    }
+    $score += min(audience_specificity_signals($text) * 8, 24);
+    if ($len > 8 && !audience_is_generic($text)) {
+        $score += 4;
+    }
+    return min(100.0, (float)round($score));
+}
+
+function audience_band_of(float $score): string
+{
+    if (!is_finite($score) || $score < 15) return 'empty';
+    if ($score < 35) return 'vague';
+    if ($score < 55) return 'named';
+    if ($score < 75) return 'specific';
+    return 'sharp';
+}
+
+function audience_band_label_th(string $band): string
+{
+    return match ($band) {
+        'empty' => 'ว่าง/ไม่ระบุ',
+        'vague' => 'กว้าง/ทั่วไป',
+        'named' => 'ระบุกลุ่ม',
+        'specific' => 'เฉพาะเจาะจง',
+        'sharp' => 'คมมาก',
+        default => $band,
+    };
+}
+
+function audience_band_range_label(string $band): string
+{
+    return match ($band) {
+        'empty' => 'คะแนน <15',
+        'vague' => '15–34',
+        'named' => '35–54',
+        'specific' => '55–74',
+        'sharp' => '≥75',
+        default => '',
+    };
+}
+
+function build_audience_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = ['empty', 'vague', 'named', 'specific', 'sharp'];
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+
+    $products = all_products();
+    $byId = [];
+    $productsByBand = [];
+    foreach ($order as $b) $productsByBand[$b] = [];
+    foreach ($products as $p) {
+        $byId[$p['id']] = $p;
+        $key = audience_band_of(audience_clarity_score($p));
+        $productsByBand[$key][$p['id']] = true;
+    }
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE status='posted' AND metrics_at IS NOT NULL AND post_date BETWEEN ? AND ?");
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $byBand = [];
+    foreach ($order as $b) $byBand[$b] = [];
+    $allComm = [];
+    foreach ($posted as $row) {
+        $product = $byId[$row['product_id']] ?? null;
+        $score = $product ? audience_clarity_score($product) : 0.0;
+        $key = audience_band_of($score);
+        $byBand[$key][] = $row;
+        $productsByBand[$key][$row['product_id']] = true;
+        $allComm[] = (float)$row['commission_earned'];
+    }
+    $globalAvg = $allComm ? array_sum($allComm) / count($allComm) : 0.0;
+    $postedN = count($posted);
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band];
+        $samples = count($list);
+        $productIds = array_keys($productsByBand[$band]);
+        $productsInBand = [];
+        foreach ($productIds as $pid) {
+            if (isset($byId[$pid])) $productsInBand[] = $byId[$pid];
+        }
+        $views = array_map(fn($r) => (int)$r['views'], $list);
+        $clicks = array_map(fn($r) => (int)$r['clicks'], $list);
+        $orders = array_map(fn($r) => (int)$r['orders_count'], $list);
+        $comms = array_map(fn($r) => (float)$r['commission_earned'], $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0;
+        $avgOpc = $totalClicks > 0 ? $totalOrders / $totalClicks : 0;
+        $share = $postedN > 0 ? $samples / $postedN : 0;
+        $avgPrice = $productsInBand ? array_sum(array_map(fn($p) => (float)$p['price'], $productsInBand)) / count($productsInBand) : 0;
+        $avgAudienceScore = $productsInBand ? array_sum(array_map(fn($p) => audience_clarity_score($p), $productsInBand)) / count($productsInBand) : 0;
+        $avgAudienceLen = $productsInBand ? array_sum(array_map(fn($p) => mb_strlen(audience_normalize((string)($p['targetAudience'] ?? ''))), $productsInBand)) / count($productsInBand) : 0;
+
+        $score = 0;
+        if ($samples > 0) {
+            $commBase = $globalAvg > 0
+                ? max(0, min(70, ($avgCommission / $globalAvg) * 50))
+                : max(0, min(50, $avgCommission * 2));
+            $score = $commBase
+                + max(0, min(20, $avgCtr * 200))
+                + max(0, min(15, $avgOpc * 100))
+                + max(0, min(15, $avgOrders * 8));
+            if ($band === 'sharp') $score += 6;
+            elseif ($band === 'specific') $score += 5;
+            elseif ($band === 'named') $score += 3;
+            elseif ($band === 'vague') $score -= 2;
+            elseif ($band === 'empty') $score -= 5;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = (int)round(max(0, min(100, $score)));
+        }
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        if ($samples === 0) $status = 'no_data';
+        elseif ($score >= 65 && $samples >= 2) $status = 'hot';
+        elseif ($score >= 45) $status = 'steady';
+        else $status = 'cold';
+
+        $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในระดับนี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        if ($samples === 0) {
+            $tip = 'ยังไม่มีผลในระดับกลุ่มนี้ — ลอง draft 1 ชิ้นแล้วกรอกเมตริก (อย่าโพสต์ซ้ำข้อความเดิม)';
+        } elseif ($status === 'hot') {
+            $tip = 'กลุ่มเป้าหมายระดับนี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ต่อได้ แต่สลับสินค้า/มุมเพื่อไม่ให้ซ้ำ';
+        } elseif ($status === 'cold') {
+            $tip = 'ผลเย็นในระดับนี้ — เขียน targetAudience ให้ชัดขึ้น (ใคร + สถานการณ์) หรือเปลี่ยนมุมขาย';
+        } elseif ($share >= 0.55) {
+            $tip = 'ใช้ระดับกลุ่มนี้บ่อย (' . round($share * 100) . '%) — กระจายระดับความชัดของกลุ่มเพื่อลดความซ้ำ';
+        }
+
+        $bands[] = [
+            'band' => $band,
+            'bandLabel' => audience_band_label_th($band),
+            'rangeLabel' => audience_band_range_label($band),
+            'samples' => $samples,
+            'productCount' => count($productIds),
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOpc, 2),
+            'avgPrice' => round($avgPrice, 1),
+            'avgAudienceScore' => round($avgAudienceScore, 1),
+            'avgAudienceLen' => round($avgAudienceLen, 1),
+            'score' => $score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => $tip,
+        ];
+    }
+    usort($bands, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['samples'] <=> $a['samples']));
+
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $topShare = 0.0;
+    foreach ($bands as $b) $topShare = max($topShare, (float)$b['shareOfPosts']);
+    $unbalanced = $topShare >= 0.55 && $postedN >= 3;
+
+    $scoredAvg = $withData ? array_sum(array_map(fn($b) => $b['score'], $withData)) / count($withData) : 0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && $postedN >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    $labScore = max(0, min(100, $labScore));
+    if (count($withData) === 0) $grade = 'D';
+    elseif ($labScore >= 75) $grade = 'A';
+    elseif ($labScore >= 58) $grade = 'B';
+    elseif ($labScore >= 40) $grade = 'C';
+    else $grade = 'D';
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot') { $best = $b; break; }
+    }
+    if (!$best && $withData) $best = $withData[0];
+    $cold = array_values(array_filter($withData, fn($b) => $b['status'] === 'cold'));
+
+    if ($postedN === 0) {
+        $mixTip = 'ยังไม่มีเมตริกรายระดับกลุ่มเป้าหมาย — โพสต์มือแล้วกรอกผลที่ Results ก่อนจัดมิกซ์';
+    } elseif ($unbalanced && $best) {
+        $mixTip = 'มิกซ์เอนไประดับ ' . $best['bandLabel'] . ' มาก — วันถัดไปลองสลับระดับความชัดของกลุ่ม 1 ชิ้น (ทดลอง)';
+    } elseif ($best) {
+        $mixTip = 'ระดับกลุ่มเป้าหมายเด่น: ' . $best['bandLabel'] . ' — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์';
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามระดับกลุ่มเป้าหมายก่อนจัดอันดับมิกซ์';
+    }
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE post_date=? AND status IN ('draft','approved') ORDER BY suggested_time");
+    $stmt->execute([$date]);
+    $todaySlots = $stmt->fetchAll() ?: [];
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0) { $preferred = $b; break; }
+        }
+    }
+
+    $suggestions = [];
+    foreach (array_slice($todaySlots, 0, 6) as $slot) {
+        $product = $byId[$slot['product_id']] ?? null;
+        if (!$product || !$preferred) continue;
+        $audScore = audience_clarity_score($product);
+        $currentKey = audience_band_of($audScore);
+        $currentRow = null;
+        foreach ($bands as $b) {
+            if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        }
+        $same = $currentKey === $preferred['band'];
+        $preview = audience_normalize((string)($product['targetAudience'] ?? ''));
+        $preview = $preview === '' ? '(ว่าง)' : mb_substr($preview, 0, 48);
+        $currentCold = $currentRow && (
+            $currentRow['status'] === 'cold'
+            || ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')
+            || $currentKey === 'empty'
+            || $currentKey === 'vague'
+        );
+        if ($currentCold && !$same) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => audience_band_label_th($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'audienceScore' => $audScore,
+                'audiencePreview' => $preview,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => audience_band_label_th($currentKey) . ' เย็น/กว้างเกิน · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่สลับสินค้าอัตโนมัติ — แก้ targetAudience ที่หน้าสินค้าให้ชัด (ใคร + สถานการณ์) แล้ว Approve ก่อนโพสต์มือ',
+            ];
+        } elseif ($unbalanced && $same && $cold && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($bands as $b) {
+                if ($b['band'] !== $currentKey && in_array($b['status'], ['steady', 'no_data'], true) && $b['band'] !== 'empty') {
+                    $alt = $b;
+                    break;
+                }
+            }
+            if (!$alt) $alt = $cold[0];
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => audience_band_label_th($currentKey),
+                'suggestedBand' => $alt['band'],
+                'suggestedLabel' => $alt['bandLabel'],
+                'audienceScore' => $audScore,
+                'audiencePreview' => $preview,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => 'วันนี้ซ้อนระดับ ' . audience_band_label_th($currentKey) . ' — ลองกระจายไป ' . $alt['bandLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยนกลุ่มเอง — แก้ targetAudience/คิวแล้ว Approve ใหม่',
+            ];
+        }
+    }
+    $suggestions = array_slice($suggestions, 0, 5);
+
+    $actions = [];
+    if ($postedN === 0) {
+        $actions[] = [
+            'id' => 'need-metrics',
+            'title' => 'เริ่มเก็บผลรายระดับกลุ่มเป้าหมาย',
+            'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ Results อย่างน้อย 1 ชิ้นต่อระดับความชัดของกลุ่ม',
+        ];
+    }
+    if ($best && $best['status'] === 'hot') {
+        $actions[] = [
+            'id' => 'lean-audience',
+            'title' => 'เอียงทดลองไประดับ ' . $best['bandLabel'],
+            'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต ไม่ถล่มทุกโพสต์',
+        ];
+    }
+    if ($unbalanced) {
+        $actions[] = [
+            'id' => 'diversify',
+            'title' => 'กระจายมิกซ์ระดับกลุ่มเป้าหมาย',
+            'detail' => 'ระดับกลุ่มเด่นกินสัดส่วนสูง — เพิ่ม draft คนละระดับ 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)',
+        ];
+    }
+    if ($cold) {
+        $actions[] = [
+            'id' => 'review-cold',
+            'title' => 'ทบทวนระดับเย็น: ' . implode(', ', array_map(fn($b) => $b['bandLabel'], $cold)),
+            'detail' => 'เขียนกลุ่มให้ชัดขึ้น หรือพักมุมนั้นชั่วคราว — อย่าโพสต์ซ้ำข้อความเดิม',
+        ];
+    }
+    $emptyCatalog = 0;
+    $vagueCatalog = 0;
+    foreach ($products as $p) {
+        $b = audience_band_of(audience_clarity_score($p));
+        if ($b === 'empty') $emptyCatalog++;
+        if ($b === 'vague') $vagueCatalog++;
+    }
+    if ($emptyCatalog > 0) {
+        $actions[] = [
+            'id' => 'fill-empty',
+            'title' => 'เติมกลุ่มเป้าหมายว่าง ' . $emptyCatalog . ' ชิ้น',
+            'detail' => 'สินค้าไม่มี targetAudience — กรอกใคร + สถานการณ์ (>8 ตัวอักษร) เพื่อเปิด scoring +14 และช่วยเขียนแคปชัน',
+        ];
+    }
+    if ($vagueCatalog > 0) {
+        $actions[] = [
+            'id' => 'sharpen-vague',
+            'title' => 'ทำให้กลุ่มกว้างชัดขึ้น ' . $vagueCatalog . ' ชิ้น',
+            'detail' => 'หลีกเลี่ยงคำว่า "ทุกคน/ทั่วไป" — ระบุบทบาทหรือสถานการณ์ เช่น "สาวออฟฟิศที่มือแห้งตอนเช้า"',
+        ];
+    }
+    $actions[] = [
+        'id' => 'compliance',
+        'title' => 'คงกฎ Approve + disclosure',
+        'detail' => 'ทุกระดับกลุ่มต้องมีข้อความ affiliate และผ่าน Approve ก่อนโพสต์มือ — ระบบไม่โพสต์อัตโนมัติ',
+    ];
+    $actions = array_slice($actions, 0, 5);
+
+    if ($postedN === 0) {
+        $summary = 'Audience Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับความชัดของกลุ่มเป้าหมาย';
+    } else {
+        $summary = 'Audience Fit Lab: ' . $postedN . ' โพสต์มีเมตริก · ระดับที่มีข้อมูล ' . count($withData)
+            . ' · ร้อน ' . $hot . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    }
+
+    $checklist = [
+        'อันดับระดับกลุ่มมาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับระดับเป็นคำแนะนำเท่านั้น — ต้องแก้เอง + Approve',
+        'อย่าถล่มกลุ่มเป้าหมายแบบเดียวซ้ำ ๆ ในวันเดียวกัน (กันสแปม)',
+        'ทุกโพสต์ต้องมี disclosure และไม่ใช้คำโฆษณาเกินจริง',
+    ];
+
+    $lines = [
+        "Audience Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = $statusLabel[$b['status']] . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score']
+            . ' (' . $confLabel[$b['confidence']] . ', n=' . $b['samples'] . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => $postedN,
+            'bandsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => $suggestions,
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function audience_fit_lab_to_markdown(array $lab): string
+{
+    $bandRows = [];
+    foreach ($lab['bands'] as $i => $b) {
+        if (($b['samples'] ?? 0) <= 0 && ($b['productCount'] ?? 0) <= 0) continue;
+        $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'][$b['status']] ?? $b['status'];
+        $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'][$b['confidence']] ?? $b['confidence'];
+        $n = $i + 1;
+        $bandRows[] = "{$n}. **[{$statusLabel}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel}\n"
+            . "   สินค้าในแคตตาล็อก {$b['productCount']} · audienceScore avg ~{$b['avgAudienceScore']} · ความยาว avg ~{$b['avgAudienceLen']}\n"
+            . '   CTR ~' . round($b['avgCtr'] * 100, 1) . "% · ออเดอร์/คลิก ~{$b['avgOrdersPerClick']} · ค่าคอมเฉลี่ย ฿{$b['avgCommission']}\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']} · audienceScore {$s['audienceScore']}\n"
+            . "   กลุ่ม: {$s['audiencePreview']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) {
+        $suggestionRows[] = '_(ไม่มีคำแนะนำสลับระดับกลุ่มวันนี้)_';
+    }
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = [];
+    foreach ($lab['checklist'] as $c) {
+        $checkLines[] = "- {$c}";
+    }
+
+    return "# Audience Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- ระดับกลุ่มที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . ($lab['counts']['unbalanced'] ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับระดับกลุ่มเป้าหมาย (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+
+
+/**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
  */
@@ -7051,6 +7556,7 @@ function run_morning_workflow(?string $date = null): array
     $painClarityFitLines = array_slice(build_pain_clarity_fit_lab($date)['lines'], 0, 4);
     $videoEaseFitLines = array_slice(build_video_ease_fit_lab($date)['lines'], 0, 4);
     $seasonalFitLines = array_slice(build_seasonal_fit_lab($date)['lines'], 0, 4);
+    $audienceFitLines = array_slice(build_audience_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -7075,6 +7581,7 @@ function run_morning_workflow(?string $date = null): array
         ...$painClarityFitLines,
         ...$videoEaseFitLines,
         ...$seasonalFitLines,
+        ...$audienceFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -7168,6 +7675,7 @@ function run_evening_workflow(?string $date = null): array
     $painClarityFitLab = build_pain_clarity_fit_lab($date);
     $videoEaseFitLab = build_video_ease_fit_lab($date);
     $seasonalFitLab = build_seasonal_fit_lab($date);
+    $audienceFitLab = build_audience_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -7214,6 +7722,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($seasonalFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($audienceFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -7248,6 +7759,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($seasonalFitLab['counts']['hot'] ?? 0) > 0 || !empty($seasonalFitLab['counts']['unbalanced'])) {
         $recs[] = 'Seasonal Fit: ช่วงร้อน ' . $seasonalFitLab['counts']['hot'] . ' · ' . $seasonalFitLab['mixTip'];
+    }
+    if (($audienceFitLab['counts']['hot'] ?? 0) > 0 || !empty($audienceFitLab['counts']['unbalanced'])) {
+        $recs[] = 'Audience Fit: ช่วงร้อน ' . $audienceFitLab['counts']['hot'] . ' · ' . $audienceFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

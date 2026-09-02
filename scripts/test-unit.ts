@@ -100,6 +100,13 @@ import {
   seasonalScoreOf,
 } from "../src/lib/seasonal-fit";
 import {
+  audienceBandOf,
+  audienceClarityScoreOf,
+  audienceFitLabLines,
+  audienceFitLabToMarkdown,
+  buildAudienceFitLab,
+} from "../src/lib/audience-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -3538,6 +3545,177 @@ function run() {
   assert.equal(emptySeason.counts.postsWithMetrics, 0);
   assert.ok(
     emptySeason.summary.includes("ยังไม่มีเมตริก") || emptySeason.score <= 50,
+  );
+
+  // --- Audience Fit Lab ---
+  assert.equal(audienceBandOf(0), "empty");
+  assert.equal(audienceBandOf(20), "vague");
+  assert.equal(audienceBandOf(40), "named");
+  assert.equal(audienceBandOf(60), "specific");
+  assert.equal(audienceBandOf(80), "sharp");
+
+  const audSharp: Product = {
+    ...fitProduct,
+    id: "prod_aud_sharp",
+    name: "ครีมมือสาวออฟฟิศ",
+    price: 199,
+    commissionRate: 18,
+    category: "ความงาม",
+    painPoints: ["มือแห้งตอนเช้า"],
+    sellingPoints: ["ซึมไว"],
+    targetAudience: "สาวออฟฟิศที่มือแห้งตอนเช้าและอยากประหยัดเวลา",
+    videoEase: 4,
+    seasonalScore: 3,
+  };
+  const sharpScore = audienceClarityScoreOf(audSharp);
+  assert.ok(sharpScore >= 75, `expected sharp score, got ${sharpScore}`);
+  assert.equal(audienceBandOf(sharpScore), "sharp");
+
+  const audEmpty: Product = {
+    ...fitProduct,
+    id: "prod_aud_empty",
+    name: "สินค้าไม่มีกลุ่ม",
+    price: 450,
+    commissionRate: 8,
+    category: "ทั่วไป",
+    painPoints: ["ไม่ชัด"],
+    sellingPoints: ["ใช้ได้"],
+    targetAudience: "",
+    videoEase: 2,
+    seasonalScore: 2,
+  };
+  assert.equal(audienceClarityScoreOf(audEmpty), 0);
+  assert.equal(audienceBandOf(audienceClarityScoreOf(audEmpty)), "empty");
+
+  const audVague: Product = {
+    ...fitProduct,
+    id: "prod_aud_vague",
+    name: "สินค้ากลุ่มกว้าง",
+    price: 299,
+    commissionRate: 10,
+    category: "ทั่วไป",
+    painPoints: ["หาของยาก"],
+    sellingPoints: ["คุ้ม"],
+    targetAudience: "ทุกคน",
+    videoEase: 3,
+    seasonalScore: 2,
+  };
+  assert.equal(audienceBandOf(audienceClarityScoreOf(audVague)), "vague");
+
+  const audSchedule = [
+    {
+      id: "sch_aud_s1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_aud_sharp",
+      contentPackId: "pack_aud_s",
+      status: "posted" as const,
+      captionPreview: `a1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2600,
+        clicks: 150,
+        orders: 10,
+        commissionEarned: 300,
+      },
+    },
+    {
+      id: "sch_aud_s2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_aud_sharp",
+      contentPackId: "pack_aud_s",
+      status: "posted" as const,
+      captionPreview: `a2 ${fitDisclosure}`,
+      hookIndex: 1,
+      ctaIndex: 0,
+      metrics: {
+        views: 2000,
+        clicks: 110,
+        orders: 7,
+        commissionEarned: 210,
+      },
+    },
+    {
+      id: "sch_aud_e1",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_aud_empty",
+      contentPackId: "pack_aud_e",
+      status: "posted" as const,
+      captionPreview: `e1 ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 1,
+      metrics: {
+        views: 350,
+        clicks: 6,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_aud_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: "prod_aud_empty",
+      contentPackId: "pack_aud_e",
+      status: "draft" as const,
+      captionPreview: `today ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  const audLab = buildAudienceFitLab(
+    {
+      products: [audSharp, audEmpty, audVague],
+      contentPacks: [],
+      schedule: audSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(audLab.counts.postsWithMetrics, 3);
+  const audSharpRow = audLab.bands.find((b) => b.band === "sharp");
+  const audEmptyRow = audLab.bands.find((b) => b.band === "empty");
+  assert.ok(audSharpRow);
+  assert.ok(audEmptyRow);
+  assert.ok(audSharpRow!.score > audEmptyRow!.score);
+  assert.ok(["hot", "steady"].includes(audSharpRow!.status));
+  assert.ok(audLab.suggestions.length >= 1);
+  assert.ok(
+    audLab.suggestions[0].suggestedBand === "sharp" ||
+      audLab.suggestions[0].suggestedLabel.includes("คม"),
+  );
+  assert.ok(audienceFitLabLines(audLab, 3).length <= 3);
+  const audMd = audienceFitLabToMarkdown(audLab);
+  assert.ok(audMd.includes("Audience Fit Lab"));
+  assert.ok(audMd.includes("ทดลอง"));
+  assert.ok(audMd.includes("ไม่เปลี่ยนอัตโนมัติ") || audMd.includes("Approve"));
+  assert.ok(
+    audMd.includes("ไม่รับประกัน") ||
+      audMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyAud = buildAudienceFitLab(
+    {
+      products: [audSharp, audEmpty],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyAud.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyAud.summary.includes("ยังไม่มีเมตริก") || emptyAud.score <= 50,
   );
 
   console.log("All unit tests passed");
