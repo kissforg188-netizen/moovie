@@ -110,6 +110,11 @@ import {
   audienceFitLabLines,
   type AudienceFitLab,
 } from "./audience-fit";
+import {
+  buildHookFitLab,
+  hookFitLabLines,
+  type HookFitLab,
+} from "./hook-fit";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -299,6 +304,7 @@ export async function runMorningWorkflow(
         ...videoEaseFitLabLines(buildVideoEaseFitLab(db, date), 4),
         ...seasonalFitLabLines(buildSeasonalFitLab(db, date), 4),
         ...audienceFitLabLines(buildAudienceFitLab(db, date), 4),
+        ...hookFitLabLines(buildHookFitLab(db, date), 4),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -407,6 +413,7 @@ export async function runEveningWorkflow(
       const videoEaseFitLab = buildVideoEaseFitLab(db, date);
       const seasonalFitLab = buildSeasonalFitLab(db, date);
       const audienceFitLab = buildAudienceFitLab(db, date);
+      const hookFitLab = buildHookFitLab(db, date);
 
       const recommendations = [
         ...analysis.recommendations,
@@ -429,6 +436,7 @@ export async function runEveningWorkflow(
         ...videoEaseFitLabLines(videoEaseFitLab, 5),
         ...seasonalFitLabLines(seasonalFitLab, 5),
         ...audienceFitLabLines(audienceFitLab, 5),
+        ...hookFitLabLines(hookFitLab, 5),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -470,6 +478,9 @@ export async function runEveningWorkflow(
           : null,
         audienceFitLab.counts.hot > 0 || audienceFitLab.counts.unbalanced
           ? `Audience Fit: ช่วงร้อน ${audienceFitLab.counts.hot} · ${audienceFitLab.mixTip}`
+          : null,
+        hookFitLab.counts.hot > 0 || hookFitLab.counts.unbalanced
+          ? `Hook Fit: ช่วงร้อน ${hookFitLab.counts.hot} · ${hookFitLab.mixTip}`
           : null,
       ].filter(Boolean) as string[];
 
@@ -533,6 +544,7 @@ export async function getDashboardSnapshot(): Promise<{
   videoEaseFitLab: VideoEaseFitLab;
   seasonalFitLab: SeasonalFitLab;
   audienceFitLab: AudienceFitLab;
+  hookFitLab: HookFitLab;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -585,6 +597,7 @@ export async function getDashboardSnapshot(): Promise<{
   const videoEaseFitLab = buildVideoEaseFitLab(db, date);
   const seasonalFitLab = buildSeasonalFitLab(db, date);
   const audienceFitLab = buildAudienceFitLab(db, date);
+  const hookFitLab = buildHookFitLab(db, date);
   return {
     db,
     ranked,
@@ -611,5 +624,6 @@ export async function getDashboardSnapshot(): Promise<{
     videoEaseFitLab,
     seasonalFitLab,
     audienceFitLab,
+    hookFitLab,
   };
 }

@@ -19,6 +19,7 @@ import { buildPainClarityFitLab } from "@/lib/pain-clarity";
 import { buildVideoEaseFitLab } from "@/lib/video-ease";
 import { buildSeasonalFitLab } from "@/lib/seasonal-fit";
 import { buildAudienceFitLab } from "@/lib/audience-fit";
+import { buildHookFitLab } from "@/lib/hook-fit";
 import { weeklyInsightLines, weeklyProductRollup } from "@/lib/weekly";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,7 @@ export default async function ResultsPage() {
   const videoEaseFitLab = buildVideoEaseFitLab(db, date);
   const seasonalFitLab = buildSeasonalFitLab(db, date);
   const audienceFitLab = buildAudienceFitLab(db, date);
+  const hookFitLab = buildHookFitLab(db, date);
 
   return (
     <div className="space-y-8">
@@ -820,6 +822,76 @@ export default async function ResultsPage() {
         )}
         <p className="text-xs text-[var(--ink-soft)]">
           {audienceFitLab.disclaimer}
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <h2 className="brand-mark text-3xl text-[var(--sage-deep)]">
+            Hook Fit Lab
+          </h2>
+          <a
+            href="/api/export?format=md&scope=hook-fit"
+            className="text-xs text-[var(--sage)] hover:underline"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-sm text-[var(--ink-soft)]">
+          {hookFitLab.summary}
+        </p>
+        <p className="text-sm text-[var(--sage-deep)]">
+          {hookFitLab.mixTip}
+        </p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">เกรดแล็บ</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {hookFitLab.grade}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">มีเมตริก</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {hookFitLab.counts.postsWithMetrics}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">ช่วงร้อน</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {hookFitLab.counts.hot}
+            </p>
+          </div>
+          <div className="surface rounded-2xl p-3 text-sm">
+            <p className="text-[var(--ink-soft)]">คำแนะนำ</p>
+            <p className="text-lg text-[var(--sage-deep)]">
+              {hookFitLab.counts.suggestions}
+            </p>
+          </div>
+        </div>
+        {hookFitLab.counts.postsWithMetrics === 0 ? (
+          <p className="text-xs text-[var(--ink-soft)]">
+            กรอกเมตริกด้านล่างเพื่อจัดอันดับสไตล์เปิดคลิป — ไม่ใช่การันตียอดขาย
+          </p>
+        ) : (
+          <ul className="list-disc space-y-2 pl-5 text-xs text-[var(--ink-soft)]">
+            {hookFitLab.bands
+              .filter((b) => b.samples > 0)
+              .slice(0, 4)
+              .map((b) => (
+                <li key={b.band}>
+                  <span className="text-[var(--ink)]">{b.bandLabel}</span>
+                  {" · "}
+                  คะแนน {b.score}/100 (n={b.samples}) · CTR ~
+                  {(b.avgCtr * 100).toFixed(1)}%
+                  <br />
+                  {b.tip}
+                </li>
+              ))}
+          </ul>
+        )}
+        <p className="text-xs text-[var(--ink-soft)]">
+          {hookFitLab.disclaimer}
         </p>
       </section>
 

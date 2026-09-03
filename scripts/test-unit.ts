@@ -107,6 +107,14 @@ import {
   buildAudienceFitLab,
 } from "../src/lib/audience-fit";
 import {
+  classifyHookStyle,
+  hookFitLabLines,
+  hookFitLabToMarkdown,
+  hookStyleFromIndex,
+  hookStyleOf,
+  buildHookFitLab,
+} from "../src/lib/hook-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -3716,6 +3724,220 @@ function run() {
   assert.equal(emptyAud.counts.postsWithMetrics, 0);
   assert.ok(
     emptyAud.summary.includes("ยังไม่มีเมตริก") || emptyAud.score <= 50,
+  );
+
+  // --- Hook Fit Lab ---
+  assert.equal(classifyHookStyle("เคยเจอไหม… มือแห้งตอนเช้า"), "pain");
+  assert.equal(
+    classifyHookStyle("เปิดดูสเปก/รีวิวบน Shopee ก่อนตัดสินใจ"),
+    "browse",
+  );
+  assert.equal(
+    classifyHookStyle("ซึมไว — ราคาประมาณ ฿199"),
+    "value",
+  );
+  assert.equal(
+    classifyHookStyle("ของชิ้นเล็กที่คนสาวออฟฟิศพูดถึงบ่อย"),
+    "social",
+  );
+  assert.equal(classifyHookStyle("ไม่ต้องซื้อแพงก่อน ลองดูตัวเลือกนี้ก่อนได้"), "soft");
+  assert.equal(hookStyleFromIndex(0), "pain");
+  assert.equal(hookStyleFromIndex(1), "browse");
+  assert.equal(hookStyleFromIndex(3), "value");
+
+  const packPain = {
+    id: "pack_hook_pain",
+    productId: "prod_hook_pain",
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: [
+      "เคยเจอไหม… มือแห้งตอนเช้า",
+      "เปิดดูสเปกบน Shopee ก่อน",
+      "ถ้ากำลังหาของช่วยเรื่องความงาม",
+      "ซึมไว — ราคาประมาณ ฿199",
+      "ของชิ้นเล็กที่คนสาวออฟฟิศพูดถึงบ่อย",
+    ],
+    ctas: ["ดูรายละเอียดได้ที่ลิงก์"],
+    hashtagsTh: ["#รีวิว"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: { durationSec: 25, scenes: [], voiceover: "" },
+    facebookCaption: fitDisclosure,
+    facebookGroupCaption: fitDisclosure,
+    reelsCaption: fitDisclosure,
+    videoPriorityNote: "ถ่ายง่าย",
+    filmingChecklist: ["แสงพอ"],
+    sellingAngles: ["มุมปัญหา"],
+  };
+
+  const packSoft = {
+    ...packPain,
+    id: "pack_hook_soft",
+    productId: "prod_hook_soft",
+    hooks: [
+      "ไม่ต้องซื้อแพงก่อน ลองดูตัวเลือกนี้ก่อนได้",
+      "สั้น ๆ ตรง ๆ — จุดที่ชอบคือ ใช้งานง่าย",
+      "แชร์ตัวเลือก ไม่เร่งกดซื้อ",
+      "ลองดูตัวเลือกนี้ก่อนได้",
+      "ไม่เร่งซื้อ — เปิดดูรายละเอียดก่อน",
+    ],
+  };
+
+  assert.equal(
+    hookStyleOf(
+      { hookIndex: 0, captionPreview: "", contentPackId: packPain.id },
+      packPain as never,
+    ),
+    "pain",
+  );
+  assert.equal(
+    hookStyleOf(
+      { hookIndex: 0, captionPreview: "", contentPackId: packSoft.id },
+      packSoft as never,
+    ),
+    "soft",
+  );
+
+  const hookPainProd: Product = {
+    ...fitProduct,
+    id: "prod_hook_pain",
+    name: "ครีมมือ pain hook",
+    price: 199,
+    commissionRate: 18,
+    category: "ความงาม",
+    painPoints: ["มือแห้ง"],
+    sellingPoints: ["ซึมไว"],
+    targetAudience: "สาวออฟฟิศ",
+    videoEase: 4,
+    seasonalScore: 3,
+  };
+  const hookSoftProd: Product = {
+    ...fitProduct,
+    id: "prod_hook_soft",
+    name: "ครีมมือ soft hook",
+    price: 450,
+    commissionRate: 8,
+    category: "ความงาม",
+    painPoints: ["มือแห้ง"],
+    sellingPoints: ["ใช้ได้"],
+    targetAudience: "ทั่วไป",
+    videoEase: 2,
+    seasonalScore: 2,
+  };
+
+  const hookSchedule = [
+    {
+      id: "sch_hook_p1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_hook_pain",
+      contentPackId: "pack_hook_pain",
+      status: "posted" as const,
+      captionPreview: `เคยเจอไหม… มือแห้ง ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2800,
+        clicks: 160,
+        orders: 11,
+        commissionEarned: 320,
+      },
+    },
+    {
+      id: "sch_hook_p2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_hook_pain",
+      contentPackId: "pack_hook_pain",
+      status: "posted" as const,
+      captionPreview: `เคยเจอไหม… ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2100,
+        clicks: 120,
+        orders: 8,
+        commissionEarned: 220,
+      },
+    },
+    {
+      id: "sch_hook_s1",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_hook_soft",
+      contentPackId: "pack_hook_soft",
+      status: "posted" as const,
+      captionPreview: `ไม่ต้องซื้อแพง ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 1,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_hook_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: "prod_hook_soft",
+      contentPackId: "pack_hook_soft",
+      status: "draft" as const,
+      captionPreview: `today soft ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  const hookLab = buildHookFitLab(
+    {
+      products: [hookPainProd, hookSoftProd],
+      contentPacks: [packPain, packSoft] as never[],
+      schedule: hookSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(hookLab.counts.postsWithMetrics, 3);
+  const painRow = hookLab.bands.find((b) => b.band === "pain");
+  const softRow = hookLab.bands.find((b) => b.band === "soft");
+  assert.ok(painRow);
+  assert.ok(softRow);
+  assert.ok(painRow!.score > softRow!.score);
+  assert.ok(["hot", "steady"].includes(painRow!.status));
+  assert.ok(hookLab.suggestions.length >= 1);
+  assert.ok(
+    hookLab.suggestions[0].suggestedBand === "pain" ||
+      hookLab.suggestions[0].suggestedLabel.includes("ปัญหา"),
+  );
+  assert.ok(hookFitLabLines(hookLab, 3).length <= 3);
+  const hookMd = hookFitLabToMarkdown(hookLab);
+  assert.ok(hookMd.includes("Hook Fit Lab"));
+  assert.ok(hookMd.includes("ทดลอง"));
+  assert.ok(hookMd.includes("ไม่เปลี่ยนอัตโนมัติ") || hookMd.includes("Approve"));
+  assert.ok(
+    hookMd.includes("ไม่รับประกัน") ||
+      hookMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyHook = buildHookFitLab(
+    {
+      products: [hookPainProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyHook.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyHook.summary.includes("ยังไม่มีเมตริก") || emptyHook.score <= 50,
   );
 
   console.log("All unit tests passed");

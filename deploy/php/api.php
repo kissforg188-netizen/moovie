@@ -312,6 +312,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md audience-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['hook-fit', 'hook', 'hook-style', 'hooks'], true)) {
+                $lab = build_hook_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-hook-fit-lab-'.today_iso().'.md"');
+                echo hook_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md hook-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

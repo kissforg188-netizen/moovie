@@ -39,7 +39,7 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 - `src/lib/` — scoring, content, schedule, compliance, workflows, playbooks, results-intake
 - `src/app/` — dashboard pages + API routes
 - `scripts/` — seed, morning/evening CLI, unit tests
-- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-5d68`)
+- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-aaca`)
 
 ### Rules agents must keep
 
@@ -50,5 +50,5 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 
 ### Latest incremental feature
 
-- **Video Ease Lab** (`src/lib/video-ease.ts` + PHP `build_video_ease_fit_lab`) — soft ranking of short-video filming ease bands (hard1 / tough2 / ok3 / easy4 / snap5 from product.videoEase 1–5) from logged metrics; mix tips + queue suggestions (never auto-swap); morning/evening brief lines; export `scope=video-ease`
-- Prior tip: **Pain Clarity Lab** (`src/lib/pain-clarity.ts` + PHP `build_pain_clarity_fit_lab`) — pain clarity bands empty/thin/solid/clear/sharp; export `scope=pain-clarity`
+- **Hook Fit Lab** (`src/lib/hook-fit.ts` + PHP `build_hook_fit_lab`) — soft ranking of opening-hook style bands (pain / browse / value / social / soft) from logged metrics; mix tips + queue suggestions (never auto-swap hooks); morning/evening brief lines; export `scope=hook-fit`
+- Prior tip: **Audience Fit Lab** (`src/lib/audience-fit.ts` + PHP `build_audience_fit_lab`) — target-audience clarity bands; export `scope=audience-fit`

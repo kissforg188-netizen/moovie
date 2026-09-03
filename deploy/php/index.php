@@ -46,6 +46,7 @@ $painClarityFitLab = build_pain_clarity_fit_lab($date);
 $videoEaseFitLab = build_video_ease_fit_lab($date);
 $seasonalFitLab = build_seasonal_fit_lab($date);
 $audienceFitLab = build_audience_fit_lab($date);
+$hookFitLab = build_hook_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -619,6 +620,7 @@ $audienceFitLab = build_audience_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=video-ease">Export Video Ease Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=seasonal-fit">Export Seasonal Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=audience-fit">Export Audience Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=hook-fit">Export Hook Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($painClarityFitLab['disclaimer']) ?></p>
@@ -763,6 +765,53 @@ $audienceFitLab = build_audience_fit_lab($date);
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($audienceFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Hook Fit Lab</h2>
+        <p class="muted"><?= h($hookFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($hookFitLab['grade']) ?> · <?= (int)$hookFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$hookFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($hookFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$hookFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>สไตล์มีข้อมูล</p><strong><?= (int)$hookFitLab['counts']['bandsWithData'] ?></strong></article>
+          <article><p>ร้อน</p><strong><?= (int)$hookFitLab['counts']['hot'] ?></strong></article>
+          <article><p>คำแนะนำ</p><strong><?= (int)$hookFitLab['counts']['suggestions'] ?></strong></article>
+        </div>
+        <?php
+          $hookBandRows = array_values(array_filter($hookFitLab['bands'], fn($b) => ($b['samples'] ?? 0) > 0));
+          if (!$hookBandRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายสไตล์ hook — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($hookBandRows, 0, 4) as $b): ?>
+              <li>
+                <strong>[<?= h($b['status'] === 'hot' ? 'ร้อน' : ($b['status'] === 'cold' ? 'เย็น' : ($b['status'] === 'steady' ? 'นิ่ง' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($b['bandLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$b['score'] ?>/100 · n=<?= (int)$b['samples'] ?> · CTR ~<?= h((string)round($b['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($b['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($hookFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($hookFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentLabel']) ?> → <?= h($s['suggestedLabel']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($hookFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=hook-fit">Export Hook Fit Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($hookFitLab['disclaimer']) ?></p>
       </section>
 
       <section class="card fade-up">
@@ -1017,6 +1066,7 @@ $audienceFitLab = build_audience_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=video-ease">Export Video Ease Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=seasonal-fit">Export Seasonal Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=audience-fit">Export Audience Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=hook-fit">Export Hook Fit Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>
