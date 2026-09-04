@@ -319,6 +319,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md hook-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['cta-fit', 'cta', 'cta-style', 'ctas'], true)) {
+                $lab = build_cta_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-cta-fit-lab-'.today_iso().'.md"');
+                echo cta_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md cta-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

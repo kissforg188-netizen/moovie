@@ -6057,6 +6057,482 @@ function hook_fit_lab_to_markdown(array $lab): string
 
 
 
+function cta_style_order(): array
+{
+    return ['detail', 'soft_gate', 'compare', 'soft_pass', 'generic'];
+}
+
+function cta_style_label(string $band): string
+{
+    return [
+        'detail' => 'ชวนดูรายละเอียด/ลิงก์',
+        'soft_gate' => 'ถ้าเข้าเงื่อนไขค่อยดู',
+        'compare' => 'ชวนเทียบของเดิม',
+        'soft_pass' => 'ไม่เร่งซื้อ · ตัดสินใจเอง',
+        'generic' => 'CTA ทั่วไป/ไม่ชัด',
+    ][$band] ?? $band;
+}
+
+function cta_style_range(string $band): string
+{
+    return [
+        'detail' => 'ดูรายละเอียด · ลิงก์ในไบโอ/คอมเมนต์ · อ่านสเปก',
+        'soft_gate' => 'ถ้าเข้าเงื่อนไข · ค่อยกดดู',
+        'compare' => 'เทียบกับของเดิม · เปิดดูสเปก/รีวิว',
+        'soft_pass' => 'ไม่เร่งซื้อ · ค่อยตัดสินใจเอง',
+        'generic' => 'กดลิงก์ / สั่งเลย / ไม่เข้าแพทเทิร์นอ่อน',
+    ][$band] ?? '';
+}
+
+function cta_style_hint(string $band): string
+{
+    return [
+        'detail' => 'ปิดด้วยชวนเปิดดูสเปก/รีวิวที่ลิงก์ — ไม่เร่งกดซื้อ',
+        'soft_gate' => 'ใส่เงื่อนไขสั้น ๆ ก่อนชวนดูลิงก์ (เหมาะของเฉพาะทาง)',
+        'compare' => 'ชวนเทียบของเดิม 1 จุด แล้วเปิดดูรายละเอียด',
+        'soft_pass' => 'ย้ำว่าไม่เร่งซื้อ — ให้ผู้ชมตัดสินใจเองหลังดูข้อมูล',
+        'generic' => 'เขียน CTA อ่อนใหม่ให้ชัดกว่า “กดลิงก์” เปล่า ๆ',
+    ][$band] ?? '';
+}
+
+function classify_cta_style(string $raw): string
+{
+    $text = trim(preg_replace('/\s+/u', ' ', $raw) ?? '');
+    if ($text === '') return 'generic';
+    if (preg_match('/ถ้าเข้าเงื่อนไข|ค่อยกดดู|ค่อยดูรายละเอียด|ถ้าเหมาะกับคุณ|ถ้าเข้าเงื่อนไขใช้งาน/u', $text)) return 'soft_gate';
+    if (preg_match('/เทียบกับของเดิม|อยากลองเทียบ|เปิดลิงก์ไปดูสเปก|เทียบสเปก|เทียบก่อน/u', $text)) return 'compare';
+    if (preg_match('/ไม่เร่งซื้อ|ค่อยตัดสินใจเอง|ตัดสินใจเองได้|ไม่ต้องรีบ|ไม่เร่งกด/u', $text)) return 'soft_pass';
+    if (preg_match('/ดูรายละเอียด|อ่านรีวิว|ลิงก์ในคอมเมนต์|ลิงก์ในไบโอ|ลิงก์ด้านล่าง|เปิดดูรายละเอียด|ดูสเปก/u', $text)) return 'detail';
+    if (preg_match('/สั่งเลย|กดซื้อเลย|รีบก่อนหมด|รับประกัน|การันตี|รวยแน่/u', $text)) return 'generic';
+    return 'generic';
+}
+
+function cta_style_from_index(int $index): string
+{
+    $map = ['detail', 'soft_gate', 'compare', 'soft_pass', 'detail', 'soft_pass'];
+    if ($index < 0) return 'generic';
+    return $map[$index % count($map)] ?? 'generic';
+}
+
+function resolve_cta_text(?array $pack, int $ctaIndex, string $captionPreview = ''): string
+{
+    $fromPack = trim((string)($pack['ctas'][$ctaIndex] ?? ''));
+    if ($fromPack !== '') return $fromPack;
+    $preview = trim($captionPreview);
+    if ($preview !== '') {
+        $lines = array_values(array_filter(array_map('trim', preg_split('/\n/', $preview) ?: []), fn($l) => $l !== ''));
+        if ($lines) return mb_substr($lines[count($lines) - 1], 0, 180);
+    }
+    return '';
+}
+
+function cta_style_of(array $post, ?array $pack = null): string
+{
+    $text = resolve_cta_text($pack, (int)($post['cta_index'] ?? 0), (string)($post['caption_preview'] ?? ''));
+    if ($text !== '') return classify_cta_style($text);
+    return cta_style_from_index((int)($post['cta_index'] ?? 0));
+}
+
+function build_cta_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = cta_style_order();
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+
+    $products = all_products();
+    $byId = [];
+    foreach ($products as $p) $byId[$p['id']] = $p;
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE status='posted' AND metrics_at IS NOT NULL AND post_date BETWEEN ? AND ?");
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $byBand = [];
+    foreach ($order as $b) $byBand[$b] = [];
+    $allComm = [];
+    $packCache = [];
+    foreach ($posted as $row) {
+        $packId = (string)($row['content_pack_id'] ?? '');
+        if ($packId !== '' && !isset($packCache[$packId])) {
+            $pstmt = db()->prepare('SELECT * FROM content_packs WHERE id=?');
+            $pstmt->execute([$packId]);
+            $prow = $pstmt->fetch();
+            $packCache[$packId] = $prow ? [
+                'hooks' => decode_list($prow['hooks']),
+                'ctas' => decode_list($prow['ctas'] ?? '[]'),
+            ] : null;
+        }
+        $pack = $packCache[$packId] ?? null;
+        if (!$pack) {
+            $pack = latest_pack((string)$row['product_id']) ?: ['hooks' => [], 'ctas' => []];
+        }
+        $key = cta_style_of([
+            'cta_index' => (int)($row['cta_index'] ?? 0),
+            'caption_preview' => (string)($row['caption_preview'] ?? ''),
+            'content_pack_id' => $packId,
+        ], $pack);
+        $byBand[$key][] = $row;
+        $allComm[] = (float)$row['commission_earned'];
+    }
+    $globalAvg = $allComm ? array_sum($allComm) / count($allComm) : 0.0;
+    $postedN = count($posted);
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band];
+        $samples = count($list);
+        $views = array_map(fn($r) => (int)$r['views'], $list);
+        $clicks = array_map(fn($r) => (int)$r['clicks'], $list);
+        $orders = array_map(fn($r) => (int)$r['orders_count'], $list);
+        $comms = array_map(fn($r) => (float)$r['commission_earned'], $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0.0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0.0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0.0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0.0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0.0;
+        $avgOpc = $totalClicks > 0 ? $totalOrders / $totalClicks : 0.0;
+        $share = $postedN > 0 ? $samples / $postedN : 0.0;
+        $avgCtaIndex = $samples ? array_sum(array_map(fn($r) => (int)($r['cta_index'] ?? 0), $list)) / $samples : 0.0;
+
+        $score = 0.0;
+        if ($samples > 0) {
+            $commBase = $globalAvg > 0
+                ? max(0, min(70, ($avgCommission / $globalAvg) * 50))
+                : max(0, min(50, $avgCommission * 2));
+            $ctrScore = max(0, min(22, $avgCtr * 220));
+            $opcScore = max(0, min(15, $avgOpc * 100));
+            $orderScore = max(0, min(15, $avgOrders * 8));
+            $score = $commBase + $ctrScore + $opcScore + $orderScore;
+            if ($band === 'soft_pass') $score += 4;
+            elseif ($band === 'detail') $score += 3;
+            elseif ($band === 'soft_gate') $score += 2;
+            elseif ($band === 'compare') $score += 2;
+            elseif ($band === 'generic') $score -= 4;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = max(0, min(100, round($score)));
+        }
+
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        if ($samples === 0) $status = 'no_data';
+        elseif ($score >= 65 && $samples >= 2) $status = 'hot';
+        elseif ($score >= 45) $status = 'steady';
+        else $status = 'cold';
+
+        if ($samples === 0) {
+            $tip = 'ยังไม่มีผลสไตล์นี้ — ลอง draft 1 ชิ้นแนว “' . cta_style_hint($band) . '” แล้วกรอกเมตริก';
+        } elseif ($status === 'hot') {
+            $tip = 'CTA สไตล์นี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ต่อได้ แต่สลับสินค้า/มุมเพื่อไม่ให้ซ้ำ';
+        } elseif ($status === 'cold') {
+            $tip = 'ผลเย็นในสไตล์นี้ — ลองสลับ ctaIndex หรือสร้างแคปชันใหม่ก่อนโพสต์ซ้ำ';
+        } elseif ($share >= 0.55) {
+            $tip = 'ใช้สไตล์นี้บ่อย (' . round($share * 100) . '%) — กระจาย CTA เพื่อลดความซ้ำ';
+        } else {
+            $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในสไตล์นี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        }
+
+        $bands[] = [
+            'band' => $band,
+            'bandLabel' => cta_style_label($band),
+            'rangeLabel' => cta_style_range($band),
+            'samples' => $samples,
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOpc, 2),
+            'avgCtaIndex' => round($avgCtaIndex, 1),
+            'score' => (int)$score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => $tip,
+        ];
+    }
+    usort($bands, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['samples'] <=> $a['samples']));
+
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $topShare = 0.0;
+    foreach ($bands as $b) $topShare = max($topShare, (float)$b['shareOfPosts']);
+    $unbalanced = $topShare >= 0.55 && $postedN >= 3;
+    $scoredAvg = $withData ? array_sum(array_map(fn($b) => $b['score'], $withData)) / count($withData) : 0.0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && $postedN >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    $labScore = max(0, min(100, $labScore));
+    if (!$withData) $grade = 'D';
+    elseif ($labScore >= 75) $grade = 'A';
+    elseif ($labScore >= 58) $grade = 'B';
+    elseif ($labScore >= 40) $grade = 'C';
+    else $grade = 'D';
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot') { $best = $b; break; }
+    }
+    if (!$best && $withData) $best = $withData[0];
+    $cold = array_values(array_filter($withData, fn($b) => $b['status'] === 'cold'));
+
+    if ($postedN === 0) {
+        $mixTip = 'ยังไม่มีเมตริกรายสไตล์ CTA — โพสต์มือแล้วกรอกผลที่ Results ก่อนจัดมิกซ์';
+        $summary = 'CTA Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับสไตล์ปิดคลิป';
+    } else {
+        $summary = "CTA Fit Lab: {$postedN} โพสต์มีเมตริก · สไตล์ที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}" . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+        if ($unbalanced && $best) {
+            $mixTip = 'มิกซ์เอนไปสไตล์ ' . $best['bandLabel'] . ' มาก — วันถัดไปลองสลับ CTA 1 ชิ้น (ทดลอง)';
+        } elseif ($best) {
+            $mixTip = 'สไตล์ CTA เด่น: ' . $best['bandLabel'] . ' — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์';
+        } else {
+            $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามสไตล์ CTA ก่อนจัดอันดับมิกซ์';
+        }
+    }
+
+    $stmt = db()->prepare("SELECT s.*, p.name AS product_name FROM schedule s LEFT JOIN products p ON p.id=s.product_id WHERE s.post_date=? AND s.status IN ('draft','approved') ORDER BY s.suggested_time ASC LIMIT 6");
+    $stmt->execute([$date]);
+    $todaySlots = $stmt->fetchAll() ?: [];
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0) { $preferred = $b; break; }
+        }
+    }
+
+    $suggestions = [];
+    foreach ($todaySlots as $slot) {
+        if (!$preferred) break;
+        $packId = (string)($slot['content_pack_id'] ?? '');
+        if ($packId !== '' && !isset($packCache[$packId])) {
+            $pstmt = db()->prepare('SELECT * FROM content_packs WHERE id=?');
+            $pstmt->execute([$packId]);
+            $prow = $pstmt->fetch();
+            $packCache[$packId] = $prow ? [
+                'hooks' => decode_list($prow['hooks']),
+                'ctas' => decode_list($prow['ctas'] ?? '[]'),
+            ] : null;
+        }
+        $pack = $packCache[$packId] ?? (latest_pack((string)$slot['product_id']) ?: ['hooks' => [], 'ctas' => []]);
+        $currentKey = cta_style_of([
+            'cta_index' => (int)($slot['cta_index'] ?? 0),
+            'caption_preview' => (string)($slot['caption_preview'] ?? ''),
+            'content_pack_id' => $packId,
+        ], $pack);
+        $currentRow = null;
+        foreach ($bands as $b) {
+            if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        }
+        $same = $currentKey === $preferred['band'];
+        $preview = resolve_cta_text($pack, (int)($slot['cta_index'] ?? 0), (string)($slot['caption_preview'] ?? ''));
+        $preview = mb_substr(trim(preg_replace('/\s+/u', ' ', $preview) ?? ''), 0, 48);
+        $currentCold = $currentRow && (
+            $currentRow['status'] === 'cold'
+            || ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')
+            || $currentKey === 'generic'
+        );
+        if ($currentCold && !$same) {
+            $suggestions[] = [
+                'scheduleId' => (string)$slot['id'],
+                'productId' => (string)$slot['product_id'],
+                'productName' => (string)($slot['product_name'] ?? $slot['product_id']),
+                'currentBand' => $currentKey,
+                'currentLabel' => cta_style_label($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'ctaIndex' => (int)($slot['cta_index'] ?? 0),
+                'ctaPreview' => $preview !== '' ? $preview : ('(cta #' . ((int)($slot['cta_index'] ?? 0) + 1) . ')'),
+                'status' => (string)$slot['status'],
+                'channelLabel' => channel_label((string)$slot['channel']),
+                'reason' => cta_style_label($currentKey) . ' เย็น · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่สลับ CTA อัตโนมัติ — กดสร้างแคปชันใหม่หรือเลือก ctaIndex อื่น แล้ว Approve ก่อนโพสต์มือ',
+            ];
+        } elseif ($unbalanced && $same && $cold && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($bands as $b) {
+                if ($b['band'] !== $currentKey && $b['band'] !== 'generic' && in_array($b['status'], ['steady', 'no_data'], true)) {
+                    $alt = $b;
+                    break;
+                }
+            }
+            if (!$alt) $alt = $cold[0];
+            $suggestions[] = [
+                'scheduleId' => (string)$slot['id'],
+                'productId' => (string)$slot['product_id'],
+                'productName' => (string)($slot['product_name'] ?? $slot['product_id']),
+                'currentBand' => $currentKey,
+                'currentLabel' => cta_style_label($currentKey),
+                'suggestedBand' => $alt['band'],
+                'suggestedLabel' => $alt['bandLabel'],
+                'ctaIndex' => (int)($slot['cta_index'] ?? 0),
+                'ctaPreview' => $preview !== '' ? $preview : ('(cta #' . ((int)($slot['cta_index'] ?? 0) + 1) . ')'),
+                'status' => (string)$slot['status'],
+                'channelLabel' => channel_label((string)$slot['channel']),
+                'reason' => 'วันนี้ซ้อนสไตล์ ' . cta_style_label($currentKey) . ' — ลองกระจายไป ' . $alt['bandLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยน CTA เอง — regenerate draft แล้ว Approve ใหม่',
+            ];
+        }
+        if (count($suggestions) >= 5) break;
+    }
+
+    $actions = [];
+    if ($postedN === 0) {
+        $actions[] = [
+            'id' => 'need-metrics',
+            'title' => 'เริ่มเก็บผลรายสไตล์ CTA',
+            'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ Results อย่างน้อย 1 ชิ้นต่อสไตล์ปิดคลิป',
+        ];
+    }
+    if ($best && $best['status'] === 'hot') {
+        $actions[] = [
+            'id' => 'lean-cta',
+            'title' => 'เอียงทดลองไปสไตล์ ' . $best['bandLabel'],
+            'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต · ' . cta_style_hint($best['band']),
+        ];
+    }
+    if ($unbalanced) {
+        $actions[] = [
+            'id' => 'diversify',
+            'title' => 'กระจายมิกซ์สไตล์ CTA',
+            'detail' => 'สไตล์เด่นกินสัดส่วนสูง — เพิ่ม draft คนละสไตล์ปิดคลิป 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)',
+        ];
+    }
+    if ($cold) {
+        $actions[] = [
+            'id' => 'review-cold',
+            'title' => 'ทบทวนสไตล์เย็น: ' . implode(', ', array_map(fn($b) => $b['bandLabel'], $cold)),
+            'detail' => 'สลับ ctaIndex / regenerate หรือพักมุมนั้นชั่วคราว — อย่าโพสต์ซ้ำข้อความเดิม',
+        ];
+    }
+    $missing = [];
+    foreach ($order as $b) {
+        if ($b === 'generic') continue;
+        if (count($byBand[$b]) === 0) $missing[] = $b;
+    }
+    if ($missing && $postedN > 0) {
+        $actions[] = [
+            'id' => 'fill-styles',
+            'title' => 'ทดลองสไตล์ที่ยังไม่มีข้อมูล (' . count($missing) . ')',
+            'detail' => 'ยังไม่มี: ' . implode(' · ', array_map('cta_style_label', $missing)) . ' — draft 1 ชิ้นต่อสไตล์แล้ววัดผล',
+        ];
+    }
+    $actions[] = [
+        'id' => 'compliance',
+        'title' => 'คงกฎ Approve + disclosure',
+        'detail' => 'ทุกสไตล์ CTA ต้องมีข้อความ affiliate และผ่าน Approve ก่อนโพสต์มือ — ระบบไม่โพสต์อัตโนมัติ',
+    ];
+    $actions = array_slice($actions, 0, 5);
+
+    $checklist = [
+        'อันดับสไตล์ CTA มาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับสไตล์เป็นคำแนะนำเท่านั้น — ต้องแก้เอง + Approve',
+        'อย่าถล่ม CTA แบบเดียวซ้ำ ๆ ในวันเดียวกัน (กันสแปม)',
+        'ทุกโพสต์ต้องมี disclosure และไม่ใช้คำโฆษณาเกินจริง',
+    ];
+
+    $lines = [
+        "CTA Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = $statusLabel[$b['status']] . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score'] . ' (' . $confLabel[$b['confidence']] . ', n=' . $b['samples'] . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => $postedN,
+            'bandsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => array_slice($suggestions, 0, 5),
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function cta_fit_lab_to_markdown(array $lab): string
+{
+    $bandRows = [];
+    foreach ($lab['bands'] as $i => $b) {
+        if (($b['samples'] ?? 0) <= 0) continue;
+        $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'][$b['status']] ?? $b['status'];
+        $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'][$b['confidence']] ?? $b['confidence'];
+        $n = count($bandRows) + 1;
+        $bandRows[] = "{$n}. **[{$statusLabel}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel}\n"
+            . "   ctaIndex avg ~{$b['avgCtaIndex']} · CTR ~" . round($b['avgCtr'] * 100, 1) . "% · ออเดอร์/คลิก ~{$b['avgOrdersPerClick']} · ค่าคอมเฉลี่ย ฿{$b['avgCommission']}\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $ctaNo = ((int)$s['ctaIndex']) + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']} · cta #{$ctaNo}\n"
+            . "   preview: {$s['ctaPreview']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) $suggestionRows[] = '_(ไม่มีคำแนะนำสลับสไตล์ CTA วันนี้)_';
+
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = array_map(fn($c) => "- {$c}", $lab['checklist']);
+
+    return "# CTA Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- สไตล์ที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . (!empty($lab['counts']['unbalanced']) ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับสไตล์ CTA (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+
 /**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
@@ -8032,6 +8508,7 @@ function run_morning_workflow(?string $date = null): array
     $seasonalFitLines = array_slice(build_seasonal_fit_lab($date)['lines'], 0, 4);
     $audienceFitLines = array_slice(build_audience_fit_lab($date)['lines'], 0, 4);
     $hookFitLines = array_slice(build_hook_fit_lab($date)['lines'], 0, 4);
+    $ctaFitLines = array_slice(build_cta_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -8058,6 +8535,7 @@ function run_morning_workflow(?string $date = null): array
         ...$seasonalFitLines,
         ...$audienceFitLines,
         ...$hookFitLines,
+        ...$ctaFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -8153,6 +8631,7 @@ function run_evening_workflow(?string $date = null): array
     $seasonalFitLab = build_seasonal_fit_lab($date);
     $audienceFitLab = build_audience_fit_lab($date);
     $hookFitLab = build_hook_fit_lab($date);
+    $ctaFitLab = build_cta_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -8205,6 +8684,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($hookFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($ctaFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -8245,6 +8727,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($hookFitLab['counts']['hot'] ?? 0) > 0 || !empty($hookFitLab['counts']['unbalanced'])) {
         $recs[] = 'Hook Fit: ช่วงร้อน ' . $hookFitLab['counts']['hot'] . ' · ' . $hookFitLab['mixTip'];
+    }
+    if (($ctaFitLab['counts']['hot'] ?? 0) > 0 || !empty($ctaFitLab['counts']['unbalanced'])) {
+        $recs[] = 'CTA Fit: ช่วงร้อน ' . $ctaFitLab['counts']['hot'] . ' · ' . $ctaFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

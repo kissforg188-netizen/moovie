@@ -36,7 +36,7 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 
 ### Key paths
 
-- `src/lib/` — scoring, content, schedule, compliance, workflows, playbooks, results-intake
+- `src/lib/` — scoring, content, schedule, compliance, workflows, playbooks, results-intake, fit labs (incl. Hook Fit + CTA Fit)
 - `src/app/` — dashboard pages + API routes
 - `scripts/` — seed, morning/evening CLI, unit tests
 - `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-aaca`)

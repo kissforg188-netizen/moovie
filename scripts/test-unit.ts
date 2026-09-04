@@ -115,6 +115,14 @@ import {
   buildHookFitLab,
 } from "../src/lib/hook-fit";
 import {
+  classifyCtaStyle,
+  ctaFitLabLines,
+  ctaFitLabToMarkdown,
+  ctaStyleFromIndex,
+  ctaStyleOf,
+  buildCtaFitLab,
+} from "../src/lib/cta-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -3938,6 +3946,220 @@ function run() {
   assert.equal(emptyHook.counts.postsWithMetrics, 0);
   assert.ok(
     emptyHook.summary.includes("ยังไม่มีเมตริก") || emptyHook.score <= 50,
+  );
+
+  // --- CTA Fit Lab ---
+  assert.equal(
+    classifyCtaStyle(
+      "สนใจดูรายละเอียดต่อได้ที่ลิงก์ในคอมเมนต์ — อ่านรีวิวและสเปกก่อนตัดสินใจนะ",
+    ),
+    "detail",
+  );
+  assert.equal(
+    classifyCtaStyle(
+      "ถ้าเข้าเงื่อนไขใช้งานของคุณ ค่อยกดดูรายละเอียดเพิ่มที่ลิงก์ด้านล่าง",
+    ),
+    "soft_gate",
+  );
+  assert.equal(
+    classifyCtaStyle("อยากลองเทียบกับของเดิมไหม เปิดลิงก์ไปดูสเปก/รีวิวเพิ่มได้เลย"),
+    "compare",
+  );
+  assert.equal(
+    classifyCtaStyle("ไม่เร่งซื้อ — เปิดดูรายละเอียดก่อน แล้วค่อยตัดสินใจเองได้"),
+    "soft_pass",
+  );
+  assert.equal(classifyCtaStyle("กดซื้อเลยรับประกันรวยแน่"), "generic");
+  assert.equal(ctaStyleFromIndex(0), "detail");
+  assert.equal(ctaStyleFromIndex(1), "soft_gate");
+  assert.equal(ctaStyleFromIndex(2), "compare");
+  assert.equal(ctaStyleFromIndex(3), "soft_pass");
+
+  const packCtaDetail = {
+    id: "pack_cta_detail",
+    productId: "prod_cta_detail",
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยเจอไหม… มือแห้ง"],
+    ctas: [
+      "สนใจดูรายละเอียดต่อได้ที่ลิงก์ในคอมเมนต์ — อ่านรีวิวและสเปกก่อนตัดสินใจนะ",
+      "ถ้าเข้าเงื่อนไขใช้งานของคุณ ค่อยกดดูรายละเอียดเพิ่มที่ลิงก์ด้านล่าง",
+      "อยากลองเทียบกับของเดิมไหม เปิดลิงก์ไปดูสเปก/รีวิวเพิ่มได้เลย",
+    ],
+    hashtagsTh: ["#รีวิว"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: { durationSec: 25, scenes: [], voiceover: "" },
+    facebookCaption: fitDisclosure,
+    facebookGroupCaption: fitDisclosure,
+    reelsCaption: fitDisclosure,
+    videoPriorityNote: "ถ่ายง่าย",
+    filmingChecklist: ["แสงพอ"],
+    sellingAngles: ["มุมปัญหา"],
+  };
+
+  const packCtaGeneric = {
+    ...packCtaDetail,
+    id: "pack_cta_generic",
+    productId: "prod_cta_generic",
+    ctas: ["กดลิงก์เลย", "สั่งซื้อทันที", "รีบก่อนหมด"],
+  };
+
+  assert.equal(
+    ctaStyleOf(
+      { ctaIndex: 0, captionPreview: "", contentPackId: packCtaDetail.id },
+      packCtaDetail as never,
+    ),
+    "detail",
+  );
+  assert.equal(
+    ctaStyleOf(
+      { ctaIndex: 0, captionPreview: "", contentPackId: packCtaGeneric.id },
+      packCtaGeneric as never,
+    ),
+    "generic",
+  );
+
+  const ctaDetailProd: Product = {
+    ...fitProduct,
+    id: "prod_cta_detail",
+    name: "ครีมมือ detail cta",
+    price: 199,
+    commissionRate: 18,
+    category: "ความงาม",
+    painPoints: ["มือแห้ง"],
+    sellingPoints: ["ซึมไว"],
+    targetAudience: "สาวออฟฟิศ",
+    videoEase: 4,
+    seasonalScore: 3,
+  };
+  const ctaGenericProd: Product = {
+    ...fitProduct,
+    id: "prod_cta_generic",
+    name: "ครีมมือ generic cta",
+    price: 450,
+    commissionRate: 8,
+    category: "ความงาม",
+    painPoints: ["มือแห้ง"],
+    sellingPoints: ["ใช้ได้"],
+    targetAudience: "ทั่วไป",
+    videoEase: 2,
+    seasonalScore: 2,
+  };
+
+  const ctaSchedule = [
+    {
+      id: "sch_cta_d1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_cta_detail",
+      contentPackId: "pack_cta_detail",
+      status: "posted" as const,
+      captionPreview: `เคยเจอไหม… มือแห้ง\n${fitDisclosure}\nสนใจดูรายละเอียดต่อได้ที่ลิงก์ในคอมเมนต์`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2800,
+        clicks: 160,
+        orders: 11,
+        commissionEarned: 320,
+      },
+    },
+    {
+      id: "sch_cta_d2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_cta_detail",
+      contentPackId: "pack_cta_detail",
+      status: "posted" as const,
+      captionPreview: `เคยเจอไหม…\n${fitDisclosure}\nสนใจดูรายละเอียดต่อได้ที่ลิงก์`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2100,
+        clicks: 120,
+        orders: 8,
+        commissionEarned: 220,
+      },
+    },
+    {
+      id: "sch_cta_g1",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_cta_generic",
+      contentPackId: "pack_cta_generic",
+      status: "posted" as const,
+      captionPreview: `กดลิงก์เลย ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_cta_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: "prod_cta_generic",
+      contentPackId: "pack_cta_generic",
+      status: "draft" as const,
+      captionPreview: `today generic ${fitDisclosure}\nกดลิงก์เลย`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  const ctaLab = buildCtaFitLab(
+    {
+      products: [ctaDetailProd, ctaGenericProd],
+      contentPacks: [packCtaDetail, packCtaGeneric] as never[],
+      schedule: ctaSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(ctaLab.counts.postsWithMetrics, 3);
+  const detailRow = ctaLab.bands.find((b) => b.band === "detail");
+  const genericRow = ctaLab.bands.find((b) => b.band === "generic");
+  assert.ok(detailRow);
+  assert.ok(genericRow);
+  assert.ok(detailRow!.score > genericRow!.score);
+  assert.ok(["hot", "steady"].includes(detailRow!.status));
+  assert.ok(ctaLab.suggestions.length >= 1);
+  assert.ok(
+    ctaLab.suggestions[0].suggestedBand === "detail" ||
+      ctaLab.suggestions[0].suggestedLabel.includes("รายละเอียด"),
+  );
+  assert.ok(ctaFitLabLines(ctaLab, 3).length <= 3);
+  const ctaMd = ctaFitLabToMarkdown(ctaLab);
+  assert.ok(ctaMd.includes("CTA Fit Lab"));
+  assert.ok(ctaMd.includes("ทดลอง"));
+  assert.ok(ctaMd.includes("ไม่เปลี่ยนอัตโนมัติ") || ctaMd.includes("Approve"));
+  assert.ok(
+    ctaMd.includes("ไม่รับประกัน") ||
+      ctaMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyCta = buildCtaFitLab(
+    {
+      products: [ctaDetailProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyCta.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyCta.summary.includes("ยังไม่มีเมตริก") || emptyCta.score <= 50,
   );
 
   console.log("All unit tests passed");
