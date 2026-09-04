@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>คู่มือทีละขั้นตอน — เลือกดี Affiliate Lab</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=Sarabun:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../assets/app.css" />
+  <style>
+    .shot { border:1px solid var(--line); border-radius:16px; overflow:hidden; margin:12px 0 28px; background:#fff; }
+    .shot img { width:100%; display:block; background:var(--mist); }
+    .shot figcaption { padding:10px 14px; font-size:.92rem; color:var(--ink-soft); }
+    .steps { counter-reset: step; }
+    .steps h3 { margin-top: 1.6rem; }
+    .steps h3::before { counter-increment: step; content: "ขั้นที่ " counter(step) " · "; color: var(--sage); }
+    .okbox { background:#e7f6ec; border:1px solid #b7dfc4; border-radius:12px; padding:12px 14px; }
+  </style>
+</head>
+<body>
+  <header class="topnav">
+    <a class="logo" href="../index.php"><span class="brand">เลือกดี</span><small>คู่มือ</small></a>
+    <nav>
+      <a href="../index.php">แดชบอร์ด</a>
+      <a href="../index.php?page=automation">Automation</a>
+      <a class="active" href="./">คู่มือทีละขั้นตอน</a>
+    </nav>
+  </header>
+  <main class="wrap steps">
+    <section class="hero">
+      <p class="eyebrow">Verified on live site</p>
+      <h1 class="brand">คู่มือใช้งานทีละขั้นตอน</h1>
+      <p class="lead">ทดสอบจริงบน <strong>https://shopee.sogiin6868.com</strong> แล้วถ่ายรูปแต่ละขั้น — ใช้ตามลำดับนี้ได้เลย</p>
+      <div class="okbox">ใช้ได้จริง: Morning → Import → สร้างคอนเทนต์ → Approve → กรอกผล → Evening (ไม่โพสต์อัตโนมัติ)</div>
+    </section>
+
+    <h3>เปิดแดชบอร์ด</h3>
+    <p>เข้า <a href="https://shopee.sogiin6868.com/">https://shopee.sogiin6868.com/</a> จะเห็นยอดสินค้า / draft / ปุ่ม Morning–Evening</p>
+    <figure class="shot">
+      <img src="screens/guide-01-dashboard.png" alt="แดชบอร์ดเลือกดี" />
+      <figcaption>ขั้นที่ 1 — หน้าแดชบอร์ดโหลดภาษาไทยปกติ</figcaption>
+    </figure>
+
+    <h3>เปิด Automation Center</h3>
+    <p>คลิกเมนู <strong>Automation</strong> หรือไปที่ <a href="https://shopee.sogiin6868.com/index.php?page=automation">หน้า Automation</a></p>
+    <figure class="shot">
+      <img src="screens/guide-02-automation-center.png" alt="Automation Center" />
+      <figcaption>ขั้นที่ 2 — ปุ่ม Morning / Evening / Generate Drafts / Approve / Import / Log</figcaption>
+    </figure>
+
+    <h3>รัน Morning Automation</h3>
+    <p>กด <strong>Run Morning Automation</strong> ระบบจะคัดสินค้า สร้าง content และจัด draft ประจำวัน (ยังไม่โพสต์จริง)</p>
+    <figure class="shot">
+      <img src="screens/guide-03-morning-done.png" alt="หลังรัน Morning" />
+      <figcaption>ขั้นที่ 3 — หลังรัน Morning สถานะ generated เพิ่มขึ้น และมี log</figcaption>
+    </figure>
+
+    <h3>Import สินค้าจาก JSON</h3>
+    <p>ในช่อง Auto Product Import เลือก JSON แล้ววางข้อมูลสินค้า → กด <strong>Import สินค้า</strong></p>
+    <figure class="shot">
+      <img src="screens/guide-04-import.png" alt="Import สินค้า" />
+      <figcaption>ขั้นที่ 4 — นำเข้าสินค้า affiliate หลายรายการได้ (CSV ก็รองรับ)</figcaption>
+    </figure>
+
+    <h3>สร้าง Content Pack</h3>
+    <p>ไปเมนู <strong>สินค้า</strong> → กด <strong>สร้าง Content Pack</strong> จะได้ hooks, CTA, สคริปต์ TikTok, Facebook, hashtag + disclosure</p>
+    <figure class="shot">
+      <img src="screens/guide-05-content-pack.png" alt="Content Pack" />
+      <figcaption>ขั้นที่ 5 — คอนเทนต์ภาษาไทยพร้อมใช้ น้ำเสียงช่วยเลือกของ</figcaption>
+    </figure>
+
+    <h3>ดูตารางโพสต์ (Draft)</h3>
+    <p>ไปเมนู <strong>ตารางโพสต์</strong> ดูคิววันนี้ สถานะจะเป็น generated/approved/posted</p>
+    <figure class="shot">
+      <img src="screens/guide-06-calendar.png" alt="ตารางโพสต์" />
+      <figcaption>ขั้นที่ 6 — ทุกชิ้นเป็น draft ก่อน จนกว่าจะ Approve</figcaption>
+    </figure>
+
+    <h3>Approve ก่อนโพสต์จริง</h3>
+    <p>กด <strong>Approve</strong> ที่ draft ที่ต้องการ แล้วคัดลอก caption ไปโพสต์ด้วยมือบน TikTok/Facebook</p>
+    <figure class="shot">
+      <img src="screens/guide-07-approved.png" alt="Approve draft" />
+      <figcaption>ขั้นที่ 7 — สถานะเปลี่ยนเป็น approved (ระบบไม่โพสต์ให้อัตโนมัติ)</figcaption>
+    </figure>
+
+    <h3>บันทึกผลลัพธ์จริง</h3>
+    <p>ไปเมนู <strong>ผลลัพธ์</strong> กรอก views / clicks / orders / ค่าคอม แล้วกดบันทึก</p>
+    <figure class="shot">
+      <img src="screens/guide-08-results.png" alt="บันทึกผล" />
+      <figcaption>ขั้นที่ 8 — ตัวอย่างกรอก views 1200, clicks 45, orders 2, ค่าคอม 80</figcaption>
+    </figure>
+
+    <h3>รัน Evening Automation</h3>
+    <p>กลับ Automation Center → กด <strong>Run Evening Automation</strong> เพื่อดูรายงานและคำแนะนำวันถัดไป</p>
+    <figure class="shot">
+      <img src="screens/guide-09-evening.png" alt="Evening Automation" />
+      <figcaption>ขั้นที่ 9 — สรุปผล + recommendation (ไม่การันตีรายได้)</figcaption>
+    </figure>
+
+    <h3>เปิดคู่มือในเว็บ</h3>
+    <p>หน้านี้คือคู่มือที่อัปเดตจากภาพทดสอบจริง</p>
+    <figure class="shot">
+      <img src="screens/guide-10-handbook.png" alt="หน้าคู่มือ" />
+      <figcaption>ขั้นที่ 10 — คู่มือพร้อมรูปบนเว็บ</figcaption>
+    </figure>
+
+    <article class="card">
+      <h3 style="margin-top:0">สรุปผลทดสอบ</h3>
+      <ul>
+        <li>แดชบอร์ด / Automation / สินค้า / ตาราง / ผลลัพธ์ เปิดได้</li>
+        <li>Morning / Import / Content Pack / Approve / บันทึกผล / Evening ใช้งานได้จริง</li>
+        <li>ไม่มี auto-post — ต้อง Approve แล้วโพสต์ด้วยมือ</li>
+        <li>ทุก caption มี disclosure affiliate</li>
+      </ul>
+      <p class="note">ระบบนี้เป็นเครื่องมือทดลองและปรับปรุงจากข้อมูลจริง ไม่รับประกันรายได้หรือยอดขาย</p>
+    </article>
+  </main>
+</body>
+</html>
