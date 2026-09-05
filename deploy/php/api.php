@@ -326,6 +326,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md cta-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['hashtag-fit', 'hashtag', 'hashtags', 'tag-fit', 'tags'], true)) {
+                $lab = build_hashtag_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-hashtag-fit-lab-'.today_iso().'.md"');
+                echo hashtag_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md hashtag-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

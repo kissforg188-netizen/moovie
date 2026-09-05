@@ -36,6 +36,7 @@ import { seasonalFitLabToMarkdown } from "@/lib/seasonal-fit";
 import { audienceFitLabToMarkdown } from "@/lib/audience-fit";
 import { hookFitLabToMarkdown } from "@/lib/hook-fit";
 import { ctaFitLabToMarkdown } from "@/lib/cta-fit";
+import { hashtagFitLabToMarkdown } from "@/lib/hashtag-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -225,6 +226,16 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = ctaFitLabToMarkdown(snap.ctaFitLab);
       filename = `affiliate-cta-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "hashtag-fit" ||
+      scope === "hashtag" ||
+      scope === "hashtags" ||
+      scope === "tag-fit" ||
+      scope === "tags"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = hashtagFitLabToMarkdown(snap.hashtagFitLab);
+      filename = `affiliate-hashtag-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

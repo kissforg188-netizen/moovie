@@ -120,6 +120,11 @@ import {
   ctaFitLabLines,
   type CtaFitLab,
 } from "./cta-fit";
+import {
+  buildHashtagFitLab,
+  hashtagFitLabLines,
+  type HashtagFitLab,
+} from "./hashtag-fit";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -311,6 +316,7 @@ export async function runMorningWorkflow(
         ...audienceFitLabLines(buildAudienceFitLab(db, date), 4),
         ...hookFitLabLines(buildHookFitLab(db, date), 4),
         ...ctaFitLabLines(buildCtaFitLab(db, date), 4),
+        ...hashtagFitLabLines(buildHashtagFitLab(db, date), 4),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -421,6 +427,7 @@ export async function runEveningWorkflow(
       const audienceFitLab = buildAudienceFitLab(db, date);
       const hookFitLab = buildHookFitLab(db, date);
       const ctaFitLab = buildCtaFitLab(db, date);
+      const hashtagFitLab = buildHashtagFitLab(db, date);
 
       const recommendations = [
         ...analysis.recommendations,
@@ -445,6 +452,7 @@ export async function runEveningWorkflow(
         ...audienceFitLabLines(audienceFitLab, 5),
         ...hookFitLabLines(hookFitLab, 5),
         ...ctaFitLabLines(ctaFitLab, 5),
+        ...hashtagFitLabLines(hashtagFitLab, 5),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -492,6 +500,9 @@ export async function runEveningWorkflow(
           : null,
         ctaFitLab.counts.hot > 0 || ctaFitLab.counts.unbalanced
           ? `CTA Fit: ช่วงร้อน ${ctaFitLab.counts.hot} · ${ctaFitLab.mixTip}`
+          : null,
+        hashtagFitLab.counts.hot > 0 || hashtagFitLab.counts.unbalanced
+          ? `Hashtag Fit: ช่วงร้อน ${hashtagFitLab.counts.hot} · ${hashtagFitLab.mixTip}`
           : null,
       ].filter(Boolean) as string[];
 
@@ -557,6 +568,7 @@ export async function getDashboardSnapshot(): Promise<{
   audienceFitLab: AudienceFitLab;
   hookFitLab: HookFitLab;
   ctaFitLab: CtaFitLab;
+  hashtagFitLab: HashtagFitLab;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -611,6 +623,7 @@ export async function getDashboardSnapshot(): Promise<{
   const audienceFitLab = buildAudienceFitLab(db, date);
   const hookFitLab = buildHookFitLab(db, date);
   const ctaFitLab = buildCtaFitLab(db, date);
+  const hashtagFitLab = buildHashtagFitLab(db, date);
   return {
     db,
     ranked,
@@ -639,5 +652,6 @@ export async function getDashboardSnapshot(): Promise<{
     audienceFitLab,
     hookFitLab,
     ctaFitLab,
+    hashtagFitLab,
   };
 }

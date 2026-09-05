@@ -123,6 +123,14 @@ import {
   buildCtaFitLab,
 } from "../src/lib/cta-fit";
 import {
+  classifyHashtagStyle,
+  extractHashtagsFromText,
+  hashtagFitLabLines,
+  hashtagFitLabToMarkdown,
+  hashtagStyleOf,
+  buildHashtagFitLab,
+} from "../src/lib/hashtag-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -4160,6 +4168,225 @@ function run() {
   assert.equal(emptyCta.counts.postsWithMetrics, 0);
   assert.ok(
     emptyCta.summary.includes("ยังไม่มีเมตริก") || emptyCta.score <= 50,
+  );
+
+  // --- Hashtag Fit Lab ---
+  assert.deepEqual(
+    extractHashtagsFromText("ลองดู #รีวิวของใช้ และ #AffiliateDisclosure นะ"),
+    ["#รีวิวของใช้", "#AffiliateDisclosure"],
+  );
+  assert.equal(
+    classifyHashtagStyle(
+      ["#รีวิวของใช้", "#ความงาม", "#เลือกดี", "#ShopeeAffiliate"],
+      ["#AffiliateDisclosure", "#ProductPick", "#HonestReview"],
+    ),
+    "bilingual",
+  );
+  assert.equal(
+    classifyHashtagStyle(
+      ["#รีวิวของใช้", "#ความงาม", "#เลือกดี", "#ShopeeAffiliate", "#แนะนำของดี"],
+      ["#AffiliateDisclosure"],
+    ),
+    "thai_niche",
+  );
+  assert.equal(
+    classifyHashtagStyle(
+      [],
+      ["#AffiliateDisclosure", "#ProductPick", "#HonestReview", "#ShortVideo"],
+    ),
+    "en_discovery",
+  );
+  assert.equal(classifyHashtagStyle(["#รีวิว"], []), "sparse");
+  assert.equal(
+    classifyHashtagStyle(
+      ["#รีวิวของใช้", "#แนะนำของดี", "#ช้อปอย่างมีเหตุผล"],
+      [],
+    ),
+    "generic",
+  );
+
+  const packTagBilingual = {
+    id: "pack_tag_bi",
+    productId: "prod_tag_bi",
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยเจอไหม… มือแห้ง"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์ในคอมเมนต์"],
+    hashtagsTh: ["#รีวิวของใช้", "#ความงาม", "#เลือกดี", "#ShopeeAffiliate"],
+    hashtagsEn: ["#AffiliateDisclosure", "#ProductPick", "#HonestReview"],
+    tiktokScript: { durationSec: 25, scenes: [], voiceover: "" },
+    facebookCaption: fitDisclosure,
+    facebookGroupCaption: fitDisclosure,
+    reelsCaption: fitDisclosure,
+    videoPriorityNote: "ถ่ายง่าย",
+    filmingChecklist: ["แสงพอ"],
+    sellingAngles: ["มุมปัญหา"],
+  };
+
+  const packTagSparse = {
+    ...packTagBilingual,
+    id: "pack_tag_sparse",
+    productId: "prod_tag_sparse",
+    hashtagsTh: ["#รีวิว"],
+    hashtagsEn: [],
+  };
+
+  assert.equal(
+    hashtagStyleOf(
+      { captionPreview: "", contentPackId: packTagBilingual.id },
+      packTagBilingual as never,
+    ),
+    "bilingual",
+  );
+  assert.equal(
+    hashtagStyleOf(
+      { captionPreview: "", contentPackId: packTagSparse.id },
+      packTagSparse as never,
+    ),
+    "sparse",
+  );
+
+  const tagBiProd: Product = {
+    ...fitProduct,
+    id: "prod_tag_bi",
+    name: "ครีมมือ bilingual tags",
+    price: 199,
+    commissionRate: 18,
+    category: "ความงาม",
+    painPoints: ["มือแห้ง"],
+    sellingPoints: ["ซึมไว"],
+    targetAudience: "สาวออฟฟิศ",
+    videoEase: 4,
+    seasonalScore: 3,
+  };
+  const tagSparseProd: Product = {
+    ...fitProduct,
+    id: "prod_tag_sparse",
+    name: "ครีมมือ sparse tags",
+    price: 450,
+    commissionRate: 8,
+    category: "ความงาม",
+    painPoints: ["มือแห้ง"],
+    sellingPoints: ["ใช้ได้"],
+    targetAudience: "ทั่วไป",
+    videoEase: 2,
+    seasonalScore: 2,
+  };
+
+  const tagSchedule = [
+    {
+      id: "sch_tag_b1",
+      date: "2026-08-20",
+      suggestedTime: "10:00",
+      channel: "tiktok" as const,
+      productId: "prod_tag_bi",
+      contentPackId: "pack_tag_bi",
+      status: "posted" as const,
+      captionPreview: `เคยเจอไหม… มือแห้ง\n${fitDisclosure}\n#รีวิวของใช้ #ความงาม #AffiliateDisclosure`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2800,
+        clicks: 160,
+        orders: 11,
+        commissionEarned: 320,
+      },
+    },
+    {
+      id: "sch_tag_b2",
+      date: "2026-08-21",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: "prod_tag_bi",
+      contentPackId: "pack_tag_bi",
+      status: "posted" as const,
+      captionPreview: `เคยเจอไหม…\n${fitDisclosure}\n#เลือกดี #ProductPick`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 2100,
+        clicks: 120,
+        orders: 8,
+        commissionEarned: 220,
+      },
+    },
+    {
+      id: "sch_tag_s1",
+      date: "2026-08-22",
+      suggestedTime: "12:00",
+      channel: "facebook_post" as const,
+      productId: "prod_tag_sparse",
+      contentPackId: "pack_tag_sparse",
+      status: "posted" as const,
+      captionPreview: `กดลิงก์เลย ${fitDisclosure} #รีวิว`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_tag_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: "prod_tag_sparse",
+      contentPackId: "pack_tag_sparse",
+      status: "draft" as const,
+      captionPreview: `today sparse ${fitDisclosure}\n#รีวิว`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  const tagLab = buildHashtagFitLab(
+    {
+      products: [tagBiProd, tagSparseProd],
+      contentPacks: [packTagBilingual, packTagSparse] as never[],
+      schedule: tagSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(tagLab.counts.postsWithMetrics, 3);
+  const bilingualRow = tagLab.bands.find((b) => b.band === "bilingual");
+  const sparseRow = tagLab.bands.find((b) => b.band === "sparse");
+  assert.ok(bilingualRow);
+  assert.ok(sparseRow);
+  assert.ok(bilingualRow!.score > sparseRow!.score);
+  assert.ok(["hot", "steady"].includes(bilingualRow!.status));
+  assert.ok(tagLab.suggestions.length >= 1);
+  assert.ok(
+    tagLab.suggestions[0].suggestedBand === "bilingual" ||
+      tagLab.suggestions[0].suggestedLabel.includes("ไทย"),
+  );
+  assert.ok(hashtagFitLabLines(tagLab, 3).length <= 3);
+  const tagMd = hashtagFitLabToMarkdown(tagLab);
+  assert.ok(tagMd.includes("Hashtag Fit Lab"));
+  assert.ok(tagMd.includes("ทดลอง"));
+  assert.ok(tagMd.includes("ไม่เปลี่ยนอัตโนมัติ") || tagMd.includes("Approve"));
+  assert.ok(
+    tagMd.includes("ไม่รับประกัน") ||
+      tagMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyTag = buildHashtagFitLab(
+    {
+      products: [tagBiProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyTag.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyTag.summary.includes("ยังไม่มีเมตริก") || emptyTag.score <= 50,
   );
 
   console.log("All unit tests passed");
