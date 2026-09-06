@@ -333,6 +333,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md hashtag-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['tone-fit', 'tone', 'voice', 'voice-fit', 'tones'], true)) {
+                $lab = build_tone_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-tone-fit-lab-'.today_iso().'.md"');
+                echo tone_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md tone-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

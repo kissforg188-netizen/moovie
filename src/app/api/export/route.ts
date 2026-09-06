@@ -37,6 +37,7 @@ import { audienceFitLabToMarkdown } from "@/lib/audience-fit";
 import { hookFitLabToMarkdown } from "@/lib/hook-fit";
 import { ctaFitLabToMarkdown } from "@/lib/cta-fit";
 import { hashtagFitLabToMarkdown } from "@/lib/hashtag-fit";
+import { toneFitLabToMarkdown } from "@/lib/tone-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -236,6 +237,16 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = hashtagFitLabToMarkdown(snap.hashtagFitLab);
       filename = `affiliate-hashtag-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "tone-fit" ||
+      scope === "tone" ||
+      scope === "voice" ||
+      scope === "voice-fit" ||
+      scope === "tones"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = toneFitLabToMarkdown(snap.toneFitLab);
+      filename = `affiliate-tone-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

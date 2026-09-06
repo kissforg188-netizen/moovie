@@ -131,6 +131,13 @@ import {
   buildHashtagFitLab,
 } from "../src/lib/hashtag-fit";
 import {
+  classifyToneStyle,
+  toneFitLabLines,
+  toneFitLabToMarkdown,
+  toneStyleOf,
+  buildToneFitLab,
+} from "../src/lib/tone-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -4387,6 +4394,204 @@ function run() {
   assert.equal(emptyTag.counts.postsWithMetrics, 0);
   assert.ok(
     emptyTag.summary.includes("ยังไม่มีเมตริก") || emptyTag.score <= 50,
+  );
+
+  // --- Tone Fit Lab ---
+  assert.equal(
+    classifyToneStyle(
+      "เคยเจอไหม… เหนื่อยตาตอนเย็น ลองดูรายละเอียดก่อนค่อยตัดสินใจ",
+    ),
+    "helper",
+  );
+  assert.equal(
+    classifyToneStyle("เล่าจากมุมคนใช้จริง: จุดที่ชอบคือพกง่าย สั้น ๆ ตรง ๆ"),
+    "story",
+  );
+  assert.equal(
+    classifyToneStyle("อยากลองเทียบกับของเดิมไหม เปิดดูสเปก/ราคาประมาณ ฿199"),
+    "compare",
+  );
+  assert.equal(
+    classifyToneStyle("กดเลย!!! สั่งด่วน การันตีรวยแน่"),
+    "hard_push",
+  );
+  assert.equal(
+    classifyToneStyle(
+      "ราคาประมาณ ฿129 — ไม่การันตีผล และไม่ต้องซื้อแพงก่อน ค่อยตัดสินใจเอง",
+    ),
+    "helper",
+  );
+  assert.equal(classifyToneStyle("สินค้าดี"), "flat");
+
+  const toneHelperProd = sample({
+    id: "prod_tone_helper",
+    name: "โทนช่วยเลือก",
+    price: 199,
+    commissionRate: 12,
+  });
+  const toneHardProd = sample({
+    id: "prod_tone_hard",
+    name: "โทนเร่งซื้อ",
+    price: 99,
+    commissionRate: 8,
+  });
+  const packToneHelper = {
+    id: "pack_tone_helper",
+    productId: toneHelperProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยเจอไหม… เหนื่อยตา ลองดูก่อนค่อยตัดสินใจ"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์"],
+    hashtagsTh: ["#เลือกดี"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: { durationSec: 20, scenes: [], voiceover: "" },
+    facebookCaption: "เคยเจอไหม… ถ้ากำลังหาของช่วยเรื่องตา ลองดูรายละเอียดก่อน",
+    facebookGroupCaption: "แชร์ตัวเลือก ไม่เร่งซื้อ",
+    reelsCaption: "ช่วยเลือกของสั้น ๆ",
+    videoPriorityNote: "ถ่ายง่าย",
+    filmingChecklist: ["โชว์ปัญหา"],
+    sellingAngles: ["มุมปัญหา: เล่าสั้น ๆ แล้วค่อยโชว์"],
+  };
+  const packToneHard = {
+    id: "pack_tone_hard",
+    productId: toneHardProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["ต้องซื้อเลย"],
+    ctas: ["กดเลย"],
+    hashtagsTh: ["#รีวิว"],
+    hashtagsEn: ["#Ad"],
+    tiktokScript: { durationSec: 15, scenes: [], voiceover: "" },
+    facebookCaption: "กดเลย!!! สั่งด่วน การันตี",
+    facebookGroupCaption: "รีบซื้อ",
+    reelsCaption: "หมดแล้วหมดเลย",
+    videoPriorityNote: "รีบ",
+    filmingChecklist: ["กดลิงก์"],
+    sellingAngles: ["ขายดีที่สุด"],
+  };
+  const toneSchedule = [
+    {
+      id: "sch_tone_h1",
+      date: "2026-08-20",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: toneHelperProd.id,
+      contentPackId: packToneHelper.id,
+      status: "posted" as const,
+      captionPreview: `เคยเจอไหม… ลองดูรายละเอียดก่อนค่อยตัดสินใจ ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 1200,
+        clicks: 60,
+        orders: 4,
+        commissionEarned: 80,
+      },
+    },
+    {
+      id: "sch_tone_h2",
+      date: "2026-08-21",
+      suggestedTime: "10:00",
+      channel: "facebook" as const,
+      productId: toneHelperProd.id,
+      contentPackId: packToneHelper.id,
+      status: "posted" as const,
+      captionPreview: `ถ้ากำลังหาของช่วยเรื่องตา ไม่เร่งซื้อ เปิดดูรายละเอียดก่อน ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 900,
+        clicks: 45,
+        orders: 3,
+        commissionEarned: 60,
+      },
+    },
+    {
+      id: "sch_tone_hard",
+      date: "2026-08-22",
+      suggestedTime: "11:00",
+      channel: "reels" as const,
+      productId: toneHardProd.id,
+      contentPackId: packToneHard.id,
+      status: "posted" as const,
+      captionPreview: `กดเลย!!! สั่งด่วน การันตีรวยแน่ ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_tone_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: toneHardProd.id,
+      contentPackId: packToneHard.id,
+      status: "draft" as const,
+      captionPreview: `today hard กดเลย!!! ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  assert.equal(
+    toneStyleOf(toneSchedule[0], packToneHelper as never),
+    "helper",
+  );
+  assert.equal(
+    toneStyleOf(toneSchedule[2], packToneHard as never),
+    "hard_push",
+  );
+
+  const toneLab = buildToneFitLab(
+    {
+      products: [toneHelperProd, toneHardProd],
+      contentPacks: [packToneHelper, packToneHard] as never[],
+      schedule: toneSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(toneLab.counts.postsWithMetrics, 3);
+  assert.ok(toneLab.counts.hardPushSamples >= 1);
+  const helperRow = toneLab.bands.find((b) => b.band === "helper");
+  const toneHardRow = toneLab.bands.find((b) => b.band === "hard_push");
+  assert.ok(helperRow);
+  assert.ok(toneHardRow);
+  assert.ok(helperRow!.score > toneHardRow!.score);
+  assert.ok(toneLab.suggestions.length >= 1);
+  assert.ok(
+    toneLab.suggestions[0].suggestedBand === "helper" ||
+      toneLab.suggestions[0].suggestedLabel.includes("ช่วยเลือก"),
+  );
+  assert.ok(toneFitLabLines(toneLab, 3).length <= 3);
+  const toneMd = toneFitLabToMarkdown(toneLab);
+  assert.ok(toneMd.includes("Tone Fit Lab"));
+  assert.ok(toneMd.includes("ทดลอง"));
+  assert.ok(toneMd.includes("ไม่เปลี่ยนอัตโนมัติ") || toneMd.includes("Approve"));
+  assert.ok(
+    toneMd.includes("ไม่รับประกัน") ||
+      toneMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyTone = buildToneFitLab(
+    {
+      products: [toneHelperProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyTone.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyTone.summary.includes("ยังไม่มีเมตริก") || emptyTone.score <= 50,
   );
 
   console.log("All unit tests passed");

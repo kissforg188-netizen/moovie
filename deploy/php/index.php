@@ -49,6 +49,7 @@ $audienceFitLab = build_audience_fit_lab($date);
 $hookFitLab = build_hook_fit_lab($date);
 $ctaFitLab = build_cta_fit_lab($date);
 $hashtagFitLab = build_hashtag_fit_lab($date);
+$toneFitLab = build_tone_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -625,6 +626,7 @@ $hashtagFitLab = build_hashtag_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=hook-fit">Export Hook Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=cta-fit">Export CTA Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($painClarityFitLab['disclaimer']) ?></p>
@@ -907,9 +909,57 @@ $hashtagFitLab = build_hashtag_fit_lab($date);
         </ul>
         <div class="actions">
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($hashtagFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Tone Fit Lab</h2>
+        <p class="muted"><?= h($toneFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($toneFitLab['grade']) ?> · <?= (int)$toneFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$toneFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($toneFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$toneFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>โทนมีข้อมูล</p><strong><?= (int)$toneFitLab['counts']['bandsWithData'] ?></strong></article>
+          <article><p>ร้อน</p><strong><?= (int)$toneFitLab['counts']['hot'] ?></strong></article>
+          <article><p>hard_push</p><strong><?= (int)$toneFitLab['counts']['hardPushSamples'] ?></strong></article>
+        </div>
+        <?php
+          $toneBandRows = array_values(array_filter($toneFitLab['bands'], fn($b) => ($b['samples'] ?? 0) > 0));
+          if (!$toneBandRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายโทนน้ำเสียง — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($toneBandRows, 0, 4) as $b): ?>
+              <li>
+                <strong>[<?= h($b['status'] === 'hot' ? 'ร้อน' : ($b['status'] === 'cold' ? 'เย็น' : ($b['status'] === 'steady' ? 'นิ่ง' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($b['bandLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$b['score'] ?>/100 · n=<?= (int)$b['samples'] ?> · CTR ~<?= h((string)round($b['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($b['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($toneFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($toneFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentLabel']) ?> → <?= h($s['suggestedLabel']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($toneFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($toneFitLab['disclaimer']) ?></p>
       </section>
 
       <section class="card fade-up">
@@ -1167,6 +1217,7 @@ $hashtagFitLab = build_hashtag_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=hook-fit">Export Hook Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=cta-fit">Export CTA Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>
