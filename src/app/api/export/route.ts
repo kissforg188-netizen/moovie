@@ -38,6 +38,7 @@ import { hookFitLabToMarkdown } from "@/lib/hook-fit";
 import { ctaFitLabToMarkdown } from "@/lib/cta-fit";
 import { hashtagFitLabToMarkdown } from "@/lib/hashtag-fit";
 import { toneFitLabToMarkdown } from "@/lib/tone-fit";
+import { angleFitLabToMarkdown } from "@/lib/angle-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -247,6 +248,16 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = toneFitLabToMarkdown(snap.toneFitLab);
       filename = `affiliate-tone-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "angle-fit" ||
+      scope === "angle" ||
+      scope === "angles" ||
+      scope === "selling-angle" ||
+      scope === "selling-angles"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = angleFitLabToMarkdown(snap.angleFitLab);
+      filename = `affiliate-angle-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

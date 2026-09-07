@@ -138,6 +138,13 @@ import {
   buildToneFitLab,
 } from "../src/lib/tone-fit";
 import {
+  classifyAngleStyle,
+  angleFitLabLines,
+  angleFitLabToMarkdown,
+  angleStyleOf,
+  buildAngleFitLab,
+} from "../src/lib/angle-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -4592,6 +4599,212 @@ function run() {
   assert.equal(emptyTone.counts.postsWithMetrics, 0);
   assert.ok(
     emptyTone.summary.includes("ยังไม่มีเมตริก") || emptyTone.score <= 50,
+  );
+
+  // --- Angle Fit Lab ---
+  assert.equal(
+    classifyAngleStyle(
+      "มุมปัญหา: เล่าสั้น ๆ เรื่องเหนื่อยตา แล้วค่อยโชว์ตัวเลือก",
+    ),
+    "pain",
+  );
+  assert.equal(
+    classifyAngleStyle(
+      "มุมเทียบเลือก: ให้เทียบสเปก/ราคาประมาณ ฿199 กับของเดิม",
+    ),
+    "compare",
+  );
+  assert.equal(
+    classifyAngleStyle(
+      "มุมใช้งานจริง: โชว์ 1 สถานการณ์ประจำวัน + จุดที่ชอบ",
+    ),
+    "usage",
+  );
+  assert.equal(
+    classifyAngleStyle(
+      "มุมประหยัดเวลา: ลดขั้นตอนเรื่องจัดโต๊ะ โดยไม่ต้องซื้อแพงก่อน",
+    ),
+    "time_save",
+  );
+  assert.equal(
+    classifyAngleStyle(
+      "มุมเพื่อนแนะนำ: น้ำเสียงคุยกัน แชร์ตัวเลือก ไม่เร่งกดซื้อ",
+    ),
+    "friend",
+  );
+  assert.equal(classifyAngleStyle("สินค้าดี"), "flat");
+
+  const anglePainProd = sample({
+    id: "prod_angle_pain",
+    name: "มุมปัญหา",
+    price: 199,
+    commissionRate: 12,
+  });
+  const angleFlatProd = sample({
+    id: "prod_angle_flat",
+    name: "มุมไม่ชัด",
+    price: 99,
+    commissionRate: 8,
+  });
+  const packAnglePain = {
+    id: "pack_angle_pain",
+    productId: anglePainProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยเจอไหม… เหนื่อยตา ลองดูก่อน"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์"],
+    hashtagsTh: ["#เลือกดี"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: { durationSec: 20, scenes: [], voiceover: "" },
+    facebookCaption: "เคยเจอไหม… ถ้ากำลังหาของช่วยเรื่องตา",
+    facebookGroupCaption: "แชร์ตัวเลือก ไม่เร่งซื้อ",
+    reelsCaption: "ช่วยเลือกของสั้น ๆ",
+    videoPriorityNote: "ถ่ายง่าย",
+    filmingChecklist: ["โชว์ปัญหา"],
+    sellingAngles: [
+      "มุมปัญหา: เล่าสั้น ๆ เรื่องเหนื่อยตา แล้วค่อยโชว์ตัวเลือก",
+    ],
+  };
+  const packAngleFlat = {
+    id: "pack_angle_flat",
+    productId: angleFlatProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["ของดี"],
+    ctas: ["ดูลิงก์"],
+    hashtagsTh: ["#รีวิว"],
+    hashtagsEn: ["#Ad"],
+    tiktokScript: { durationSec: 15, scenes: [], voiceover: "" },
+    facebookCaption: "สินค้าแนะนำ",
+    facebookGroupCaption: "ดูเพิ่ม",
+    reelsCaption: "สินค้า",
+    videoPriorityNote: "ทั่วไป",
+    filmingChecklist: ["โชว์สินค้า"],
+    sellingAngles: [],
+  };
+  const angleSchedule = [
+    {
+      id: "sch_angle_p1",
+      date: "2026-08-20",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: anglePainProd.id,
+      contentPackId: packAnglePain.id,
+      status: "posted" as const,
+      captionPreview: `เคยเจอไหม… เหนื่อยตา ลองดูรายละเอียดก่อน ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 1300,
+        clicks: 65,
+        orders: 4,
+        commissionEarned: 85,
+      },
+    },
+    {
+      id: "sch_angle_p2",
+      date: "2026-08-21",
+      suggestedTime: "10:00",
+      channel: "facebook_post" as const,
+      productId: anglePainProd.id,
+      contentPackId: packAnglePain.id,
+      status: "posted" as const,
+      captionPreview: `ถ้ากำลังหาของช่วยเรื่องตา ไม่เร่งซื้อ ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 950,
+        clicks: 48,
+        orders: 3,
+        commissionEarned: 62,
+      },
+    },
+    {
+      id: "sch_angle_flat",
+      date: "2026-08-22",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: angleFlatProd.id,
+      contentPackId: packAngleFlat.id,
+      status: "posted" as const,
+      captionPreview: `สินค้าแนะนำ ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 300,
+        clicks: 5,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_angle_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: angleFlatProd.id,
+      contentPackId: packAngleFlat.id,
+      status: "draft" as const,
+      captionPreview: `today flat สินค้าดี ${fitDisclosure}`,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  assert.equal(
+    angleStyleOf(angleSchedule[0], packAnglePain as never),
+    "pain",
+  );
+  assert.equal(
+    angleStyleOf(angleSchedule[2], packAngleFlat as never),
+    "flat",
+  );
+
+  const angleLab = buildAngleFitLab(
+    {
+      products: [anglePainProd, angleFlatProd],
+      contentPacks: [packAnglePain, packAngleFlat] as never[],
+      schedule: angleSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(angleLab.counts.postsWithMetrics, 3);
+  assert.ok(angleLab.counts.flatSamples >= 1);
+  const anglePainRow = angleLab.bands.find((b) => b.band === "pain");
+  const angleFlatRow = angleLab.bands.find((b) => b.band === "flat");
+  assert.ok(anglePainRow);
+  assert.ok(angleFlatRow);
+  assert.ok(anglePainRow!.score > angleFlatRow!.score);
+  assert.ok(angleLab.suggestions.length >= 1);
+  assert.ok(
+    angleLab.suggestions[0].suggestedBand === "pain" ||
+      angleLab.suggestions[0].suggestedLabel.includes("ปัญหา"),
+  );
+  assert.ok(angleFitLabLines(angleLab, 3).length <= 3);
+  const angleMd = angleFitLabToMarkdown(angleLab);
+  assert.ok(angleMd.includes("Angle Fit Lab"));
+  assert.ok(angleMd.includes("ทดลอง"));
+  assert.ok(angleMd.includes("ไม่เปลี่ยนอัตโนมัติ") || angleMd.includes("Approve"));
+  assert.ok(
+    angleMd.includes("ไม่รับประกัน") ||
+      angleMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyAngle = buildAngleFitLab(
+    {
+      products: [anglePainProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyAngle.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyAngle.summary.includes("ยังไม่มีเมตริก") || emptyAngle.score <= 50,
   );
 
   console.log("All unit tests passed");

@@ -60,6 +60,7 @@
 - **CTA Fit Lab**: จัดอันดับสไตล์ปิดคลิป (detail / soft_gate / compare / soft_pass / generic) จากเมตริกที่กรอก + แนะนำมิกซ์ CTA (ไม่สลับ CTA อัตโนมัติ)
 - **Hashtag Fit Lab**: จัดอันดับมิกซ์แฮชแท็ก (bilingual / thai_niche / en_discovery / sparse / generic) จากเมตริกที่กรอก + แนะนำมิกซ์แท็ก (ไม่สลับแท็กอัตโนมัติ)
 - **Tone Fit Lab**: จัดอันดับน้ำเสียงแคปชัน (helper / story / compare / flat / hard_push) จากเมตริกที่กรอก — เน้นช่วยเลือกของ ไม่ขายแข็ง (ไม่แก้แคปชันอัตโนมัติ)
+- **Angle Fit Lab**: จัดอันดับมุมขาย (pain / compare / usage / time_save / friend / flat) จาก sellingAngles + เมตริกที่กรอก — แนะนำมิกซ์มุมโดยไม่เปลี่ยนแคปชันอัตโนมัติ
 
 
 ## Production (cPanel / MySQL)
@@ -116,10 +117,10 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
 - `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Channel Fit Lab, Category Fit Lab, Price Band Lab, Commission Band Lab, Pain Clarity Lab, Video Ease Lab, Seasonal Fit Lab, Audience Fit Lab, Hook Fit Lab, CTA Fit Lab, Hashtag Fit Lab, Tone Fit Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
+- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Channel Fit Lab, Category Fit Lab, Price Band Lab, Commission Band Lab, Pain Clarity Lab, Video Ease Lab, Seasonal Fit Lab, Audience Fit Lab, Hook Fit Lab, CTA Fit Lab, Hashtag Fit Lab, Tone Fit Lab, Angle Fit Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
 - `/calendar` ตารางโพสต์วันนี้ + คิว Approve + Manual Publish Queue + Approve / ข้าม / Mark posted
-- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Channel Fit Lab + Category Fit Lab + Price Band Lab + Commission Band Lab + Pain Clarity Lab + Video Ease Lab + Seasonal Fit Lab + Audience Fit Lab + Hook Fit Lab + CTA Fit Lab + Hashtag Fit Lab + Tone Fit Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
+- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Channel Fit Lab + Category Fit Lab + Price Band Lab + Commission Band Lab + Pain Clarity Lab + Video Ease Lab + Seasonal Fit Lab + Audience Fit Lab + Hook Fit Lab + CTA Fit Lab + Hashtag Fit Lab + Tone Fit Lab + Angle Fit Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
 - `/guide` คู่มือการใช้งาน
 
 ### Export
@@ -157,6 +158,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown CTA Fit Lab: `/api/export?format=md&scope=cta-fit`
 - Markdown Hashtag Fit Lab: `/api/export?format=md&scope=hashtag-fit`
 - Markdown Tone Fit Lab: `/api/export?format=md&scope=tone-fit`
+- Markdown Angle Fit Lab: `/api/export?format=md&scope=angle-fit`
 
 ## Workflow แนะนำ
 

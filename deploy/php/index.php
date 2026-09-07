@@ -50,6 +50,7 @@ $hookFitLab = build_hook_fit_lab($date);
 $ctaFitLab = build_cta_fit_lab($date);
 $hashtagFitLab = build_hashtag_fit_lab($date);
 $toneFitLab = build_tone_fit_lab($date);
+$angleFitLab = build_angle_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -627,6 +628,7 @@ $toneFitLab = build_tone_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=cta-fit">Export CTA Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($painClarityFitLab['disclaimer']) ?></p>
@@ -910,6 +912,7 @@ $toneFitLab = build_tone_fit_lab($date);
         <div class="actions">
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($hashtagFitLab['disclaimer']) ?></p>
@@ -957,9 +960,57 @@ $toneFitLab = build_tone_fit_lab($date);
         </ul>
         <div class="actions">
           <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($toneFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Angle Fit Lab</h2>
+        <p class="muted"><?= h($angleFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($angleFitLab['grade']) ?> · <?= (int)$angleFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$angleFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($angleFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$angleFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>มุมมีข้อมูล</p><strong><?= (int)$angleFitLab['counts']['bandsWithData'] ?></strong></article>
+          <article><p>ร้อน</p><strong><?= (int)$angleFitLab['counts']['hot'] ?></strong></article>
+          <article><p>flat</p><strong><?= (int)$angleFitLab['counts']['flatSamples'] ?></strong></article>
+        </div>
+        <?php
+          $angleBandRows = array_values(array_filter($angleFitLab['bands'], fn($b) => ($b['samples'] ?? 0) > 0));
+          if (!$angleBandRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายมุมขาย — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($angleBandRows, 0, 4) as $b): ?>
+              <li>
+                <strong>[<?= h($b['status'] === 'hot' ? 'ร้อน' : ($b['status'] === 'cold' ? 'เย็น' : ($b['status'] === 'steady' ? 'นิ่ง' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($b['bandLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$b['score'] ?>/100 · n=<?= (int)$b['samples'] ?> · CTR ~<?= h((string)round($b['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($b['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($angleFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($angleFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentLabel']) ?> → <?= h($s['suggestedLabel']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($angleFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($angleFitLab['disclaimer']) ?></p>
       </section>
 
       <section class="card fade-up">
@@ -1218,6 +1269,7 @@ $toneFitLab = build_tone_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=cta-fit">Export CTA Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>

@@ -340,6 +340,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md tone-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['angle-fit', 'angle', 'angles', 'selling-angle', 'selling-angles'], true)) {
+                $lab = build_angle_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-angle-fit-lab-'.today_iso().'.md"');
+                echo angle_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md angle-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

@@ -7517,6 +7517,586 @@ function tone_fit_lab_to_markdown(array $lab): string
 }
 
 
+function angle_style_order(): array
+{
+    return ['pain', 'compare', 'usage', 'time_save', 'friend', 'flat'];
+}
+
+function angle_style_label(string $band): string
+{
+    return [
+        'pain' => 'มุมปัญหา',
+        'compare' => 'มุมเทียบเลือก',
+        'usage' => 'มุมใช้งานจริง',
+        'time_save' => 'มุมประหยัดเวลา',
+        'friend' => 'มุมเพื่อนแนะนำ',
+        'flat' => 'มุมไม่ชัด / กลาง ๆ',
+    ][$band] ?? $band;
+}
+
+function angle_style_range(string $band): string
+{
+    return [
+        'pain' => 'เล่า pain สั้น ๆ แล้วค่อยโชว์ตัวเลือก',
+        'compare' => 'เทียบสเปก/ราคา/ของเดิมก่อนตัดสินใจ',
+        'usage' => 'โชว์ 1 สถานการณ์ใช้งานจริง + จุดที่ชอบ',
+        'time_save' => 'ลดขั้นตอน / ประหยัดเวลา โดยไม่โอเวอร์เคลม',
+        'friend' => 'น้ำเสียงคุยกัน แชร์ตัวเลือก ไม่เร่งกดซื้อ',
+        'flat' => 'ไม่มีสัญญาณมุมขายช่วยเลือกที่ชัด',
+    ][$band] ?? '';
+}
+
+function angle_style_hint(string $band): string
+{
+    return [
+        'pain' => 'เปิดด้วยปัญหาที่คนดูเจอบ่อย 1 ข้อ แล้วชวนดูรายละเอียด — ไม่การันตีผล',
+        'compare' => 'ให้เทียบกับของเดิม 1 จุด (สเปก/ราคา) แล้วเปิดดูต่อเอง',
+        'usage' => 'โชว์สถานการณ์ประจำวันสั้น ๆ + จุดที่ชอบ 1 ข้อ ปิดด้วยลิงก์+disclosure',
+        'time_save' => 'บอกขั้นตอนที่ลดได้จริงโดยไม่โอเวอร์เคลม แล้วให้ดูรีวิวเพิ่ม',
+        'friend' => 'คุยแบบเพื่อนแนะนำตัวเลือก — ไม่เร่งซื้อ และใส่ disclosure',
+        'flat' => 'ใส่มุมปัญหา / เทียบเลือก / ใช้งานจริง ให้ชัดขึ้นก่อน Approve',
+    ][$band] ?? '';
+}
+
+function resolve_angle_text(?array $pack, string $captionPreview = ''): string
+{
+    $parts = [];
+    if (!empty($pack['sellingAngles']) && is_array($pack['sellingAngles'])) {
+        $parts[] = implode(' ', $pack['sellingAngles']);
+    }
+    if (trim($captionPreview) !== '') $parts[] = trim($captionPreview);
+    if ($pack) {
+        if (!empty($pack['facebookCaption'])) $parts[] = $pack['facebookCaption'];
+        if (!empty($pack['facebookGroupCaption'])) $parts[] = $pack['facebookGroupCaption'];
+        if (!empty($pack['reelsCaption'])) $parts[] = $pack['reelsCaption'];
+        $scenes = $pack['tiktokScript']['scenes'] ?? [];
+        if (is_array($scenes) && $scenes) {
+            $lines = [];
+            foreach ($scenes as $s) {
+                if (!empty($s['line'])) $lines[] = $s['line'];
+            }
+            if ($lines) $parts[] = implode(' ', $lines);
+        }
+        if (!empty($pack['hooks']) && is_array($pack['hooks'])) {
+            $parts[] = implode(' ', array_slice($pack['hooks'], 0, 2));
+        }
+    }
+    return implode("\n", $parts);
+}
+
+function classify_angle_style(string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '') return 'flat';
+
+    if (preg_match('/มุมปัญหา|มุมเทียบเลือก|มุมเทียบ|มุมใช้งานจริง|มุมใช้งาน|มุมประหยัดเวลา|มุมเพื่อนแนะนำ|มุมเพื่อน/u', $raw, $m)) {
+        $label = $m[0];
+        if (str_contains($label, 'ปัญหา')) return 'pain';
+        if (str_contains($label, 'เทียบ')) return 'compare';
+        if (str_contains($label, 'ใช้งาน')) return 'usage';
+        if (str_contains($label, 'ประหยัด')) return 'time_save';
+        if (str_contains($label, 'เพื่อน')) return 'friend';
+    }
+
+    $pain = (bool)preg_match('/มุมปัญหา|เคยเจอไหม|ปัญหาคือ|เหนื่อย|ปวด|รำคาญ|ช่วยเรื่อง|ถ้ากำลังหา|pain/iu', $raw);
+    $compare = (bool)preg_match('/มุมเทียบ|เทียบเลือก|เทียบกับ|ของเดิม|ตัวเลือก|ราคาประมาณ|เปิดดูสเปก|อ่านรีวิว/iu', $raw);
+    $usage = (bool)preg_match('/มุมใช้งาน|ใช้งานจริง|สถานการณ์|โชว์ของจริง|จุดที่ชอบ|คนใช้จริง|สาธิต|before.?after/iu', $raw);
+    $timeSave = (bool)preg_match('/มุมประหยัดเวลา|ประหยัดเวลา|ลดขั้นตอน|ไม่ต้องซื้อแพง|ทำไมของชิ้นนี้ลด/iu', $raw);
+    $friend = (bool)preg_match('/มุมเพื่อน|เพื่อนแนะนำ|น้ำเสียงคุย|แชร์ตัวเลือก|ไม่เร่งกดซื้อ|คุยกัน|แนะนำเพื่อน/iu', $raw);
+
+    if ($pain && ($friend || $usage || $compare || $timeSave || mb_strlen($raw) >= 40)) return 'pain';
+    if ($pain) return 'pain';
+    if ($friend && !$compare) return 'friend';
+    if ($usage && !$compare) return 'usage';
+    if ($compare) return 'compare';
+    if ($timeSave) return 'time_save';
+    if ($friend) return 'friend';
+    if ($usage) return 'usage';
+    return 'flat';
+}
+
+function angle_style_of(array $post, ?array $pack = null): string
+{
+    return classify_angle_style(resolve_angle_text($pack, (string)($post['caption_preview'] ?? $post['captionPreview'] ?? '')));
+}
+
+/**
+ * Angle Fit Lab — soft ranking of selling-angle styles from logged metrics.
+ */
+function build_angle_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = angle_style_order();
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+
+    $products = all_products();
+    $byId = [];
+    foreach ($products as $p) $byId[$p['id']] = $p;
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE status='posted' AND metrics_at IS NOT NULL AND post_date BETWEEN ? AND ?");
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $byBand = [];
+    foreach ($order as $b) $byBand[$b] = [];
+    $allComm = [];
+    $packCache = [];
+    foreach ($posted as $row) {
+        $packId = (string)($row['content_pack_id'] ?? '');
+        if ($packId !== '' && !isset($packCache[$packId])) {
+            $pstmt = db()->prepare('SELECT * FROM content_packs WHERE id=?');
+            $pstmt->execute([$packId]);
+            $prow = $pstmt->fetch();
+            if ($prow) {
+                $script = json_decode((string)($prow['tiktok_script'] ?? '{}'), true) ?: [];
+                $packCache[$packId] = [
+                    'hooks' => decode_list($prow['hooks'] ?? '[]'),
+                    'facebookCaption' => (string)($prow['facebook_caption'] ?? ''),
+                    'facebookGroupCaption' => (string)($prow['facebook_group_caption'] ?? ''),
+                    'reelsCaption' => (string)($prow['reels_caption'] ?? ''),
+                    'sellingAngles' => decode_list($prow['selling_angles'] ?? '[]'),
+                    'tiktokScript' => is_array($script) ? $script : [],
+                ];
+            } else {
+                $packCache[$packId] = null;
+            }
+        }
+        $pack = $packCache[$packId] ?? null;
+        if (!$pack) {
+            $lp = latest_pack((string)$row['product_id']);
+            $pack = $lp ? [
+                'hooks' => $lp['hooks'] ?? [],
+                'facebookCaption' => (string)($lp['facebookCaption'] ?? ''),
+                'facebookGroupCaption' => (string)($lp['facebookGroupCaption'] ?? ''),
+                'reelsCaption' => (string)($lp['reelsCaption'] ?? ''),
+                'sellingAngles' => $lp['sellingAngles'] ?? [],
+                'tiktokScript' => $lp['tiktokScript'] ?? [],
+            ] : [];
+        }
+        $key = angle_style_of([
+            'caption_preview' => (string)($row['caption_preview'] ?? ''),
+            'content_pack_id' => $packId,
+        ], $pack);
+        $byBand[$key][] = $row;
+        $allComm[] = (float)($row['commission_earned'] ?? 0);
+    }
+
+    $postedN = count($posted);
+    $globalAvgCommission = $postedN > 0 ? array_sum($allComm) / $postedN : 0.0;
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band] ?? [];
+        $samples = count($list);
+        $views = array_map(fn($p) => (float)($p['views'] ?? 0), $list);
+        $clicks = array_map(fn($p) => (float)($p['clicks'] ?? 0), $list);
+        $orders = array_map(fn($p) => (float)($p['orders_count'] ?? 0), $list);
+        $comms = array_map(fn($p) => (float)($p['commission_earned'] ?? 0), $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0;
+        $avgOrdersPerClick = $totalClicks > 0 ? $totalOrders / $totalClicks : 0;
+        $share = $postedN > 0 ? $samples / $postedN : 0;
+
+        $score = 0;
+        if ($samples > 0) {
+            $commBase = $globalAvgCommission > 0
+                ? max(0, min(70, ($avgCommission / $globalAvgCommission) * 50))
+                : max(0, min(50, $avgCommission * 2));
+            $score = $commBase + max(0, min(22, $avgCtr * 220)) + max(0, min(15, $avgOrdersPerClick * 100)) + max(0, min(15, $avgOrders * 8));
+            if ($band === 'pain') $score += 5;
+            elseif ($band === 'friend') $score += 4;
+            elseif ($band === 'usage') $score += 4;
+            elseif ($band === 'compare') $score += 3;
+            elseif ($band === 'time_save') $score += 3;
+            elseif ($band === 'flat') $score -= 6;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = (int)round(max(0, min(100, $score)));
+        }
+
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        $status = $samples === 0 ? 'no_data' : ($score >= 65 && $samples >= 2 ? 'hot' : ($score >= 45 ? 'steady' : 'cold'));
+        $row = [
+            'band' => $band,
+            'bandLabel' => angle_style_label($band),
+            'rangeLabel' => angle_style_range($band),
+            'samples' => $samples,
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOrdersPerClick, 2),
+            'score' => $score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => '',
+        ];
+        if ($samples === 0) {
+            $row['tip'] = 'ยังไม่มีผลมุมนี้ — ลอง draft 1 ชิ้นแนว “' . angle_style_hint($band) . '” แล้วกรอกเมตริก';
+        } elseif ($band === 'flat') {
+            $row['tip'] = 'มุมไม่ชัด — ใส่ selling angle ให้ชัด (ปัญหา/เทียบ/ใช้งาน) แล้ว regenerate ก่อน Approve';
+        } elseif ($status === 'hot') {
+            $row['tip'] = 'มุมนี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ต่อได้ แต่สลับสินค้า/ช่องเพื่อไม่ให้ซ้ำ';
+        } elseif ($status === 'cold') {
+            $row['tip'] = 'ผลเย็นในมุมนี้ — ลองปรับมุมขายหรือ regenerate แคปชันก่อนโพสต์ซ้ำ';
+        } elseif ($share >= 0.55) {
+            $row['tip'] = 'ใช้มุมนี้บ่อย (' . round($share * 100) . '%) — กระจาย pain/compare/usage เพื่อลดความซ้ำ';
+        } else {
+            $row['tip'] = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในมุมนี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        }
+        $bands[] = $row;
+    }
+
+    usort($bands, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['samples'] <=> $a['samples']));
+
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $flatSamples = count($byBand['flat'] ?? []);
+    $topShare = 0.0;
+    foreach ($bands as $b) $topShare = max($topShare, (float)$b['shareOfPosts']);
+    $unbalanced = $topShare >= 0.55 && $postedN >= 3;
+
+    $scoredAvg = $withData ? array_sum(array_column($withData, 'score')) / count($withData) : 0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && $postedN >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    if ($flatSamples > 0) $labScore = max(0, $labScore - 4);
+    $labScore = max(0, min(100, $labScore));
+
+    $bandsWithData = count($withData);
+    if ($bandsWithData === 0) $grade = 'D';
+    elseif ($labScore >= 75) $grade = 'A';
+    elseif ($labScore >= 58) $grade = 'B';
+    elseif ($labScore >= 40) $grade = 'C';
+    else $grade = 'D';
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'flat') { $best = $b; break; }
+    }
+    if (!$best) {
+        foreach ($withData as $b) {
+            if ($b['band'] !== 'flat') { $best = $b; break; }
+        }
+    }
+    if (!$best && $withData) $best = $withData[0];
+    $cold = array_values(array_filter($withData, fn($b) => $b['status'] === 'cold' || $b['band'] === 'flat'));
+
+    if ($postedN === 0) {
+        $mixTip = 'ยังไม่มีเมตริกรายมุมขาย — โพสต์มือแล้วกรอกผลที่ /results ก่อนจัดมิกซ์มุม';
+    } elseif ($flatSamples > 0 && $flatSamples >= (int)ceil($postedN / 2)) {
+        $mixTip = "พบมุม flat {$flatSamples} ชิ้น — ใส่ sellingAngles ให้ชัด (ปัญหา/เทียบ/ใช้งาน) ก่อน Approve (ทดลอง)";
+    } elseif ($unbalanced && $best) {
+        $mixTip = "มิกซ์เอนไปมุม {$best['bandLabel']} มาก — วันถัดไปลองสลับมุมขาย 1 ชิ้น (ทดลอง)";
+    } elseif ($best) {
+        $mixTip = "มุมเด่น: {$best['bandLabel']} — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์";
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามุมก่อนจัดอันดับมิกซ์';
+    }
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE post_date=? AND status IN ('draft','approved') ORDER BY suggested_time ASC");
+    $stmt->execute([$date]);
+    $todaySlots = $stmt->fetchAll() ?: [];
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'flat') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0 && $b['band'] !== 'flat') { $preferred = $b; break; }
+        }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['band'] === 'pain') { $preferred = $b; break; }
+        }
+    }
+
+    $suggestions = [];
+    foreach (array_slice($todaySlots, 0, 6) as $slot) {
+        $product = $byId[$slot['product_id']] ?? null;
+        if (!$product || !$preferred) continue;
+        $packId = (string)($slot['content_pack_id'] ?? '');
+        $pack = null;
+        if ($packId !== '') {
+            if (!isset($packCache[$packId])) {
+                $pstmt = db()->prepare('SELECT * FROM content_packs WHERE id=?');
+                $pstmt->execute([$packId]);
+                $prow = $pstmt->fetch();
+                if ($prow) {
+                    $script = json_decode((string)($prow['tiktok_script'] ?? '{}'), true) ?: [];
+                    $packCache[$packId] = [
+                        'hooks' => decode_list($prow['hooks'] ?? '[]'),
+                        'facebookCaption' => (string)($prow['facebook_caption'] ?? ''),
+                        'facebookGroupCaption' => (string)($prow['facebook_group_caption'] ?? ''),
+                        'reelsCaption' => (string)($prow['reels_caption'] ?? ''),
+                        'sellingAngles' => decode_list($prow['selling_angles'] ?? '[]'),
+                        'tiktokScript' => is_array($script) ? $script : [],
+                    ];
+                } else {
+                    $packCache[$packId] = null;
+                }
+            }
+            $pack = $packCache[$packId];
+        }
+        if (!$pack) {
+            $lp = latest_pack((string)$slot['product_id']);
+            $pack = $lp ? [
+                'hooks' => $lp['hooks'] ?? [],
+                'facebookCaption' => (string)($lp['facebookCaption'] ?? ''),
+                'facebookGroupCaption' => (string)($lp['facebookGroupCaption'] ?? ''),
+                'reelsCaption' => (string)($lp['reelsCaption'] ?? ''),
+                'sellingAngles' => $lp['sellingAngles'] ?? [],
+                'tiktokScript' => $lp['tiktokScript'] ?? [],
+            ] : [];
+        }
+        $currentKey = angle_style_of([
+            'caption_preview' => (string)($slot['caption_preview'] ?? ''),
+            'content_pack_id' => $packId,
+        ], $pack);
+        $currentRow = null;
+        foreach ($bands as $b) {
+            if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        }
+        $sameAsPreferred = $currentKey === $preferred['band'];
+        $preview = mb_substr((string)($slot['caption_preview'] ?? ''), 0, 80);
+        $currentCold = $currentKey === 'flat' || (
+            $currentRow && (
+                $currentRow['status'] === 'cold' ||
+                ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')
+            )
+        );
+
+        if ($currentCold && !$sameAsPreferred) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => angle_style_label($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'captionPreview' => $preview !== '' ? $preview : '(ไม่มีแคปชัน)',
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => angle_style_label($currentKey) . ' เย็น/ไม่ชัด · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่แก้แคปชันอัตโนมัติ — regenerate หรือแก้มือ แล้ว Approve ก่อนโพสต์',
+            ];
+        } elseif ($unbalanced && $sameAsPreferred && $cold && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($bands as $b) {
+                if ($b['band'] !== $currentKey && $b['band'] !== 'flat' && in_array($b['status'], ['steady', 'no_data'], true)) {
+                    $alt = $b; break;
+                }
+            }
+            if (!$alt) {
+                foreach ($bands as $b) {
+                    if (in_array($b['band'], ['usage', 'compare'], true)) { $alt = $b; break; }
+                }
+            }
+            if (!$alt) {
+                foreach ($cold as $b) {
+                    if ($b['band'] !== 'flat') { $alt = $b; break; }
+                }
+            }
+            if (!$alt) continue;
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => angle_style_label($currentKey),
+                'suggestedBand' => $alt['band'],
+                'suggestedLabel' => $alt['bandLabel'],
+                'captionPreview' => $preview !== '' ? $preview : '(ไม่มีแคปชัน)',
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => 'วันนี้ซ้อนมุม ' . angle_style_label($currentKey) . ' — ลองกระจายไป ' . $alt['bandLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยนแคปชันเอง — regenerate draft แล้ว Approve ใหม่',
+            ];
+        }
+    }
+
+    $actions = [];
+    if ($postedN === 0) {
+        $actions[] = [
+            'id' => 'need-metrics',
+            'title' => 'เริ่มเก็บผลรายมุมขาย',
+            'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ /results อย่างน้อย 1 ชิ้นต่อมุม',
+        ];
+    }
+    if ($flatSamples > 0) {
+        $actions[] = [
+            'id' => 'clarify-flat',
+            'title' => 'ทำให้มุมขายชัดขึ้น',
+            'detail' => "พบ {$flatSamples} โพสต์มุมไม่ชัด — ใส่ sellingAngles (ปัญหา/เทียบ/ใช้งาน) แล้ว regenerate ก่อน Approve",
+        ];
+    }
+    if ($best && $best['status'] === 'hot' && $best['band'] !== 'flat') {
+        $actions[] = [
+            'id' => 'lean-angle',
+            'title' => 'เอียงทดลองไปมุม ' . $best['bandLabel'],
+            'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต · ' . angle_style_hint($best['band']),
+        ];
+    }
+    if ($unbalanced) {
+        $actions[] = [
+            'id' => 'diversify',
+            'title' => 'กระจายมิกซ์มุมขาย',
+            'detail' => 'มุมเด่นกินสัดส่วนสูง — เพิ่ม draft คนละมุม 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)',
+        ];
+    }
+    $coldSoft = array_values(array_filter($cold, fn($b) => $b['band'] !== 'flat'));
+    if ($coldSoft) {
+        $actions[] = [
+            'id' => 'review-cold',
+            'title' => 'ทบทวนมุมเย็น: ' . implode(', ', array_column($coldSoft, 'bandLabel')),
+            'detail' => 'ปรับมุมขาย / regenerate หรือพักมุมนั้นชั่วคราว — อย่าโพสต์ซ้ำชุดเดิมยาว ๆ',
+        ];
+    }
+    $missing = [];
+    foreach ($order as $b) {
+        if ($b === 'flat') continue;
+        if (count($byBand[$b] ?? []) === 0) $missing[] = $b;
+    }
+    if ($missing && $postedN > 0) {
+        $actions[] = [
+            'id' => 'fill-styles',
+            'title' => 'ทดลองมุมที่ยังไม่มีข้อมูล (' . count($missing) . ')',
+            'detail' => 'ยังไม่มี: ' . implode(' · ', array_map('angle_style_label', $missing)) . ' — draft 1 ชิ้นต่อมุมแล้ววัดผล',
+        ];
+    }
+    $actions[] = [
+        'id' => 'compliance',
+        'title' => 'คงกฎ Approve + disclosure + ไม่ขายแข็ง',
+        'detail' => 'ทุกแคปชันต้องมี disclosure affiliate และผ่าน Approve ก่อนโพสต์มือ — ระบบไม่โพสต์อัตโนมัติ',
+    ];
+    $actions = array_slice($actions, 0, 5);
+
+    if ($postedN === 0) {
+        $summary = 'Angle Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับมุมขาย';
+    } else {
+        $summary = "Angle Fit Lab: {$postedN} โพสต์มีเมตริก · มุมที่มีข้อมูล {$bandsWithData} · ร้อน {$hot}"
+            . ($flatSamples > 0 ? " · flat {$flatSamples}" : '')
+            . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    }
+
+    $checklist = [
+        'อันดับมุมขายมาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับมุมเป็นคำแนะนำเท่านั้น — ต้องแก้เอง + Approve',
+        'หลีกเลี่ยงมุมไม่ชัดและคำโฆษณาเกินจริง',
+        'ทุกโพสต์ต้องมี disclosure และน้ำเสียงช่วยเลือกของ',
+    ];
+
+    $lines = [
+        "Angle Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = $statusLabel[$b['status']] . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score'] . ' (' . $confLabel[$b['confidence']] . ', n=' . $b['samples'] . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => $postedN,
+            'bandsWithData' => $bandsWithData,
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+            'flatSamples' => $flatSamples,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => array_slice($suggestions, 0, 5),
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function angle_fit_lab_to_markdown(array $lab): string
+{
+    $bandRows = [];
+    foreach ($lab['bands'] as $b) {
+        if (($b['samples'] ?? 0) <= 0) continue;
+        $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'][$b['status']] ?? $b['status'];
+        $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'][$b['confidence']] ?? $b['confidence'];
+        $n = count($bandRows) + 1;
+        $bandRows[] = "{$n}. **[{$statusLabel}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel}\n"
+            . "   CTR ~" . round($b['avgCtr'] * 100, 1) . "% · ออเดอร์/คลิก ~{$b['avgOrdersPerClick']} · ค่าคอมเฉลี่ย ฿{$b['avgCommission']}\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']}\n"
+            . "   preview: {$s['captionPreview']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) $suggestionRows[] = '_(ไม่มีคำแนะนำสลับมุมวันนี้)_';
+
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = array_map(fn($c) => "- {$c}", $lab['checklist']);
+
+    return "# Angle Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- มุมที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . "- flat: {$lab['counts']['flatSamples']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . (!empty($lab['counts']['unbalanced']) ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับมุมขาย (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+
+
+
 
 /**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
@@ -9496,6 +10076,7 @@ function run_morning_workflow(?string $date = null): array
     $ctaFitLines = array_slice(build_cta_fit_lab($date)['lines'], 0, 4);
     $hashtagFitLines = array_slice(build_hashtag_fit_lab($date)['lines'], 0, 4);
     $toneFitLines = array_slice(build_tone_fit_lab($date)['lines'], 0, 4);
+    $angleFitLines = array_slice(build_angle_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -9525,6 +10106,7 @@ function run_morning_workflow(?string $date = null): array
         ...$ctaFitLines,
         ...$hashtagFitLines,
         ...$toneFitLines,
+        ...$angleFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -9623,6 +10205,7 @@ function run_evening_workflow(?string $date = null): array
     $ctaFitLab = build_cta_fit_lab($date);
     $hashtagFitLab = build_hashtag_fit_lab($date);
     $toneFitLab = build_tone_fit_lab($date);
+    $angleFitLab = build_angle_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -9684,6 +10267,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($toneFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($angleFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -9733,6 +10319,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($toneFitLab['counts']['hot'] ?? 0) > 0 || !empty($toneFitLab['counts']['unbalanced']) || ($toneFitLab['counts']['hardPushSamples'] ?? 0) > 0) {
         $recs[] = 'Tone Fit: ช่วงร้อน ' . $toneFitLab['counts']['hot'] . ' · ' . $toneFitLab['mixTip'];
+    }
+    if (($angleFitLab['counts']['hot'] ?? 0) > 0 || !empty($angleFitLab['counts']['unbalanced']) || ($angleFitLab['counts']['flatSamples'] ?? 0) > 0) {
+        $recs[] = 'Angle Fit: ช่วงร้อน ' . $angleFitLab['counts']['hot'] . ' · ' . $angleFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));
