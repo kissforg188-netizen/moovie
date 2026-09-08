@@ -347,6 +347,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md angle-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['length-fit', 'length', 'caption-length', 'lengths', 'body-length'], true)) {
+                $lab = build_length_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-length-fit-lab-'.today_iso().'.md"');
+                echo length_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md length-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

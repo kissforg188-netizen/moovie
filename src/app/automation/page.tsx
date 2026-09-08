@@ -45,6 +45,7 @@ export default async function AutomationPage() {
     hashtagFitLab,
     toneFitLab,
     angleFitLab,
+    lengthFitLab,
   } = await getDashboardSnapshot();
   const date = todayISO();
   const season = currentSeasonHint();
@@ -1834,6 +1835,115 @@ export default async function AutomationPage() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
+              Length Fit Lab
+            </h2>
+            <p className="mt-1 text-sm text-[var(--ink-soft)]">
+              {lengthFitLab.summary}
+            </p>
+          </div>
+          <a
+            className="text-sm text-[var(--sage-deep)] underline underline-offset-2"
+            href="/api/export?format=md&scope=length-fit"
+          >
+            Export Markdown
+          </a>
+        </div>
+        <p className="text-xs text-[var(--ink-soft)]">
+          เกรดแล็บ {lengthFitLab.grade} · {lengthFitLab.score}
+          /100 · หน้าต่าง {lengthFitLab.windowDays} วัน
+        </p>
+        <p className="text-sm text-[var(--sage-deep)]">
+          {lengthFitLab.mixTip}
+        </p>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">มีเมตริก</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {lengthFitLab.counts.postsWithMetrics}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">ช่วงมีข้อมูล</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {lengthFitLab.counts.bandsWithData}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">ร้อน</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {lengthFitLab.counts.hot}
+            </p>
+          </div>
+          <div className="rounded-xl bg-[rgba(63,111,92,0.08)] px-3 py-2 text-sm">
+            <p className="text-[var(--ink-soft)]">ว่าง</p>
+            <p className="text-xl text-[var(--sage-deep)]">
+              {lengthFitLab.counts.emptySamples}
+            </p>
+          </div>
+        </div>
+        {lengthFitLab.counts.postsWithMetrics === 0 ? (
+          <p className="text-sm text-[var(--ink-soft)]">
+            ยังไม่มีเมตริกรายความยาวแคปชัน — โพสต์มือแล้วกรอกผลที่ /results
+          </p>
+        ) : (
+          <ol className="list-decimal space-y-3 pl-5 text-sm text-[var(--ink-soft)]">
+            {lengthFitLab.bands
+              .filter((b) => b.samples > 0)
+              .slice(0, 4)
+              .map((b) => (
+                <li key={b.band}>
+                  <span className="text-[var(--sage-deep)]">
+                    [
+                    {b.status === "hot"
+                      ? "ร้อน"
+                      : b.status === "cold"
+                        ? "เย็น"
+                        : b.status === "steady"
+                          ? "นิ่ง"
+                          : "ยังไม่มีข้อมูล"}
+                    ] {b.bandLabel}
+                  </span>
+                  <p className="mt-0.5 text-xs">
+                    คะแนน {b.score}/100 · n={b.samples} · ~{b.avgChars}{" "}
+                    ตัวอักษร · CTR ~{(b.avgCtr * 100).toFixed(1)}%
+                  </p>
+                  <p className="mt-0.5 text-xs">{b.tip}</p>
+                </li>
+              ))}
+          </ol>
+        )}
+        {lengthFitLab.suggestions.length > 0 ? (
+          <div className="rounded-xl border border-[var(--line)] bg-white/50 p-3">
+            <p className="text-sm text-[var(--sage-deep)]">
+              คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+              {lengthFitLab.suggestions.slice(0, 4).map((s) => (
+                <li key={s.scheduleId}>
+                  {s.productName}: {s.currentLabel} → {s.suggestedLabel} —{" "}
+                  {s.reason}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <ul className="list-disc space-y-1 pl-5 text-xs text-[var(--ink-soft)]">
+          {lengthFitLab.actions.slice(0, 3).map((a) => (
+            <li key={a.id}>
+              <span className="text-[var(--sage-deep)]">{a.title}</span> —{" "}
+              {a.detail}
+            </li>
+          ))}
+        </ul>
+        <p className="text-xs text-[var(--ink-soft)]">
+          {lengthFitLab.disclaimer}
+        </p>
+      </section>
+
+      <section className="surface rounded-2xl p-5 space-y-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="brand-mark text-2xl text-[var(--sage-deep)]">
               Tomorrow Plan
             </h2>
             <p className="mt-1 text-sm text-[var(--ink-soft)]">
@@ -2506,6 +2616,12 @@ export default async function AutomationPage() {
           className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
         >
           Export Angle Fit Lab (.md)
+        </a>
+        <a
+          href="/api/export?format=md&scope=length-fit"
+          className="rounded-md border border-[var(--line)] px-3 py-1.5 text-[var(--sage-deep)] hover:bg-[var(--mist)]"
+        >
+          Export Length Fit Lab (.md)
         </a>
         <a
           href="/api/export?format=csv&scope=schedule"

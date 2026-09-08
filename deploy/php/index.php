@@ -51,6 +51,7 @@ $ctaFitLab = build_cta_fit_lab($date);
 $hashtagFitLab = build_hashtag_fit_lab($date);
 $toneFitLab = build_tone_fit_lab($date);
 $angleFitLab = build_angle_fit_lab($date);
+$lengthFitLab = build_length_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -629,6 +630,7 @@ $angleFitLab = build_angle_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=length-fit">Export Length Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($painClarityFitLab['disclaimer']) ?></p>
@@ -913,6 +915,7 @@ $angleFitLab = build_angle_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=length-fit">Export Length Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($hashtagFitLab['disclaimer']) ?></p>
@@ -961,6 +964,7 @@ $angleFitLab = build_angle_fit_lab($date);
         <div class="actions">
           <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=length-fit">Export Length Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($toneFitLab['disclaimer']) ?></p>
@@ -1008,9 +1012,57 @@ $angleFitLab = build_angle_fit_lab($date);
         </ul>
         <div class="actions">
           <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=length-fit">Export Length Fit Lab (.md)</a>
           <a class="btn" href="?page=results">ไปกรอกผล</a>
         </div>
         <p class="note"><?= h($angleFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
+        <h2>Length Fit Lab</h2>
+        <p class="muted"><?= h($lengthFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($lengthFitLab['grade']) ?> · <?= (int)$lengthFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$lengthFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($lengthFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$lengthFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>ช่วงมีข้อมูล</p><strong><?= (int)$lengthFitLab['counts']['bandsWithData'] ?></strong></article>
+          <article><p>ร้อน</p><strong><?= (int)$lengthFitLab['counts']['hot'] ?></strong></article>
+          <article><p>ว่าง</p><strong><?= (int)$lengthFitLab['counts']['emptySamples'] ?></strong></article>
+        </div>
+        <?php
+          $lengthBandRows = array_values(array_filter($lengthFitLab['bands'], fn($b) => ($b['samples'] ?? 0) > 0));
+          if (!$lengthBandRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายความยาวแคปชัน — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($lengthBandRows, 0, 4) as $b): ?>
+              <li>
+                <strong>[<?= h($b['status'] === 'hot' ? 'ร้อน' : ($b['status'] === 'cold' ? 'เย็น' : ($b['status'] === 'steady' ? 'นิ่ง' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($b['bandLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$b['score'] ?>/100 · n=<?= (int)$b['samples'] ?> · ~<?= h((string)$b['avgChars']) ?> ตัวอักษร · CTR ~<?= h((string)round($b['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($b['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($lengthFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($lengthFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentLabel']) ?> → <?= h($s['suggestedLabel']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($lengthFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=length-fit">Export Length Fit Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($lengthFitLab['disclaimer']) ?></p>
       </section>
 
       <section class="card fade-up">
@@ -1270,6 +1322,7 @@ $angleFitLab = build_angle_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=hashtag-fit">Export Hashtag Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=tone-fit">Export Tone Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=angle-fit">Export Angle Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=length-fit">Export Length Fit Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>

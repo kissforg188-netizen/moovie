@@ -135,6 +135,11 @@ import {
   angleFitLabLines,
   type AngleFitLab,
 } from "./angle-fit";
+import {
+  buildLengthFitLab,
+  lengthFitLabLines,
+  type LengthFitLab,
+} from "./length-fit";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -329,6 +334,7 @@ export async function runMorningWorkflow(
         ...hashtagFitLabLines(buildHashtagFitLab(db, date), 4),
         ...toneFitLabLines(buildToneFitLab(db, date), 4),
         ...angleFitLabLines(buildAngleFitLab(db, date), 4),
+        ...lengthFitLabLines(buildLengthFitLab(db, date), 4),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -442,6 +448,7 @@ export async function runEveningWorkflow(
       const hashtagFitLab = buildHashtagFitLab(db, date);
       const toneFitLab = buildToneFitLab(db, date);
       const angleFitLab = buildAngleFitLab(db, date);
+      const lengthFitLab = buildLengthFitLab(db, date);
 
       const recommendations = [
         ...analysis.recommendations,
@@ -469,6 +476,7 @@ export async function runEveningWorkflow(
         ...hashtagFitLabLines(hashtagFitLab, 5),
         ...toneFitLabLines(toneFitLab, 5),
         ...angleFitLabLines(angleFitLab, 5),
+        ...lengthFitLabLines(lengthFitLab, 5),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -529,6 +537,11 @@ export async function runEveningWorkflow(
           angleFitLab.counts.unbalanced ||
           angleFitLab.counts.flatSamples > 0
           ? `Angle Fit: ช่วงร้อน ${angleFitLab.counts.hot} · ${angleFitLab.mixTip}`
+          : null,
+        lengthFitLab.counts.hot > 0 ||
+          lengthFitLab.counts.unbalanced ||
+          lengthFitLab.counts.emptySamples > 0
+          ? `Length Fit: ช่วงร้อน ${lengthFitLab.counts.hot} · ${lengthFitLab.mixTip}`
           : null,
       ].filter(Boolean) as string[];
 
@@ -597,6 +610,7 @@ export async function getDashboardSnapshot(): Promise<{
   hashtagFitLab: HashtagFitLab;
   toneFitLab: ToneFitLab;
   angleFitLab: AngleFitLab;
+  lengthFitLab: LengthFitLab;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -654,6 +668,7 @@ export async function getDashboardSnapshot(): Promise<{
   const hashtagFitLab = buildHashtagFitLab(db, date);
   const toneFitLab = buildToneFitLab(db, date);
   const angleFitLab = buildAngleFitLab(db, date);
+  const lengthFitLab = buildLengthFitLab(db, date);
   return {
     db,
     ranked,
@@ -685,5 +700,6 @@ export async function getDashboardSnapshot(): Promise<{
     hashtagFitLab,
     toneFitLab,
     angleFitLab,
+    lengthFitLab,
   };
 }

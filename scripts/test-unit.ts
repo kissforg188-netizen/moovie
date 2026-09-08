@@ -145,6 +145,14 @@ import {
   buildAngleFitLab,
 } from "../src/lib/angle-fit";
 import {
+  classifyLengthBand,
+  captionBodyLength,
+  lengthFitLabLines,
+  lengthFitLabToMarkdown,
+  lengthBandOf,
+  buildLengthFitLab,
+} from "../src/lib/length-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -4805,6 +4813,199 @@ function run() {
   assert.equal(emptyAngle.counts.postsWithMetrics, 0);
   assert.ok(
     emptyAngle.summary.includes("ยังไม่มีเมตริก") || emptyAngle.score <= 50,
+  );
+
+  // --- Length Fit Lab ---
+  assert.equal(classifyLengthBand(""), "empty");
+  assert.equal(classifyLengthBand(AFFILIATE_DISCLOSURE), "empty");
+  assert.equal(
+    classifyLengthBand("สั้นมาก แค่ประโยคเดียว"),
+    "micro",
+  );
+  const compactBody =
+    "เคยเจอไหม… ถ้ากำลังหาของช่วยเรื่องโต๊ะ ลองดูสเปกสั้น ๆ ก่อนตัดสินใจ ไม่เร่งซื้อ และเทียบของเดิมนิดหน่อย";
+  assert.equal(classifyLengthBand(compactBody), "compact");
+  const standardBody =
+    compactBody +
+    " จุดที่ชอบคือพกง่าย ราคาไม่แรง และมีรีวิวให้เทียบของเดิมได้หนึ่งรอบก่อนกดลิงก์ดูรายละเอียดเพิ่ม";
+  assert.equal(classifyLengthBand(standardBody), "standard");
+  const detailedBody =
+    standardBody +
+    " รายละเอียดเพิ่มเติมช่วยเลือกของอีกนิด สำหรับคนที่อยากอ่านก่อน เทียบสเปก/ราคา แล้วค่อยตัดสินใจเอง โดยไม่เร่งกดซื้อ รวมจุดที่ชอบสองข้อและวิธีใช้งานสั้น ๆ ในชีวิตประจำวัน";
+  assert.equal(classifyLengthBand(detailedBody), "detailed");
+  const longBody = (standardBody + " ").repeat(6);
+  assert.equal(classifyLengthBand(longBody), "longform");
+  assert.ok(captionBodyLength(`${compactBody}\n\n${AFFILIATE_DISCLOSURE}`) < 200);
+
+  const lengthCompactProd = sample({
+    id: "prod_len_compact",
+    name: "ความยาวกะชับ",
+    price: 199,
+    commissionRate: 12,
+  });
+  const lengthEmptyProd = sample({
+    id: "prod_len_empty",
+    name: "แคปชันว่าง",
+    price: 99,
+    commissionRate: 8,
+  });
+  const packLenCompact = {
+    id: "pack_len_compact",
+    productId: lengthCompactProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยเจอไหม…"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์"],
+    hashtagsTh: ["#เลือกดี"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: { durationSec: 20, scenes: [], voiceover: "" },
+    facebookCaption: withDisclosure(compactBody),
+    facebookGroupCaption: withDisclosure(compactBody),
+    reelsCaption: withDisclosure(compactBody),
+    videoPriorityNote: "ถ่ายง่าย",
+    filmingChecklist: ["โชว์ปัญหา"],
+    sellingAngles: ["มุมปัญหา: เล่าสั้น ๆ"],
+  };
+  const packLenEmpty = {
+    id: "pack_len_empty",
+    productId: lengthEmptyProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["ของดี"],
+    ctas: ["ดูลิงก์"],
+    hashtagsTh: ["#รีวิว"],
+    hashtagsEn: ["#Ad"],
+    tiktokScript: { durationSec: 15, scenes: [], voiceover: "" },
+    facebookCaption: AFFILIATE_DISCLOSURE,
+    facebookGroupCaption: AFFILIATE_DISCLOSURE,
+    reelsCaption: AFFILIATE_DISCLOSURE,
+    videoPriorityNote: "ทั่วไป",
+    filmingChecklist: ["โชว์สินค้า"],
+    sellingAngles: [],
+  };
+  const lengthSchedule = [
+    {
+      id: "sch_len_c1",
+      date: "2026-08-20",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: lengthCompactProd.id,
+      contentPackId: packLenCompact.id,
+      status: "posted" as const,
+      captionPreview: withDisclosure(compactBody),
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 1400,
+        clicks: 70,
+        orders: 4,
+        commissionEarned: 90,
+      },
+    },
+    {
+      id: "sch_len_c2",
+      date: "2026-08-21",
+      suggestedTime: "10:00",
+      channel: "facebook_post" as const,
+      productId: lengthCompactProd.id,
+      contentPackId: packLenCompact.id,
+      status: "posted" as const,
+      captionPreview: withDisclosure(compactBody + " อ่านรีวิวก่อนก็ได้"),
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 1000,
+        clicks: 52,
+        orders: 3,
+        commissionEarned: 66,
+      },
+    },
+    {
+      id: "sch_len_empty",
+      date: "2026-08-22",
+      suggestedTime: "11:00",
+      channel: "facebook_reels" as const,
+      productId: lengthEmptyProd.id,
+      contentPackId: packLenEmpty.id,
+      status: "posted" as const,
+      captionPreview: AFFILIATE_DISCLOSURE,
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 280,
+        clicks: 4,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_len_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: lengthEmptyProd.id,
+      contentPackId: packLenEmpty.id,
+      status: "draft" as const,
+      captionPreview: AFFILIATE_DISCLOSURE,
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  assert.equal(
+    lengthBandOf(lengthSchedule[0], packLenCompact as never),
+    "compact",
+  );
+  assert.equal(
+    lengthBandOf(lengthSchedule[2], packLenEmpty as never),
+    "empty",
+  );
+
+  const lengthLab = buildLengthFitLab(
+    {
+      products: [lengthCompactProd, lengthEmptyProd],
+      contentPacks: [packLenCompact, packLenEmpty] as never[],
+      schedule: lengthSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(lengthLab.counts.postsWithMetrics, 3);
+  assert.ok(lengthLab.counts.emptySamples >= 1);
+  const lengthCompactRow = lengthLab.bands.find((b) => b.band === "compact");
+  const lengthEmptyRow = lengthLab.bands.find((b) => b.band === "empty");
+  assert.ok(lengthCompactRow);
+  assert.ok(lengthEmptyRow);
+  assert.ok(lengthCompactRow!.score > lengthEmptyRow!.score);
+  assert.ok(lengthLab.suggestions.length >= 1);
+  assert.ok(
+    lengthLab.suggestions[0].suggestedBand === "compact" ||
+      lengthLab.suggestions[0].suggestedLabel.includes("กระชับ"),
+  );
+  assert.ok(lengthFitLabLines(lengthLab, 3).length <= 3);
+  const lengthMd = lengthFitLabToMarkdown(lengthLab);
+  assert.ok(lengthMd.includes("Length Fit Lab"));
+  assert.ok(lengthMd.includes("ทดลอง"));
+  assert.ok(lengthMd.includes("ไม่เปลี่ยนอัตโนมัติ") || lengthMd.includes("Approve"));
+  assert.ok(
+    lengthMd.includes("ไม่รับประกัน") ||
+      lengthMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyLength = buildLengthFitLab(
+    {
+      products: [lengthCompactProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyLength.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyLength.summary.includes("ยังไม่มีเมตริก") || emptyLength.score <= 50,
   );
 
   console.log("All unit tests passed");
