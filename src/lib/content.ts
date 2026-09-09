@@ -97,47 +97,221 @@ export function generateHashtags(product: Product): {
   };
 }
 
-function buildTikTokScript(product: Product, hooks: string[], ctas: string[]) {
+type ScriptStyleVariant =
+  | "problem_demo"
+  | "howto"
+  | "before_after"
+  | "unbox"
+  | "pov";
+
+const SCRIPT_STYLE_VARIANTS: ScriptStyleVariant[] = [
+  "problem_demo",
+  "howto",
+  "before_after",
+  "unbox",
+  "pov",
+];
+
+const SCRIPT_STYLE_LABEL: Record<ScriptStyleVariant, string> = {
+  problem_demo: "โครงปัญหา→สาธิต",
+  howto: "โครงวิธีใช้ทีละขั้น",
+  before_after: "โครงก่อน–หลัง",
+  unbox: "โครงแกะกล่อง",
+  pov: "โครง POV",
+};
+
+function scriptStyleForVariant(variant: number): ScriptStyleVariant {
+  const i = Math.abs(variant) % SCRIPT_STYLE_VARIANTS.length;
+  return SCRIPT_STYLE_VARIANTS[i]!;
+}
+
+function buildTikTokScript(
+  product: Product,
+  hooks: string[],
+  ctas: string[],
+  variant = 0,
+) {
   const pain = softCopy(firstPain(product));
   const sell = softCopy(firstSell(product));
   const audience = softCopy(product.targetAudience || "คนทั่วไป");
   const category = softCopy(product.category || "ของใช้");
-  return {
-    durationSec: 25,
-    scenes: [
-      {
-        time: "0-3วิ",
-        line: hooks[0],
-        visual: "หน้ากล้องใกล้ ๆ น้ำเสียงเป็นกันเอง / โชว์ปัญหาแบบสั้น ๆ",
-      },
-      {
-        time: "3-10วิ",
-        line: softCopy(
-          `ปัญหาคือ ${pain} เลยไปลองหาของที่ช่วยได้โดยไม่ต้องซื้อแพง`,
-        ),
-        visual: "โชว์สินค้าชัด + จุดใช้งานจริง 1–2 อย่าง",
-      },
-      {
-        time: "10-20วิ",
-        line: softCopy(
-          `${sell} เหมาะกับ${audience} ราคาประมาณ ${priceLabel(product.price)}`,
-        ),
-        visual: "สาธิตสั้น / Before-After เบา ๆ ไม่โอเวอร์เคลม",
-      },
-      {
-        time: "20-25วิ",
-        line: ctas[0],
-        visual: "ชี้ลิงก์ + ข้อความ disclosure บนจอ",
-      },
-    ],
-    voiceover: softCopy(
-      [
+  const style = scriptStyleForVariant(variant);
+  const styleTag = SCRIPT_STYLE_LABEL[style];
+  const price = priceLabel(product.price);
+
+  const byStyle: Record<
+    ScriptStyleVariant,
+    { scenes: { time: string; line: string; visual: string }[]; voiceBits: string[] }
+  > = {
+    problem_demo: {
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: hooks[0],
+          visual: `${styleTag} · หน้ากล้องใกล้ ๆ / โชว์ปัญหาแบบสั้น ๆ`,
+        },
+        {
+          time: "3-10วิ",
+          line: softCopy(
+            `ปัญหาคือ ${pain} เลยไปลองหาของที่ช่วยได้โดยไม่ต้องซื้อแพง`,
+          ),
+          visual: "โชว์สินค้าชัด + จุดใช้งานจริง 1–2 อย่าง",
+        },
+        {
+          time: "10-20วิ",
+          line: softCopy(
+            `${sell} เหมาะกับ${audience} ราคาประมาณ ${price}`,
+          ),
+          visual: "สาธิตสั้น ไม่โอเวอร์เคลม",
+        },
+        {
+          time: "20-25วิ",
+          line: ctas[0],
+          visual: "ชี้ลิงก์ + ข้อความ disclosure บนจอ",
+        },
+      ],
+      voiceBits: [
+        styleTag,
         hooks[0],
         `ตัวเลือกนี้ช่วยเรื่อง${category}: ${sell}`,
-        `ราคาประมาณ ${priceLabel(product.price)} — ดูสเปกและรีวิวเพิ่มก่อนซื้อได้`,
-        AFFILIATE_DISCLOSURE,
-      ].join(" "),
-    ),
+        `ราคาประมาณ ${price} — ดูสเปกและรีวิวเพิ่มก่อนซื้อได้`,
+      ],
+    },
+    howto: {
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: softCopy(`วิธีใช้ทีละขั้น: ${hooks[0]}`),
+          visual: `${styleTag} · โชว์ของพร้อมใช้`,
+        },
+        {
+          time: "3-12วิ",
+          line: softCopy(`ก้าวที่ 1–2: เตรียมของ แล้วลอง${sell}`),
+          visual: "ทีละขั้นชัด ๆ ไม่เร่ง",
+        },
+        {
+          time: "12-20วิ",
+          line: softCopy(
+            `ช่วยเรื่อง${pain} ราคาประมาณ ${price} — เทียบรีวิวก่อนก็ได้`,
+          ),
+          visual: "โชว์ผลใช้งานเบา ๆ ไม่เคลมเกินจริง",
+        },
+        {
+          time: "20-25วิ",
+          line: ctas[0],
+          visual: "ชี้ลิงก์ + disclosure",
+        },
+      ],
+      voiceBits: [
+        styleTag,
+        `สอนใช้สั้น ๆ สำหรับ${audience}`,
+        sell,
+        `ราคาประมาณ ${price}`,
+      ],
+    },
+    before_after: {
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: softCopy(`ก่อนใช้: ${pain}`),
+          visual: `${styleTag} · โชว์สถานการณ์ก่อนแบบสั้น`,
+        },
+        {
+          time: "3-12วิ",
+          line: softCopy(`หลังลองตัวเลือกนี้: ${sell}`),
+          visual: "Before-After เบา ๆ ไม่โอเวอร์เคลม",
+        },
+        {
+          time: "12-20วิ",
+          line: softCopy(
+            `เหมาะกับ${audience} ราคาประมาณ ${price} — ไม่การันตีผลทุกคน`,
+          ),
+          visual: "โชว์ของจริง + จุดที่ชอบ 1 ข้อ",
+        },
+        {
+          time: "20-25วิ",
+          line: ctas[0],
+          visual: "ชี้ลิงก์ + disclosure",
+        },
+      ],
+      voiceBits: [
+        styleTag,
+        `ก่อน–หลังเบา ๆ เรื่อง${category}`,
+        sell,
+        `ราคาประมาณ ${price}`,
+      ],
+    },
+    unbox: {
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: softCopy(`แกะกล่องสั้น ๆ: ${hooks[0]}`),
+          visual: `${styleTag} · เปิดกล่อง / ของมาถึง`,
+        },
+        {
+          time: "3-12วิ",
+          line: softCopy(`จุดที่ชอบ: ${sell}`),
+          visual: "ซูมรายละเอียด 1–2 จุด",
+        },
+        {
+          time: "12-20วิ",
+          line: softCopy(
+            `ช่วยเรื่อง${pain} ราคาประมาณ ${price} — เปิดดูสเปกต่อได้`,
+          ),
+          visual: "วางของในฉากใช้งานจริง",
+        },
+        {
+          time: "20-25วิ",
+          line: ctas[0],
+          visual: "ชี้ลิงก์ + disclosure",
+        },
+      ],
+      voiceBits: [
+        styleTag,
+        "แกะกล่องสั้น ไม่เร่งซื้อ",
+        sell,
+        `ราคาประมาณ ${price}`,
+      ],
+    },
+    pov: {
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: softCopy(`POV: วันหนึ่งของ${audience}`),
+          visual: `${styleTag} · ตามไปดูสถานการณ์จริง`,
+        },
+        {
+          time: "3-12วิ",
+          line: softCopy(`เจอ${pain} เลยลองตัวเลือกนี้: ${sell}`),
+          visual: "มือถือ POV / ฉากประจำวัน",
+        },
+        {
+          time: "12-20วิ",
+          line: softCopy(
+            `ราคาประมาณ ${price} — แชร์เป็นตัวเลือก ไม่เร่งกดซื้อ`,
+          ),
+          visual: "โชว์ของในชีวิตจริงสั้น ๆ",
+        },
+        {
+          time: "20-25วิ",
+          line: ctas[0],
+          visual: "ชี้ลิงก์ + disclosure",
+        },
+      ],
+      voiceBits: [
+        styleTag,
+        `ตามไปดูสถานการณ์${category}`,
+        sell,
+        `ราคาประมาณ ${price}`,
+      ],
+    },
+  };
+
+  const picked = byStyle[style];
+  return {
+    durationSec: 25,
+    scenes: picked.scenes,
+    voiceover: softCopy([...picked.voiceBits, AFFILIATE_DISCLOSURE].join(" ")),
   };
 }
 
@@ -197,12 +371,13 @@ export function generateContentPack(
     ].join("\n"),
   );
 
+  const styleTag = SCRIPT_STYLE_LABEL[scriptStyleForVariant(variant)];
   const videoPriorityNote =
     product.videoEase >= 4
-      ? "ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)"
+      ? `${styleTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
       : product.videoEase >= 3
-        ? "ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ"
-        : "ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม";
+        ? `${styleTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
+        : `${styleTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
 
   const noteHint = product.notes?.trim()
     ? `โน้ตจากผู้ใช้: ${softCopy(product.notes.trim()).slice(0, 120)}`
@@ -230,7 +405,7 @@ export function generateContentPack(
     ctas,
     hashtagsTh: tags.th,
     hashtagsEn: tags.en,
-    tiktokScript: buildTikTokScript(product, hooks, ctas),
+    tiktokScript: buildTikTokScript(product, hooks, ctas, variant),
     facebookCaption: withDisclosure(facebookBody),
     facebookGroupCaption: withDisclosure(facebookGroupBody),
     reelsCaption: withDisclosure(reelsBody),

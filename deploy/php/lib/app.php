@@ -8620,6 +8620,471 @@ function length_fit_lab_to_markdown(array $lab): string
         . implode("\n", $actionLines) . "\n\n"
         . "## Checklist\n"
         . implode("\n", $checkLines) . "\n\n"
+        
+. $lab['disclaimer'] . "\n";
+}
+
+
+/**
+ * Script Fit Lab — soft ranking of short-video script structures from logged metrics.
+ */
+function script_style_order(): array
+{
+    return ['problem_demo', 'howto', 'before_after', 'unbox', 'pov', 'flat'];
+}
+
+function script_style_label(string $band): string
+{
+    return [
+        'problem_demo' => 'โครงปัญหา→สาธิต',
+        'howto' => 'โครงวิธีใช้ทีละขั้น',
+        'before_after' => 'โครงก่อน–หลัง',
+        'unbox' => 'โครงแกะกล่อง',
+        'pov' => 'โครง POV / วันหนึ่ง',
+        'flat' => 'โครงไม่ชัด / กลาง ๆ',
+    ][$band] ?? $band;
+}
+
+function script_style_range(string $band): string
+{
+    return [
+        'problem_demo' => 'เปิด pain สั้น → โชว์ของ → สาธิต 1 จุด → CTA+disclosure',
+        'howto' => 'บอกขั้นตอน 2–3 ก้าวแบบช่วยใช้ ไม่เร่งซื้อ',
+        'before_after' => 'โชว์ก่อน/หลังแบบเบา ๆ ไม่โอเวอร์เคลมผลลัพธ์',
+        'unbox' => 'เปิดกล่อง + จุดที่ชอบ 1 ข้อ + ลิงก์ดูรายละเอียด',
+        'pov' => 'ตามไปดูสถานการณ์จริงสั้น ๆ แล้วแชร์ตัวเลือก',
+        'flat' => 'ไม่มีสัญญาณโครงสคริปต์วิดีโอสั้นที่ชัด',
+    ][$band] ?? '';
+}
+
+function script_style_hint(string $band): string
+{
+    return [
+        'problem_demo' => '0–3วิ pain → 3–15วิ โชว์+สาธิต → ปิดด้วยลิงก์+disclosure (ไม่การันตีผล)',
+        'howto' => 'บอก 2–3 ขั้นตอนใช้งานจริง แล้วให้ดูสเปกต่อเอง',
+        'before_after' => 'ก่อน–หลังเบา ๆ 1 จุด — ไม่เคลมหายขาด/ปังแน่นอน',
+        'unbox' => 'แกะกล่องสั้น + จุดที่ชอบ 1 ข้อ + CTA อ่อน',
+        'pov' => 'ตามไปดู 1 สถานการณ์ในวัน → แชร์ตัวเลือก ไม่เร่งกดซื้อ',
+        'flat' => 'ใส่ป้ายโครงสคริปต์ (ปัญหา→สาธิต / วิธีใช้ / ก่อน–หลัง) ให้ชัดก่อน Approve',
+    ][$band] ?? '';
+}
+
+function resolve_script_text(?array $pack, string $captionPreview = ''): string
+{
+    $parts = [];
+    if ($pack) {
+        $script = $pack['tiktokScript'] ?? [];
+        if (is_array($script)) {
+            foreach (($script['scenes'] ?? []) as $s) {
+                if (!is_array($s)) continue;
+                foreach (['line', 'visual', 'time'] as $k) {
+                    if (!empty($s[$k])) $parts[] = (string)$s[$k];
+                }
+            }
+            if (!empty($script['voiceover'])) $parts[] = (string)$script['voiceover'];
+        }
+        if (!empty($pack['videoPriorityNote'])) $parts[] = (string)$pack['videoPriorityNote'];
+        if (!empty($pack['filmingChecklist']) && is_array($pack['filmingChecklist'])) {
+            $parts[] = implode(' ', $pack['filmingChecklist']);
+        }
+        if (!empty($pack['reelsCaption'])) $parts[] = (string)$pack['reelsCaption'];
+        if (!empty($pack['hooks']) && is_array($pack['hooks'])) {
+            $parts[] = implode(' ', array_slice($pack['hooks'], 0, 2));
+        }
+    }
+    if (trim($captionPreview) !== '') $parts[] = trim($captionPreview);
+    return implode("\n", $parts);
+}
+
+function classify_script_style(string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '') return 'flat';
+
+    if (preg_match('/โครงปัญหา→สาธิต|โครงปัญหา.?สาธิต|โครงปัญหา|โครงวิธีใช้ทีละขั้น|โครงวิธีใช้|โครงก่อน–หลัง|โครงก่อน.?หลัง|โครงแกะกล่อง|โครง\s*POV|โครงPOV/iu', $raw, $m)) {
+        $label = mb_strtolower($m[0]);
+        if (str_contains($label, 'ปัญหา')) return 'problem_demo';
+        if (str_contains($label, 'วิธีใช้')) return 'howto';
+        if (str_contains($label, 'ก่อน')) return 'before_after';
+        if (str_contains($label, 'แกะ')) return 'unbox';
+        if (str_contains($label, 'pov')) return 'pov';
+    }
+
+    $problem = (bool)preg_match('/โครงปัญหา|ปัญหา→สาธิต|ปัญหาคือ|โชว์ปัญหา|เคยเจอไหม|pain.?demo|problem.?demo/iu', $raw);
+    $howto = (bool)preg_match('/โครงวิธีใช้|วิธีใช้ทีละขั้น|ทีละขั้น|ขั้นตอน|how.?to|สอนใช้|ทำตามนี้|ก้าวที่/iu', $raw);
+    $beforeAfter = (bool)preg_match('/โครงก่อน.?หลัง|before.?after|ก่อนใช้|หลังใช้|ก่อน–หลัง|ก่อนหลัง/iu', $raw);
+    $unbox = (bool)preg_match('/โครงแกะกล่อง|แกะกล่อง|unbox|เปิดกล่อง|ของมาถึง|first look|unboxing/iu', $raw);
+    $pov = (bool)preg_match('/โครง\s*POV|POV|วันหนึ่งของ|ตามไปดู|ในชีวิตประจำวัน|day in the life/iu', $raw);
+
+    if ($problem && ($howto || $beforeAfter || $unbox || $pov || mb_strlen($raw) >= 40)) return 'problem_demo';
+    if ($problem) return 'problem_demo';
+    if ($howto && !$beforeAfter) return 'howto';
+    if ($beforeAfter) return 'before_after';
+    if ($unbox) return 'unbox';
+    if ($pov) return 'pov';
+    if ($howto) return 'howto';
+    return 'flat';
+}
+
+function script_style_of(array $post, ?array $pack = null): string
+{
+    return classify_script_style(resolve_script_text($pack, (string)($post['caption_preview'] ?? $post['captionPreview'] ?? '')));
+}
+
+function build_script_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = script_style_order();
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+
+    $products = all_products();
+    $byId = [];
+    foreach ($products as $p) $byId[$p['id']] = $p;
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE status='posted' AND metrics_at IS NOT NULL AND post_date BETWEEN ? AND ?");
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $byBand = [];
+    foreach ($order as $b) $byBand[$b] = [];
+    $allComm = [];
+    $packCache = [];
+    foreach ($posted as $row) {
+        $packId = (string)($row['content_pack_id'] ?? '');
+        if ($packId !== '' && !isset($packCache[$packId])) {
+            $pstmt = db()->prepare('SELECT * FROM content_packs WHERE id=?');
+            $pstmt->execute([$packId]);
+            $prow = $pstmt->fetch();
+            if ($prow) {
+                $script = json_decode((string)($prow['tiktok_script'] ?? '{}'), true) ?: [];
+                $packCache[$packId] = [
+                    'hooks' => decode_list($prow['hooks'] ?? '[]'),
+                    'reelsCaption' => (string)($prow['reels_caption'] ?? ''),
+                    'videoPriorityNote' => (string)($prow['video_priority_note'] ?? ''),
+                    'tiktokScript' => is_array($script) ? $script : [],
+                ];
+            } else {
+                $packCache[$packId] = null;
+            }
+        }
+        $pack = $packCache[$packId] ?? null;
+        if (!$pack) {
+            $lp = latest_pack((string)$row['product_id']);
+            $pack = $lp ? [
+                'hooks' => $lp['hooks'] ?? [],
+                'reelsCaption' => (string)($lp['reelsCaption'] ?? ''),
+                'videoPriorityNote' => (string)($lp['videoPriorityNote'] ?? ''),
+                'tiktokScript' => $lp['tiktokScript'] ?? [],
+            ] : [];
+        }
+        $key = script_style_of([
+            'caption_preview' => (string)($row['caption_preview'] ?? ''),
+            'content_pack_id' => $packId,
+        ], $pack);
+        $byBand[$key][] = $row;
+        $allComm[] = (float)($row['commission_earned'] ?? 0);
+    }
+
+    $postedN = count($posted);
+    $globalAvgCommission = $postedN > 0 ? array_sum($allComm) / $postedN : 0.0;
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band] ?? [];
+        $samples = count($list);
+        $views = array_map(fn($p) => (float)($p['views'] ?? 0), $list);
+        $clicks = array_map(fn($p) => (float)($p['clicks'] ?? 0), $list);
+        $orders = array_map(fn($p) => (float)($p['orders_count'] ?? 0), $list);
+        $comms = array_map(fn($p) => (float)($p['commission_earned'] ?? 0), $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0.0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0.0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0.0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0.0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0.0;
+        $avgOrdersPerClick = $totalClicks > 0 ? $totalOrders / $totalClicks : 0.0;
+        $share = $postedN > 0 ? $samples / $postedN : 0.0;
+
+        if ($samples === 0) {
+            $score = 0;
+            $status = 'no_data';
+            $confidence = 'thin';
+        } else {
+            $commBase = $globalAvgCommission > 0
+                ? max(0, min(70, ($avgCommission / $globalAvgCommission) * 50))
+                : max(0, min(50, $avgCommission * 2));
+            $score = $commBase + max(0, min(22, $avgCtr * 220)) + max(0, min(15, $avgOrdersPerClick * 100)) + max(0, min(15, $avgOrders * 8));
+            if ($band === 'problem_demo') $score += 5;
+            elseif ($band === 'howto') $score += 4;
+            elseif (in_array($band, ['before_after', 'unbox', 'pov'], true)) $score += 3;
+            elseif ($band === 'flat') $score -= 6;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = (int)round(max(0, min(100, $score)));
+            $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+            $status = ($score >= 65 && $samples >= 2) ? 'hot' : ($score >= 45 ? 'steady' : 'cold');
+        }
+
+        if ($samples === 0) {
+            $tip = 'ยังไม่มีผลโครงนี้ — ลอง draft 1 ชิ้นแนว “' . script_style_hint($band) . '” แล้วกรอกเมตริก';
+        } elseif ($band === 'flat') {
+            $tip = 'โครงไม่ชัด — ใส่ป้ายโครงสคริปต์ให้ชัด แล้ว regenerate ก่อน Approve';
+        } elseif ($status === 'hot') {
+            $tip = 'โครงนี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ถ่ายก่อนได้ แต่สลับสินค้า/ช่องเพื่อไม่ให้ซ้ำ';
+        } elseif ($status === 'cold') {
+            $tip = 'ผลเย็นในโครงนี้ — ลองปรับโครงสคริปต์หรือ regenerate ก่อนโพสต์ซ้ำ';
+        } elseif ($share >= 0.55) {
+            $tip = 'ใช้โครงนี้บ่อย (' . round($share * 100) . '%) — กระจายปัญหา→สาธิต/วิธีใช้/ก่อน–หลัง เพื่อลดความซ้ำ';
+        } else {
+            $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในโครงนี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        }
+
+        $bands[] = [
+            'band' => $band,
+            'bandLabel' => script_style_label($band),
+            'rangeLabel' => script_style_range($band),
+            'samples' => $samples,
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOrdersPerClick, 2),
+            'score' => $score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => $tip,
+        ];
+    }
+
+    usort($bands, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['samples'] <=> $a['samples']));
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $flatSamples = count($byBand['flat'] ?? []);
+    $topShare = 0.0;
+    foreach ($bands as $b) $topShare = max($topShare, (float)$b['shareOfPosts']);
+    $unbalanced = $topShare >= 0.55 && $postedN >= 3;
+    $scoredAvg = $withData ? array_sum(array_column($withData, 'score')) / count($withData) : 0.0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && $postedN >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    if ($flatSamples > 0) $labScore = max(0, $labScore - 4);
+    $labScore = max(0, min(100, $labScore));
+    $grade = count($withData) === 0 ? 'D' : ($labScore >= 75 ? 'A' : ($labScore >= 58 ? 'B' : ($labScore >= 40 ? 'C' : 'D')));
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'flat') { $best = $b; break; }
+    }
+    if (!$best) {
+        foreach ($withData as $b) {
+            if ($b['band'] !== 'flat') { $best = $b; break; }
+        }
+    }
+    if (!$best && $withData) $best = $withData[0];
+
+    if ($postedN === 0) {
+        $mixTip = 'ยังไม่มีเมตริกรายโครงสคริปต์ — โพสต์มือแล้วกรอกผลที่ Results ก่อนจัดมิกซ์โครงคลิป';
+        $summary = 'Script Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับโครงสคริปต์';
+    } elseif ($flatSamples > 0 && $flatSamples >= (int)ceil($postedN / 2)) {
+        $mixTip = "พบโครง flat {$flatSamples} ชิ้น — ใส่ป้ายโครงสคริปต์ให้ชัดก่อน Approve (ทดลอง)";
+        $summary = "Script Fit Lab: {$postedN} โพสต์มีเมตริก · โครงที่มีข้อมูล " . count($withData) . " · ร้อน {$hot} · flat {$flatSamples}" . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    } elseif ($unbalanced && $best) {
+        $mixTip = 'มิกซ์เอนไปโครง ' . $best['bandLabel'] . ' มาก — วันถัดไปลองสลับโครงคลิป 1 ชิ้น (ทดลอง)';
+        $summary = "Script Fit Lab: {$postedN} โพสต์มีเมตริก · โครงที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}" . ($flatSamples ? " · flat {$flatSamples}" : '') . ' · มิกซ์เอนข้างเดียว';
+    } elseif ($best) {
+        $mixTip = 'โครงเด่น: ' . $best['bandLabel'] . ' — ใช้ถ่ายก่อนเป็นสมมติฐาน ไม่ล็อคทุกคลิป';
+        $summary = "Script Fit Lab: {$postedN} โพสต์มีเมตริก · โครงที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}" . ($flatSamples ? " · flat {$flatSamples}" : '');
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 คลิปข้ามโครงก่อนจัดอันดับมิกซ์';
+        $summary = "Script Fit Lab: {$postedN} โพสต์มีเมตริก · โครงที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}";
+    }
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'flat') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0 && $b['band'] !== 'flat') { $preferred = $b; break; }
+        }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['band'] === 'problem_demo') { $preferred = $b; break; }
+        }
+    }
+
+    $stmtToday = db()->prepare("SELECT * FROM schedule WHERE post_date=? AND status IN ('draft','approved') ORDER BY suggested_time ASC LIMIT 6");
+    $stmtToday->execute([$date]);
+    $todaySlots = $stmtToday->fetchAll() ?: [];
+    $suggestions = [];
+    foreach ($todaySlots as $slot) {
+        if (!$preferred) break;
+        $pid = (string)$slot['product_id'];
+        $product = $byId[$pid] ?? null;
+        if (!$product) continue;
+        $packId = (string)($slot['content_pack_id'] ?? '');
+        $pack = null;
+        if ($packId !== '') {
+            $pstmt = db()->prepare('SELECT * FROM content_packs WHERE id=?');
+            $pstmt->execute([$packId]);
+            $prow = $pstmt->fetch();
+            if ($prow) {
+                $script = json_decode((string)($prow['tiktok_script'] ?? '{}'), true) ?: [];
+                $pack = [
+                    'hooks' => decode_list($prow['hooks'] ?? '[]'),
+                    'reelsCaption' => (string)($prow['reels_caption'] ?? ''),
+                    'videoPriorityNote' => (string)($prow['video_priority_note'] ?? ''),
+                    'tiktokScript' => is_array($script) ? $script : [],
+                ];
+            }
+        }
+        $currentKey = script_style_of(['caption_preview' => (string)($slot['caption_preview'] ?? '')], $pack);
+        $currentRow = null;
+        foreach ($bands as $b) {
+            if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        }
+        $same = $currentKey === $preferred['band'];
+        $currentCold = $currentKey === 'flat' || ($currentRow && ($currentRow['status'] === 'cold' || ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')));
+        $preview = mb_substr((string)($slot['caption_preview'] ?? ''), 0, 80) ?: '(ไม่มีแคปชัน)';
+        if ($currentCold && !$same) {
+            $suggestions[] = [
+                'scheduleId' => (string)$slot['id'],
+                'productId' => $pid,
+                'productName' => (string)$product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => script_style_label($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'captionPreview' => $preview,
+                'status' => (string)$slot['status'],
+                'channelLabel' => channel_label((string)$slot['channel']),
+                'reason' => script_style_label($currentKey) . ' เย็น/ไม่ชัด · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่แก้สคริปต์อัตโนมัติ — regenerate หรือแก้มือ แล้ว Approve ก่อนโพสต์',
+            ];
+        }
+        if (count($suggestions) >= 5) break;
+    }
+
+    $actions = [];
+    if ($postedN === 0) {
+        $actions[] = ['id' => 'need-metrics', 'title' => 'เริ่มเก็บผลรายโครงสคริปต์', 'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ Results อย่างน้อย 1 ชิ้นต่อโครง'];
+    }
+    if ($flatSamples > 0) {
+        $actions[] = ['id' => 'clarify-flat', 'title' => 'ทำให้โครงสคริปต์ชัดขึ้น', 'detail' => "พบ {$flatSamples} โพสต์โครงไม่ชัด — ใส่ป้ายโครง (ปัญหา→สาธิต/วิธีใช้/ก่อน–หลัง) แล้ว regenerate ก่อน Approve"];
+    }
+    if ($best && $best['status'] === 'hot' && $best['band'] !== 'flat') {
+        $actions[] = ['id' => 'lean-script', 'title' => 'ถ่ายก่อนด้วยโครง ' . $best['bandLabel'], 'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต · ' . script_style_hint($best['band'])];
+    }
+    if ($unbalanced) {
+        $actions[] = ['id' => 'diversify', 'title' => 'กระจายมิกซ์โครงคลิป', 'detail' => 'โครงเด่นกินสัดส่วนสูง — เพิ่ม draft คนละโครง 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)'];
+    }
+    $actions[] = ['id' => 'compliance', 'title' => 'คงกฎ Approve + disclosure + ไม่ขายแข็ง', 'detail' => 'ทุกแคปชัน/คลิปต้องมี disclosure affiliate และผ่าน Approve ก่อนโพสต์มือ — ระบบไม่โพสต์อัตโนมัติ'];
+    $actions = array_slice($actions, 0, 5);
+
+    $lines = [
+        "Script Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = $statusLabel[$b['status']] . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score'] . ' (' . $confLabel[$b['confidence']] . ', n=' . $b['samples'] . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => $postedN,
+            'bandsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+            'flatSamples' => $flatSamples,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => array_slice($suggestions, 0, 5),
+        'actions' => $actions,
+        'checklist' => [
+            'อันดับโครงสคริปต์มาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+            'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+            'คำแนะนำสลับโครงเป็นคำแนะนำเท่านั้น — ต้องแก้เอง + Approve',
+            'หลีกเลี่ยงโครงไม่ชัดและคำโฆษณาเกินจริงในคลิป',
+            'ทุกโพสต์ต้องมี disclosure และน้ำเสียงช่วยเลือกของ',
+        ],
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function script_fit_lab_to_markdown(array $lab): string
+{
+    $bandRows = [];
+    foreach ($lab['bands'] as $b) {
+        if (($b['samples'] ?? 0) <= 0) continue;
+        $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'][$b['status']] ?? $b['status'];
+        $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'][$b['confidence']] ?? $b['confidence'];
+        $n = count($bandRows) + 1;
+        $bandRows[] = "{$n}. **[{$statusLabel}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel}\n"
+            . '   CTR ~' . round($b['avgCtr'] * 100, 1) . "% · ออเดอร์/คลิก ~{$b['avgOrdersPerClick']} · ค่าคอมเฉลี่ย ฿{$b['avgCommission']}\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']}\n"
+            . "   preview: {$s['captionPreview']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) $suggestionRows[] = '_(ไม่มีคำแนะนำสลับโครงวันนี้)_';
+
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = array_map(fn($c) => "- {$c}", $lab['checklist']);
+
+    return "# Script Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- โครงที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . "- flat: {$lab['counts']['flatSamples']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . (!empty($lab['counts']['unbalanced']) ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับโครงสคริปต์วิดีโอสั้น (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
         . $lab['disclaimer'] . "\n";
 }
 
@@ -10604,6 +11069,7 @@ function run_morning_workflow(?string $date = null): array
     $toneFitLines = array_slice(build_tone_fit_lab($date)['lines'], 0, 4);
     $angleFitLines = array_slice(build_angle_fit_lab($date)['lines'], 0, 4);
     $lengthFitLines = array_slice(build_length_fit_lab($date)['lines'], 0, 4);
+    $scriptFitLines = array_slice(build_script_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -10635,6 +11101,7 @@ function run_morning_workflow(?string $date = null): array
         ...$toneFitLines,
         ...$angleFitLines,
         ...$lengthFitLines,
+        ...$scriptFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -10735,6 +11202,7 @@ function run_evening_workflow(?string $date = null): array
     $toneFitLab = build_tone_fit_lab($date);
     $angleFitLab = build_angle_fit_lab($date);
     $lengthFitLab = build_length_fit_lab($date);
+    $scriptFitLab = build_script_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -10802,6 +11270,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($lengthFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($scriptFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -10857,6 +11328,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($lengthFitLab['counts']['hot'] ?? 0) > 0 || !empty($lengthFitLab['counts']['unbalanced']) || ($lengthFitLab['counts']['emptySamples'] ?? 0) > 0) {
         $recs[] = 'Length Fit: ช่วงร้อน ' . $lengthFitLab['counts']['hot'] . ' · ' . $lengthFitLab['mixTip'];
+    }
+    if (($scriptFitLab['counts']['hot'] ?? 0) > 0 || !empty($scriptFitLab['counts']['unbalanced']) || ($scriptFitLab['counts']['flatSamples'] ?? 0) > 0) {
+        $recs[] = 'Script Fit: ช่วงร้อน ' . $scriptFitLab['counts']['hot'] . ' · ' . $scriptFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

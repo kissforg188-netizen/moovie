@@ -153,6 +153,13 @@ import {
   buildLengthFitLab,
 } from "../src/lib/length-fit";
 import {
+  classifyScriptStyle,
+  scriptFitLabLines,
+  scriptFitLabToMarkdown,
+  scriptStyleOf,
+  buildScriptFitLab,
+} from "../src/lib/script-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -5006,6 +5013,229 @@ function run() {
   assert.equal(emptyLength.counts.postsWithMetrics, 0);
   assert.ok(
     emptyLength.summary.includes("ยังไม่มีเมตริก") || emptyLength.score <= 50,
+  );
+
+  // --- Script Fit Lab ---
+  assert.equal(classifyScriptStyle(""), "flat");
+  assert.equal(
+    classifyScriptStyle("โครงปัญหา→สาธิต · โชว์ปัญหาสั้น ๆ"),
+    "problem_demo",
+  );
+  assert.equal(
+    classifyScriptStyle("โครงวิธีใช้ทีละขั้น ก้าวที่ 1–2"),
+    "howto",
+  );
+  assert.equal(
+    classifyScriptStyle("โครงก่อน–หลัง Before-After เบา ๆ"),
+    "before_after",
+  );
+  assert.equal(classifyScriptStyle("โครงแกะกล่อง เปิดกล่องสั้น"), "unbox");
+  assert.equal(classifyScriptStyle("โครง POV ตามไปดูวันหนึ่ง"), "pov");
+  assert.equal(
+    classifyScriptStyle("ปัญหาคือโต๊ะรก เลยไปลองหาของที่ช่วยได้"),
+    "problem_demo",
+  );
+
+  const scriptDemoProd = sample({
+    id: "prod_script_demo",
+    name: "สคริปต์ปัญหาสาธิต",
+    price: 249,
+    commissionRate: 14,
+  });
+  const scriptFlatProd = sample({
+    id: "prod_script_flat",
+    name: "สคริปต์ไม่ชัด",
+    price: 99,
+    commissionRate: 6,
+  });
+  const packScriptDemo = {
+    id: "pack_script_demo",
+    productId: scriptDemoProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยเจอไหม…"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์"],
+    hashtagsTh: ["#เลือกดี"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: {
+      durationSec: 25,
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: "เคยเจอไหม…",
+          visual: "โครงปัญหา→สาธิต · โชว์ปัญหา",
+        },
+        {
+          time: "3-10วิ",
+          line: "ปัญหาคือโต๊ะรก เลยไปลองหาของที่ช่วยได้",
+          visual: "โชว์สินค้า",
+        },
+      ],
+      voiceover: "โครงปัญหา→สาธิต ตัวเลือกนี้ช่วยเรื่องจัดโต๊ะ",
+    },
+    facebookCaption: withDisclosure("เคยเจอไหม… ปัญหาคือโต๊ะรก"),
+    facebookGroupCaption: withDisclosure("แชร์ตัวเลือกจัดโต๊ะ"),
+    reelsCaption: withDisclosure("เคยเจอไหม…"),
+    videoPriorityNote: "โครงปัญหา→สาธิต · ถ่ายง่าย",
+    filmingChecklist: ["โชว์ปัญหา", "สาธิต 1 จุด"],
+    sellingAngles: ["มุมปัญหา: โต๊ะรก"],
+  };
+  const packScriptFlat = {
+    id: "pack_script_flat",
+    productId: scriptFlatProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["ของดี"],
+    ctas: ["ดูลิงก์"],
+    hashtagsTh: ["#รีวิว"],
+    hashtagsEn: ["#Ad"],
+    tiktokScript: { durationSec: 15, scenes: [], voiceover: "" },
+    facebookCaption: withDisclosure("สินค้าทั่วไป"),
+    facebookGroupCaption: withDisclosure("สินค้าทั่วไป"),
+    reelsCaption: withDisclosure("สินค้าทั่วไป"),
+    videoPriorityNote: "ทั่วไป",
+    filmingChecklist: ["โชว์สินค้า"],
+    sellingAngles: [],
+  };
+  const scriptSchedule = [
+    {
+      id: "sch_script_d1",
+      date: "2026-08-20",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: scriptDemoProd.id,
+      contentPackId: packScriptDemo.id,
+      status: "posted" as const,
+      captionPreview: withDisclosure("เคยเจอไหม… ปัญหาคือโต๊ะรก"),
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 1600,
+        clicks: 80,
+        orders: 5,
+        commissionEarned: 110,
+      },
+    },
+    {
+      id: "sch_script_d2",
+      date: "2026-08-21",
+      suggestedTime: "10:00",
+      channel: "facebook_reels" as const,
+      productId: scriptDemoProd.id,
+      contentPackId: packScriptDemo.id,
+      status: "posted" as const,
+      captionPreview: withDisclosure("เคยเจอไหม… สาธิตสั้น"),
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 1200,
+        clicks: 60,
+        orders: 3,
+        commissionEarned: 72,
+      },
+    },
+    {
+      id: "sch_script_flat",
+      date: "2026-08-22",
+      suggestedTime: "11:00",
+      channel: "facebook_post" as const,
+      productId: scriptFlatProd.id,
+      contentPackId: packScriptFlat.id,
+      status: "posted" as const,
+      captionPreview: withDisclosure("สินค้าทั่วไป"),
+      hookIndex: 0,
+      ctaIndex: 0,
+      metrics: {
+        views: 300,
+        clicks: 5,
+        orders: 0,
+        commissionEarned: 0,
+      },
+    },
+    {
+      id: "sch_script_today",
+      date: "2026-08-23",
+      suggestedTime: "09:00",
+      channel: "tiktok" as const,
+      productId: scriptFlatProd.id,
+      contentPackId: packScriptFlat.id,
+      status: "draft" as const,
+      captionPreview: withDisclosure("สินค้าทั่วไป"),
+      hookIndex: 0,
+      ctaIndex: 0,
+    },
+  ];
+
+  assert.equal(
+    scriptStyleOf(scriptSchedule[0], packScriptDemo as never),
+    "problem_demo",
+  );
+  assert.equal(
+    scriptStyleOf(scriptSchedule[2], packScriptFlat as never),
+    "flat",
+  );
+
+  const generatedPack = generateContentPack(scriptDemoProd, { variant: 0 });
+  assert.ok(
+    generatedPack.tiktokScript.scenes.some((s) =>
+      /โครงปัญหา/.test(`${s.visual} ${s.line}`),
+    ) || /โครงปัญหา/.test(generatedPack.videoPriorityNote),
+  );
+  const howtoPack = generateContentPack(scriptDemoProd, { variant: 1 });
+  assert.ok(
+    /โครงวิธีใช้/.test(howtoPack.videoPriorityNote) ||
+      howtoPack.tiktokScript.scenes.some((s) =>
+        /โครงวิธีใช้|ทีละขั้น/.test(`${s.visual} ${s.line}`),
+      ),
+  );
+
+  const scriptLab = buildScriptFitLab(
+    {
+      products: [scriptDemoProd, scriptFlatProd],
+      contentPacks: [packScriptDemo, packScriptFlat] as never[],
+      schedule: scriptSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(scriptLab.counts.postsWithMetrics, 3);
+  assert.ok(scriptLab.counts.flatSamples >= 1);
+  const scriptDemoRow = scriptLab.bands.find((b) => b.band === "problem_demo");
+  const scriptFlatRow = scriptLab.bands.find((b) => b.band === "flat");
+  assert.ok(scriptDemoRow);
+  assert.ok(scriptFlatRow);
+  assert.ok(scriptDemoRow!.score > scriptFlatRow!.score);
+  assert.ok(scriptLab.suggestions.length >= 1);
+  assert.ok(
+    scriptLab.suggestions[0].suggestedBand === "problem_demo" ||
+      scriptLab.suggestions[0].suggestedLabel.includes("ปัญหา"),
+  );
+  assert.ok(scriptFitLabLines(scriptLab, 3).length <= 3);
+  const scriptMd = scriptFitLabToMarkdown(scriptLab);
+  assert.ok(scriptMd.includes("Script Fit Lab"));
+  assert.ok(scriptMd.includes("ทดลอง"));
+  assert.ok(
+    scriptMd.includes("ไม่เปลี่ยนอัตโนมัติ") || scriptMd.includes("Approve"),
+  );
+  assert.ok(
+    scriptMd.includes("ไม่รับประกัน") ||
+      scriptMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyScript = buildScriptFitLab(
+    {
+      products: [scriptDemoProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyScript.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyScript.summary.includes("ยังไม่มีเมตริก") || emptyScript.score <= 50,
   );
 
   console.log("All unit tests passed");

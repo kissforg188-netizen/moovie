@@ -354,6 +354,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md length-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['script-fit', 'script', 'scripts', 'video-script', 'tiktok-script'], true)) {
+                $lab = build_script_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-script-fit-lab-'.today_iso().'.md"');
+                echo script_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md script-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

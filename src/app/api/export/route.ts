@@ -40,6 +40,7 @@ import { hashtagFitLabToMarkdown } from "@/lib/hashtag-fit";
 import { toneFitLabToMarkdown } from "@/lib/tone-fit";
 import { angleFitLabToMarkdown } from "@/lib/angle-fit";
 import { lengthFitLabToMarkdown } from "@/lib/length-fit";
+import { scriptFitLabToMarkdown } from "@/lib/script-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -269,6 +270,16 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = lengthFitLabToMarkdown(snap.lengthFitLab);
       filename = `affiliate-length-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "script-fit" ||
+      scope === "script" ||
+      scope === "scripts" ||
+      scope === "video-script" ||
+      scope === "tiktok-script"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = scriptFitLabToMarkdown(snap.scriptFitLab);
+      filename = `affiliate-script-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }
