@@ -9090,6 +9090,448 @@ function script_fit_lab_to_markdown(array $lab): string
 
 
 /**
+ * Proof Fit Lab — soft ranking of social-proof / credibility framing from logged metrics.
+ */
+function proof_style_order(): array
+{
+    return ['used_real', 'compare_help', 'spec_point', 'situation', 'soft_popular', 'none'];
+}
+
+function proof_style_label(string $band): string
+{
+    return [
+        'used_real' => 'หลักฐานใช้จริง / ลองเอง',
+        'compare_help' => 'หลักฐานเทียบตัวเลือก',
+        'spec_point' => 'หลักฐานชี้สเปก 1 ข้อ',
+        'situation' => 'หลักฐานสถานการณ์ปัญหา',
+        'soft_popular' => 'หลักฐานคนถามบ่อย (เบา)',
+        'none' => 'ไม่มีสัญญาณหลักฐาน',
+    ][$band] ?? $band;
+}
+
+function proof_style_range(string $band): string
+{
+    return [
+        'used_real' => 'บอกว่าลองใช้ / ใช้จริงสั้น ๆ ไม่โอเวอร์เคลมผล',
+        'compare_help' => 'เทียบตัวเลือก 1–2 ข้อแบบช่วยตัดสินใจ',
+        'spec_point' => 'ชี้จุดสเปกหรือจุดที่ชอบ 1 ข้อชัด',
+        'situation' => 'เล่าสถานการณ์ pain จริงสั้น ๆ แล้วแชร์ตัวเลือก',
+        'soft_popular' => 'คนถามบ่อย / น่าลองดู — ไม่เคลมยอดขายมหาศาล',
+        'none' => 'ไม่มีสัญญาณหลักฐานหรือ credibility ในแคปชัน/สคริปต์',
+    ][$band] ?? '';
+}
+
+function proof_style_hint(string $band): string
+{
+    return [
+        'used_real' => 'บอกสั้น ๆ ว่าลองใช้แล้วชอบจุดไหน 1 ข้อ + disclosure',
+        'compare_help' => 'เทียบของเดิม/ตัวเลือกอื่นเบา ๆ แล้วให้ดูสเปกต่อเอง',
+        'spec_point' => 'ชี้สเปกหรือจุดขาย 1 ข้อ ไม่ยัดยาว',
+        'situation' => 'เปิดด้วยสถานการณ์ปัญหา → แชร์ตัวเลือก ไม่เร่งซื้อ',
+        'soft_popular' => 'คนถามบ่อย / น่าลอง — ห้ามเคลมปังแน่นอนหรือยอดขายเท็จ',
+        'none' => 'ใส่ป้ายหลักฐาน (ใช้จริง / เทียบเลือก / สเปก / สถานการณ์) ให้ชัดก่อน Approve',
+    ][$band] ?? '';
+}
+
+function resolve_proof_text(?array $pack, string $captionPreview = ''): string
+{
+    $parts = [];
+    if (trim($captionPreview) !== '') $parts[] = trim($captionPreview);
+    if ($pack) {
+        foreach (['facebookCaption', 'facebookGroupCaption', 'reelsCaption', 'videoPriorityNote'] as $k) {
+            if (!empty($pack[$k])) $parts[] = (string)$pack[$k];
+        }
+        $script = $pack['tiktokScript'] ?? [];
+        if (is_array($script)) {
+            foreach (($script['scenes'] ?? []) as $s) {
+                if (!is_array($s)) continue;
+                foreach (['line', 'visual'] as $k) {
+                    if (!empty($s[$k])) $parts[] = (string)$s[$k];
+                }
+            }
+            if (!empty($script['voiceover'])) $parts[] = (string)$script['voiceover'];
+        }
+        if (!empty($pack['sellingAngles']) && is_array($pack['sellingAngles'])) {
+            $parts[] = implode(' ', array_slice($pack['sellingAngles'], 0, 3));
+        }
+        if (!empty($pack['hooks']) && is_array($pack['hooks'])) {
+            $parts[] = implode(' ', array_slice($pack['hooks'], 0, 2));
+        }
+    }
+    return implode("\n", $parts);
+}
+
+function classify_proof_style(string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '') return 'none';
+
+    if (preg_match('/หลักฐานใช้จริง|หลักฐานเทียบ(?:ตัวเลือก|เลือก)?|หลักฐานสเปก|หลักฐานสถานการณ์|หลักฐานยอดนิยม(?:เบา)?/iu', $raw, $m)) {
+        $label = mb_strtolower($m[0]);
+        if (str_contains($label, 'ใช้จริง')) return 'used_real';
+        if (str_contains($label, 'เทียบ')) return 'compare_help';
+        if (str_contains($label, 'สเปก')) return 'spec_point';
+        if (str_contains($label, 'สถานการณ์')) return 'situation';
+        if (str_contains($label, 'ยอดนิยม')) return 'soft_popular';
+    }
+
+    $used = (bool)preg_match('/หลักฐานใช้จริง|ใช้จริง|ลองใช้|ลองเอง|ของที่ได้ลอง|used.?real|tried it|i tried|ลองมาแล้ว/iu', $raw);
+    $compare = (bool)preg_match('/หลักฐานเทียบ|เทียบตัวเลือก|เทียบของ|เทียบสเปก|compare|ช่วยเลือก|ช่วยตัดสินใจ|ของเดิม/iu', $raw);
+    $spec = (bool)preg_match('/หลักฐานสเปก|ชี้สเปก|จุดที่ชอบ|จุดขาย|สเปกชัด|spec.?point|รายละเอียดสำคัญ/iu', $raw);
+    $situation = (bool)preg_match('/หลักฐานสถานการณ์|สถานการณ์|เคยเจอไหม|ปัญหาคือ|วันหนึ่ง|situation|pain.?scene/iu', $raw);
+    $popular = (bool)preg_match('/หลักฐานยอดนิยม|คนถามบ่อย|น่าลองดู|หลายคนสนใจ|soft.?popular|popular.?soft|ยอดนิยมเบา/iu', $raw);
+
+    if ($used) return 'used_real';
+    if ($compare) return 'compare_help';
+    if ($situation) return 'situation';
+    if ($spec) return 'spec_point';
+    if ($popular) return 'soft_popular';
+    return 'none';
+}
+
+function proof_style_of(array $post, ?array $pack = null): string
+{
+    return classify_proof_style(resolve_proof_text($pack, (string)($post['caption_preview'] ?? $post['captionPreview'] ?? '')));
+}
+
+function build_proof_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = proof_style_order();
+    $packs = [];
+    foreach (all_content_packs() as $p) $packs[$p['id']] = $p;
+    $products = [];
+    foreach (all_products() as $p) $products[$p['id']] = $p;
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE status='posted' AND metrics_at IS NOT NULL AND post_date>=? AND post_date<=?");
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll();
+
+    $byBand = [];
+    foreach ($order as $b) $byBand[$b] = [];
+    foreach ($posted as $row) {
+        $pack = $packs[$row['content_pack_id']] ?? null;
+        $post = [
+            'captionPreview' => $row['caption_preview'] ?? '',
+            'contentPackId' => $row['content_pack_id'],
+        ];
+        $key = proof_style_of($post, $pack);
+        $byBand[$key][] = $row;
+    }
+
+    $allComm = array_map(fn($r) => (float)$r['commission_earned'], $posted);
+    $globalAvg = $allComm ? array_sum($allComm) / count($allComm) : 0.0;
+    $postedN = count($posted);
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band] ?? [];
+        $samples = count($list);
+        $views = array_map(fn($r) => (int)$r['views'], $list);
+        $clicks = array_map(fn($r) => (int)$r['clicks'], $list);
+        $orders = array_map(fn($r) => (int)$r['orders_count'], $list);
+        $comms = array_map(fn($r) => (float)$r['commission_earned'], $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0;
+        $avgOpc = $totalClicks > 0 ? $totalOrders / $totalClicks : 0;
+        $share = $postedN > 0 ? $samples / $postedN : 0;
+
+        $score = 0;
+        if ($samples > 0) {
+            $commBase = $globalAvg > 0 ? max(0, min(70, ($avgCommission / $globalAvg) * 50)) : max(0, min(50, $avgCommission * 2));
+            $ctrScore = max(0, min(22, $avgCtr * 220));
+            $opcScore = max(0, min(15, $avgOpc * 100));
+            $orderScore = max(0, min(15, $avgOrders * 8));
+            $score = $commBase + $ctrScore + $opcScore + $orderScore;
+            $nudge = ['used_real' => 5, 'compare_help' => 4, 'situation' => 4, 'spec_point' => 3, 'soft_popular' => 2, 'none' => -6][$band] ?? 0;
+            $score += $nudge;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = (int)round(max(0, min(100, $score)));
+        }
+
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        $status = $samples === 0 ? 'no_data' : ($score >= 65 && $samples >= 2 ? 'hot' : ($score >= 45 ? 'steady' : 'cold'));
+        $row = [
+            'band' => $band,
+            'bandLabel' => proof_style_label($band),
+            'rangeLabel' => proof_style_range($band),
+            'samples' => $samples,
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOpc, 2),
+            'score' => $score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => '',
+        ];
+        if ($samples === 0) {
+            $row['tip'] = 'ยังไม่มีผลหลักฐานนี้ — ลอง draft 1 ชิ้นแนว “' . proof_style_hint($band) . '” แล้วกรอกเมตริก';
+        } elseif ($band === 'none') {
+            $row['tip'] = 'ไม่มีสัญญาณหลักฐาน — ใส่ป้ายหลักฐานให้ชัด แล้ว regenerate ก่อน Approve';
+        } elseif ($status === 'hot') {
+            $row['tip'] = 'หลักฐานนี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ได้ แต่สลับสินค้า/ช่องเพื่อไม่ให้ซ้ำ';
+        } elseif ($status === 'cold') {
+            $row['tip'] = 'ผลเย็นในหลักฐานนี้ — ลองปรับมุมหลักฐานหรือ regenerate ก่อนโพสต์ซ้ำ';
+        } elseif ($share >= 0.55) {
+            $row['tip'] = 'ใช้หลักฐานนี้บ่อย (' . round($share * 100) . '%) — กระจายใช้จริง/เทียบเลือก/สถานการณ์ เพื่อลดความซ้ำ';
+        } else {
+            $row['tip'] = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในหลักฐานนี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        }
+        $bands[] = $row;
+    }
+    usort($bands, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['samples'] <=> $a['samples']));
+
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $noneSamples = count($byBand['none'] ?? []);
+    $topShare = max(0, ...array_map(fn($b) => $b['shareOfPosts'], $bands));
+    $unbalanced = $topShare >= 0.55 && $postedN >= 3;
+    $scoredAvg = $withData ? array_sum(array_column($withData, 'score')) / count($withData) : 0;
+    $labScore = (int)round($scoredAvg);
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && $postedN >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    if ($noneSamples > 0) $labScore = max(0, $labScore - 4);
+    $labScore = max(0, min(100, $labScore));
+    $grade = count($withData) === 0 ? 'D' : ($labScore >= 75 ? 'A' : ($labScore >= 58 ? 'B' : ($labScore >= 40 ? 'C' : 'D')));
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'none') { $best = $b; break; }
+    }
+    if (!$best) {
+        foreach ($withData as $b) {
+            if ($b['band'] !== 'none') { $best = $b; break; }
+        }
+    }
+    if (!$best && $withData) $best = $withData[0];
+
+    if ($postedN === 0) {
+        $mixTip = 'ยังไม่มีเมตริกรายหลักฐาน — โพสต์มือแล้วกรอกผลที่หน้า Results ก่อนจัดมิกซ์หลักฐาน';
+        $summary = 'Proof Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับหลักฐาน';
+    } elseif ($noneSamples > 0 && $noneSamples >= (int)ceil($postedN / 2)) {
+        $mixTip = "พบหลักฐาน none {$noneSamples} ชิ้น — ใส่ป้ายหลักฐานให้ชัดก่อน Approve (ทดลอง)";
+        $summary = "Proof Fit Lab: {$postedN} โพสต์มีเมตริก · หลักฐานที่มีข้อมูล " . count($withData) . " · ร้อน {$hot} · none {$noneSamples}" . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    } elseif ($unbalanced && $best) {
+        $mixTip = 'มิกซ์เอนไปหลักฐาน ' . $best['bandLabel'] . ' มาก — วันถัดไปลองสลับหลักฐาน 1 ชิ้น (ทดลอง)';
+        $summary = "Proof Fit Lab: {$postedN} โพสต์มีเมตริก · หลักฐานที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}" . ($noneSamples ? " · none {$noneSamples}" : '') . ' · มิกซ์เอนข้างเดียว';
+    } elseif ($best) {
+        $mixTip = 'หลักฐานเด่น: ' . $best['bandLabel'] . ' — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์';
+        $summary = "Proof Fit Lab: {$postedN} โพสต์มีเมตริก · หลักฐานที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}" . ($noneSamples ? " · none {$noneSamples}" : '');
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามหลักฐานก่อนจัดอันดับมิกซ์';
+        $summary = "Proof Fit Lab: {$postedN} โพสต์มีเมตริก · หลักฐานที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}";
+    }
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'none') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0 && $b['band'] !== 'none') { $preferred = $b; break; }
+        }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['band'] === 'used_real') { $preferred = $b; break; }
+        }
+    }
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE post_date=? AND status IN ('draft','approved') ORDER BY suggested_time ASC LIMIT 6");
+    $stmt->execute([$date]);
+    $slots = $stmt->fetchAll();
+    $suggestions = [];
+    foreach ($slots as $slot) {
+        if (!$preferred) break;
+        $product = $products[$slot['product_id']] ?? null;
+        $pack = $packs[$slot['content_pack_id']] ?? null;
+        if (!$product) continue;
+        $post = ['captionPreview' => $slot['caption_preview'] ?? '', 'contentPackId' => $slot['content_pack_id']];
+        $currentKey = proof_style_of($post, $pack);
+        $currentRow = null;
+        foreach ($bands as $b) if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        $same = $currentKey === $preferred['band'];
+        $preview = mb_substr((string)($slot['caption_preview'] ?? ''), 0, 80) ?: '(ไม่มีแคปชัน)';
+        $currentCold = $currentKey === 'none' || ($currentRow && ($currentRow['status'] === 'cold' || ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')));
+        if ($currentCold && !$same) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => proof_style_label($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'captionPreview' => $preview,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => proof_style_label($currentKey) . ' เย็น/ไม่ชัด · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่แก้แคปชันอัตโนมัติ — regenerate หรือแก้มือ แล้ว Approve ก่อนโพสต์',
+            ];
+        } elseif ($unbalanced && $same && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($bands as $b) {
+                if ($b['band'] !== $currentKey && $b['band'] !== 'none' && in_array($b['status'], ['steady', 'no_data'], true)) { $alt = $b; break; }
+            }
+            if (!$alt) {
+                foreach ($bands as $b) {
+                    if (in_array($b['band'], ['compare_help', 'situation'], true)) { $alt = $b; break; }
+                }
+            }
+            if (!$alt) continue;
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => proof_style_label($currentKey),
+                'suggestedBand' => $alt['band'],
+                'suggestedLabel' => $alt['bandLabel'],
+                'captionPreview' => $preview,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel']),
+                'reason' => 'วันนี้ซ้อนหลักฐาน ' . proof_style_label($currentKey) . ' — ลองกระจายไป ' . $alt['bandLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยนแคปชันเอง — regenerate draft แล้ว Approve ใหม่',
+            ];
+        }
+    }
+    $suggestions = array_slice($suggestions, 0, 5);
+
+    $actions = [];
+    if ($postedN === 0) {
+        $actions[] = ['id' => 'need-metrics', 'title' => 'เริ่มเก็บผลรายหลักฐาน', 'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ Results อย่างน้อย 1 ชิ้นต่อหลักฐาน'];
+    }
+    if ($noneSamples > 0) {
+        $actions[] = ['id' => 'clarify-none', 'title' => 'ทำให้หลักฐานชัดขึ้น', 'detail' => "พบ {$noneSamples} โพสต์ไม่มีสัญญาณหลักฐาน — ใส่ป้าย (ใช้จริง/เทียบเลือก/สเปก/สถานการณ์) แล้ว regenerate ก่อน Approve"];
+    }
+    if ($best && $best['status'] === 'hot' && $best['band'] !== 'none') {
+        $actions[] = ['id' => 'lean-proof', 'title' => 'เอียงไปหลักฐาน ' . $best['bandLabel'], 'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต · ' . proof_style_hint($best['band'])];
+    }
+    if ($unbalanced) {
+        $actions[] = ['id' => 'diversify', 'title' => 'กระจายมิกซ์หลักฐาน', 'detail' => 'หลักฐานเด่นกินสัดส่วนสูง — เพิ่ม draft คนละหลักฐาน 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)'];
+    }
+    $actions[] = ['id' => 'compliance', 'title' => 'คงกฎ Approve + disclosure + ไม่หลอกลวง', 'detail' => 'ห้ามเคลมรีวิวปลอม/ยอดขายเท็จ — ทุกแคปชันต้องมี disclosure และผ่าน Approve ก่อนโพสต์มือ'];
+    $actions = array_slice($actions, 0, 5);
+
+    $checklist = [
+        'อันดับหลักฐานมาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับหลักฐานเป็นคำแนะนำเท่านั้น — ต้องแก้เอง + Approve',
+        'ห้ามใช้รีวิวปลอม คำโฆษณาเกินจริง หรือยอดขายเท็จ',
+        'ทุกโพสต์ต้องมี disclosure และน้ำเสียงช่วยเลือกของ',
+    ];
+
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $lines = [
+        "Proof Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = ($statusLabel[$b['status']] ?? $b['status']) . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score'] . ' (' . ($confLabel[$b['confidence']] ?? '') . ', n=' . $b['samples'] . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => $postedN,
+            'bandsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+            'noneSamples' => $noneSamples,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => $suggestions,
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function proof_fit_lab_to_markdown(array $lab): string
+{
+    $bandRows = [];
+    foreach ($lab['bands'] as $b) {
+        if (($b['samples'] ?? 0) <= 0) continue;
+        $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'][$b['status']] ?? $b['status'];
+        $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'][$b['confidence']] ?? $b['confidence'];
+        $n = count($bandRows) + 1;
+        $bandRows[] = "{$n}. **[{$statusLabel}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel}\n"
+            . '   CTR ~' . round($b['avgCtr'] * 100, 1) . "% · ออเดอร์/คลิก ~{$b['avgOrdersPerClick']} · ค่าคอมเฉลี่ย ฿{$b['avgCommission']}\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']}\n"
+            . "   preview: {$s['captionPreview']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) $suggestionRows[] = '_(ไม่มีคำแนะนำสลับหลักฐานวันนี้)_';
+
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = array_map(fn($c) => "- {$c}", $lab['checklist']);
+
+    return "# Proof Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- หลักฐานที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . "- none: {$lab['counts']['noneSamples']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . (!empty($lab['counts']['unbalanced']) ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับหลักฐาน / social proof (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+
+
+/**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
  */
@@ -11070,6 +11512,7 @@ function run_morning_workflow(?string $date = null): array
     $angleFitLines = array_slice(build_angle_fit_lab($date)['lines'], 0, 4);
     $lengthFitLines = array_slice(build_length_fit_lab($date)['lines'], 0, 4);
     $scriptFitLines = array_slice(build_script_fit_lab($date)['lines'], 0, 4);
+    $proofFitLines = array_slice(build_proof_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -11102,6 +11545,7 @@ function run_morning_workflow(?string $date = null): array
         ...$angleFitLines,
         ...$lengthFitLines,
         ...$scriptFitLines,
+        ...$proofFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -11203,6 +11647,7 @@ function run_evening_workflow(?string $date = null): array
     $angleFitLab = build_angle_fit_lab($date);
     $lengthFitLab = build_length_fit_lab($date);
     $scriptFitLab = build_script_fit_lab($date);
+    $proofFitLab = build_proof_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -11273,6 +11718,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($scriptFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($proofFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -11331,6 +11779,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($scriptFitLab['counts']['hot'] ?? 0) > 0 || !empty($scriptFitLab['counts']['unbalanced']) || ($scriptFitLab['counts']['flatSamples'] ?? 0) > 0) {
         $recs[] = 'Script Fit: ช่วงร้อน ' . $scriptFitLab['counts']['hot'] . ' · ' . $scriptFitLab['mixTip'];
+    }
+    if (($proofFitLab['counts']['hot'] ?? 0) > 0 || !empty($proofFitLab['counts']['unbalanced']) || ($proofFitLab['counts']['noneSamples'] ?? 0) > 0) {
+        $recs[] = 'Proof Fit: ช่วงร้อน ' . $proofFitLab['counts']['hot'] . ' · ' . $proofFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

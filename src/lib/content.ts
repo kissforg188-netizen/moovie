@@ -120,9 +120,37 @@ const SCRIPT_STYLE_LABEL: Record<ScriptStyleVariant, string> = {
   pov: "โครง POV",
 };
 
+type ProofStyleVariant =
+  | "used_real"
+  | "compare_help"
+  | "spec_point"
+  | "situation"
+  | "soft_popular";
+
+const PROOF_STYLE_VARIANTS: ProofStyleVariant[] = [
+  "used_real",
+  "compare_help",
+  "spec_point",
+  "situation",
+  "soft_popular",
+];
+
+const PROOF_STYLE_LABEL: Record<ProofStyleVariant, string> = {
+  used_real: "หลักฐานใช้จริง",
+  compare_help: "หลักฐานเทียบเลือก",
+  spec_point: "หลักฐานสเปก",
+  situation: "หลักฐานสถานการณ์",
+  soft_popular: "หลักฐานยอดนิยมเบา",
+};
+
 function scriptStyleForVariant(variant: number): ScriptStyleVariant {
   const i = Math.abs(variant) % SCRIPT_STYLE_VARIANTS.length;
   return SCRIPT_STYLE_VARIANTS[i]!;
+}
+
+function proofStyleForVariant(variant: number): ProofStyleVariant {
+  const i = Math.abs(variant) % PROOF_STYLE_VARIANTS.length;
+  return PROOF_STYLE_VARIANTS[i]!;
 }
 
 function buildTikTokScript(
@@ -326,10 +354,29 @@ export function generateContentPack(
   const pain = firstPain(product);
   const sell = firstSell(product);
 
+  const proofTag = PROOF_STYLE_LABEL[proofStyleForVariant(variant)];
+  const proofLineByStyle: Record<ProofStyleVariant, string> = {
+    used_real: softCopy(
+      `${proofTag}: ลองใช้แล้วชอบจุดนี้ — ${sell} (ไม่การันตีผลทุกคน)`,
+    ),
+    compare_help: softCopy(
+      `${proofTag}: เทียบตัวเลือกสั้น ๆ แล้วดูสเปกต่อเอง — จุดที่น่าสนใจ ${sell}`,
+    ),
+    spec_point: softCopy(`${proofTag}: ชี้จุดที่ชอบ 1 ข้อ — ${sell}`),
+    situation: softCopy(
+      `${proofTag}: เคยเจอไหม… ${pain} — แชร์ตัวเลือกที่ช่วยได้`,
+    ),
+    soft_popular: softCopy(
+      `${proofTag}: คนถามบ่อยเรื่องหมวดนี้ — น่าลองดูสเปกก่อน ไม่เร่งซื้อ`,
+    ),
+  };
+  const proofLine = proofLineByStyle[proofStyleForVariant(variant)];
+
   const facebookBody = softCopy(
     [
       hooks[1],
       "",
+      proofLine,
       `วันนี้มาแชร์ตัวเลือกในหมวด ${product.category} สำหรับ${product.targetAudience || "คนที่กำลังหาของอยู่"}`,
       `จุดที่น่าสนใจ: ${sell}`,
       `ช่วยเรื่อง: ${pain}`,
@@ -347,6 +394,7 @@ export function generateContentPack(
     [
       `แชร์ให้เพื่อนในกลุ่มที่กำลังหาของหมวด ${product.category}`,
       "",
+      proofLine,
       `บริบท: ${pain}`,
       `สิ่งที่น่าลอง: ${sell}`,
       `ราคาประมาณ ${priceLabel(product.price)} — ไม่การันตีว่าจะเหมาะทุกคน ลองเทียบรีวิวก่อนนะ`,
@@ -364,6 +412,7 @@ export function generateContentPack(
   const reelsBody = softCopy(
     [
       hooks[0],
+      proofTag,
       `${sell} · ${priceLabel(product.price)}`,
       ctas[2] ?? ctas[0],
       `ลิงก์ในไบโอ/คอมเมนต์`,
@@ -374,10 +423,10 @@ export function generateContentPack(
   const styleTag = SCRIPT_STYLE_LABEL[scriptStyleForVariant(variant)];
   const videoPriorityNote =
     product.videoEase >= 4
-      ? `${styleTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
+      ? `${styleTag} · ${proofTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
       : product.videoEase >= 3
-        ? `${styleTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
-        : `${styleTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
+        ? `${styleTag} · ${proofTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
+        : `${styleTag} · ${proofTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
 
   const noteHint = product.notes?.trim()
     ? `โน้ตจากผู้ใช้: ${softCopy(product.notes.trim()).slice(0, 120)}`

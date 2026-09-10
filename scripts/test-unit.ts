@@ -160,6 +160,13 @@ import {
   buildScriptFitLab,
 } from "../src/lib/script-fit";
 import {
+  classifyProofStyle,
+  proofFitLabLines,
+  proofFitLabToMarkdown,
+  proofStyleOf,
+  buildProofFitLab,
+} from "../src/lib/proof-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -5236,6 +5243,232 @@ function run() {
   assert.equal(emptyScript.counts.postsWithMetrics, 0);
   assert.ok(
     emptyScript.summary.includes("ยังไม่มีเมตริก") || emptyScript.score <= 50,
+  );
+
+  // --- Proof Fit Lab ---
+  assert.equal(classifyProofStyle(""), "none");
+  assert.equal(
+    classifyProofStyle("หลักฐานใช้จริง · ลองใช้แล้วชอบจุดนี้"),
+    "used_real",
+  );
+  assert.equal(
+    classifyProofStyle("หลักฐานเทียบเลือก เทียบตัวเลือกสั้น ๆ"),
+    "compare_help",
+  );
+  assert.equal(
+    classifyProofStyle("หลักฐานสเปก ชี้จุดที่ชอบ 1 ข้อ"),
+    "spec_point",
+  );
+  assert.equal(
+    classifyProofStyle("หลักฐานสถานการณ์ เคยเจอไหม…"),
+    "situation",
+  );
+  assert.equal(
+    classifyProofStyle("หลักฐานยอดนิยมเบา คนถามบ่อย"),
+    "soft_popular",
+  );
+  assert.equal(
+    classifyProofStyle("ลองใช้แล้วชอบจุดนี้โดยไม่โอเวอร์เคลม"),
+    "used_real",
+  );
+  assert.equal(classifyProofStyle("สินค้าดีมาก รีบซื้อเลย"), "none");
+
+  const proofUsedProd = sample({
+    id: "prod_proof_used",
+    name: "หลักฐานใช้จริง",
+    price: 259,
+    commissionRate: 15,
+  });
+  const proofNoneProd = sample({
+    id: "prod_proof_none",
+    name: "ไม่มีหลักฐาน",
+    price: 89,
+    commissionRate: 5,
+  });
+  const packProofUsed = {
+    id: "pack_proof_used",
+    productId: proofUsedProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยเจอไหม…"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์"],
+    hashtagsTh: ["#เลือกดี"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: {
+      durationSec: 25,
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: "เคยเจอไหม…",
+          visual: "หลักฐานใช้จริง",
+        },
+      ],
+      voiceover: "หลักฐานใช้จริง ลองใช้แล้วชอบจุดนี้",
+    },
+    facebookCaption: withDisclosure(
+      "หลักฐานใช้จริง: ลองใช้แล้วชอบจุดนี้ — ช่วยจัดโต๊ะ",
+    ),
+    facebookGroupCaption: withDisclosure("แชร์ตัวเลือกจัดโต๊ะ"),
+    reelsCaption: withDisclosure("หลักฐานใช้จริง · ลองใช้"),
+    videoPriorityNote: "โครงปัญหา→สาธิต · หลักฐานใช้จริง · ถ่ายง่าย",
+    filmingChecklist: ["โชว์ใช้จริง", "disclosure"],
+    sellingAngles: ["มุมใช้จริง"],
+  };
+  const packProofNone = {
+    id: "pack_proof_none",
+    productId: proofNoneProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["ของดี"],
+    ctas: ["ดูลิงก์"],
+    hashtagsTh: ["#สินค้า"],
+    hashtagsEn: ["#shop"],
+    tiktokScript: {
+      durationSec: 15,
+      scenes: [{ time: "0-3วิ", line: "สินค้าดี", visual: "ภาพนิ่ง" }],
+      voiceover: "สินค้าดีมาก",
+    },
+    facebookCaption: withDisclosure("สินค้าดีมาก รีบดู"),
+    facebookGroupCaption: withDisclosure("สินค้าดี"),
+    reelsCaption: withDisclosure("สินค้าดี"),
+    videoPriorityNote: "ถ่ายง่าย",
+    filmingChecklist: ["ถ่ายสั้น"],
+    sellingAngles: ["มุมทั่วไป"],
+  };
+
+  assert.equal(
+    proofStyleOf(
+      { captionPreview: packProofUsed.facebookCaption, contentPackId: packProofUsed.id },
+      packProofUsed as never,
+    ),
+    "used_real",
+  );
+  assert.equal(
+    proofStyleOf(
+      { captionPreview: packProofNone.facebookCaption, contentPackId: packProofNone.id },
+      packProofNone as never,
+    ),
+    "none",
+  );
+
+  const generatedProofPack = generateContentPack(proofUsedProd, { variant: 0 });
+  assert.ok(
+    /หลักฐานใช้จริง|หลักฐานเทียบ|หลักฐานสเปก|หลักฐานสถานการณ์|หลักฐานยอดนิยม/.test(
+      `${generatedProofPack.facebookCaption}\n${generatedProofPack.videoPriorityNote}\n${generatedProofPack.reelsCaption}`,
+    ),
+  );
+
+  const proofSchedule = [
+    {
+      id: "sch_proof_1",
+      date: "2026-08-21",
+      suggestedTime: "10:00",
+      channel: "tiktok",
+      productId: proofUsedProd.id,
+      contentPackId: packProofUsed.id,
+      status: "posted",
+      captionPreview: packProofUsed.facebookCaption,
+      metrics: {
+        views: 1200,
+        clicks: 90,
+        orders: 4,
+        commissionEarned: 180,
+        loggedAt: "2026-08-21T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_proof_2",
+      date: "2026-08-22",
+      suggestedTime: "11:00",
+      channel: "facebook_page",
+      productId: proofUsedProd.id,
+      contentPackId: packProofUsed.id,
+      status: "posted",
+      captionPreview: packProofUsed.facebookCaption,
+      metrics: {
+        views: 900,
+        clicks: 70,
+        orders: 3,
+        commissionEarned: 140,
+        loggedAt: "2026-08-22T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_proof_3",
+      date: "2026-08-22",
+      suggestedTime: "15:00",
+      channel: "facebook_reels",
+      productId: proofNoneProd.id,
+      contentPackId: packProofNone.id,
+      status: "posted",
+      captionPreview: packProofNone.facebookCaption,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+        loggedAt: "2026-08-22T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_proof_draft",
+      date: "2026-08-23",
+      suggestedTime: "09:30",
+      channel: "tiktok",
+      productId: proofNoneProd.id,
+      contentPackId: packProofNone.id,
+      status: "draft",
+      captionPreview: packProofNone.facebookCaption,
+    },
+  ];
+
+  const proofLab = buildProofFitLab(
+    {
+      products: [proofUsedProd, proofNoneProd],
+      contentPacks: [packProofUsed, packProofNone] as never[],
+      schedule: proofSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(proofLab.counts.postsWithMetrics, 3);
+  assert.ok(proofLab.counts.noneSamples >= 1);
+  const proofUsedRow = proofLab.bands.find((b) => b.band === "used_real");
+  const proofNoneRow = proofLab.bands.find((b) => b.band === "none");
+  assert.ok(proofUsedRow);
+  assert.ok(proofNoneRow);
+  assert.ok(proofUsedRow!.score > proofNoneRow!.score);
+  assert.ok(proofLab.suggestions.length >= 1);
+  assert.ok(
+    proofLab.suggestions[0].suggestedBand === "used_real" ||
+      proofLab.suggestions[0].suggestedLabel.includes("ใช้จริง"),
+  );
+  assert.ok(proofFitLabLines(proofLab, 3).length <= 3);
+  const proofMd = proofFitLabToMarkdown(proofLab);
+  assert.ok(proofMd.includes("Proof Fit Lab"));
+  assert.ok(proofMd.includes("ทดลอง"));
+  assert.ok(
+    proofMd.includes("ไม่เปลี่ยนอัตโนมัติ") || proofMd.includes("Approve"),
+  );
+  assert.ok(
+    proofMd.includes("ไม่รับประกัน") ||
+      proofMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyProof = buildProofFitLab(
+    {
+      products: [proofUsedProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyProof.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyProof.summary.includes("ยังไม่มีเมตริก") || emptyProof.score <= 50,
   );
 
   console.log("All unit tests passed");

@@ -361,6 +361,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md script-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['proof-fit', 'proof', 'proofs', 'social-proof', 'credibility'], true)) {
+                $lab = build_proof_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-proof-fit-lab-'.today_iso().'.md"');
+                echo proof_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md proof-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

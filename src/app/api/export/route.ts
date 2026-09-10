@@ -41,6 +41,7 @@ import { toneFitLabToMarkdown } from "@/lib/tone-fit";
 import { angleFitLabToMarkdown } from "@/lib/angle-fit";
 import { lengthFitLabToMarkdown } from "@/lib/length-fit";
 import { scriptFitLabToMarkdown } from "@/lib/script-fit";
+import { proofFitLabToMarkdown } from "@/lib/proof-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -280,6 +281,16 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = scriptFitLabToMarkdown(snap.scriptFitLab);
       filename = `affiliate-script-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "proof-fit" ||
+      scope === "proof" ||
+      scope === "proofs" ||
+      scope === "social-proof" ||
+      scope === "credibility"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = proofFitLabToMarkdown(snap.proofFitLab);
+      filename = `affiliate-proof-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }
