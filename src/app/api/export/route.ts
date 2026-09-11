@@ -42,6 +42,7 @@ import { angleFitLabToMarkdown } from "@/lib/angle-fit";
 import { lengthFitLabToMarkdown } from "@/lib/length-fit";
 import { scriptFitLabToMarkdown } from "@/lib/script-fit";
 import { proofFitLabToMarkdown } from "@/lib/proof-fit";
+import { offerFitLabToMarkdown } from "@/lib/offer-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -291,6 +292,16 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = proofFitLabToMarkdown(snap.proofFitLab);
       filename = `affiliate-proof-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "offer-fit" ||
+      scope === "offer" ||
+      scope === "offers" ||
+      scope === "value-offer" ||
+      scope === "value-fit"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = offerFitLabToMarkdown(snap.offerFitLab);
+      filename = `affiliate-offer-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

@@ -143,6 +143,26 @@ const PROOF_STYLE_LABEL: Record<ProofStyleVariant, string> = {
   soft_popular: "หลักฐานยอดนิยมเบา",
 };
 
+type OfferStyleVariant =
+  | "value_compare"
+  | "soft_save"
+  | "problem_first"
+  | "fair_price";
+
+const OFFER_STYLE_VARIANTS: OfferStyleVariant[] = [
+  "value_compare",
+  "soft_save",
+  "problem_first",
+  "fair_price",
+];
+
+const OFFER_STYLE_LABEL: Record<OfferStyleVariant, string> = {
+  value_compare: "เสนอคุ้มเทียบ",
+  soft_save: "เสนอประหยัดเบา",
+  problem_first: "เสนอแก้ปัญหาก่อน",
+  fair_price: "เสนอราคาพอดี",
+};
+
 function scriptStyleForVariant(variant: number): ScriptStyleVariant {
   const i = Math.abs(variant) % SCRIPT_STYLE_VARIANTS.length;
   return SCRIPT_STYLE_VARIANTS[i]!;
@@ -151,6 +171,11 @@ function scriptStyleForVariant(variant: number): ScriptStyleVariant {
 function proofStyleForVariant(variant: number): ProofStyleVariant {
   const i = Math.abs(variant) % PROOF_STYLE_VARIANTS.length;
   return PROOF_STYLE_VARIANTS[i]!;
+}
+
+function offerStyleForVariant(variant: number): OfferStyleVariant {
+  const i = Math.abs(variant) % OFFER_STYLE_VARIANTS.length;
+  return OFFER_STYLE_VARIANTS[i]!;
 }
 
 function buildTikTokScript(
@@ -355,6 +380,7 @@ export function generateContentPack(
   const sell = firstSell(product);
 
   const proofTag = PROOF_STYLE_LABEL[proofStyleForVariant(variant)];
+  const offerTag = OFFER_STYLE_LABEL[offerStyleForVariant(variant)];
   const proofLineByStyle: Record<ProofStyleVariant, string> = {
     used_real: softCopy(
       `${proofTag}: ลองใช้แล้วชอบจุดนี้ — ${sell} (ไม่การันตีผลทุกคน)`,
@@ -372,11 +398,28 @@ export function generateContentPack(
   };
   const proofLine = proofLineByStyle[proofStyleForVariant(variant)];
 
+  const offerLineByStyle: Record<OfferStyleVariant, string> = {
+    value_compare: softCopy(
+      `${offerTag}: เทียบคุ้มสั้น ๆ กับของเดิม — จุดที่น่าสนใจ ${sell} (ไม่การันตีคุ้มทุกคน)`,
+    ),
+    soft_save: softCopy(
+      `${offerTag}: ช่วยเซฟงบเบา ๆ โดยไม่ต้องซื้อแพง — ราคาประมาณ ${priceLabel(product.price)}`,
+    ),
+    problem_first: softCopy(
+      `${offerTag}: เคยเจอไหม… ${pain} — แชร์ตัวเลือกก่อน แล้วค่อยดูราคา`,
+    ),
+    fair_price: softCopy(
+      `${offerTag}: ราคาประมาณ ${priceLabel(product.price)} — ตรวจราคาก่อนซื้อเสมอ`,
+    ),
+  };
+  const offerLine = offerLineByStyle[offerStyleForVariant(variant)];
+
   const facebookBody = softCopy(
     [
       hooks[1],
       "",
       proofLine,
+      offerLine,
       `วันนี้มาแชร์ตัวเลือกในหมวด ${product.category} สำหรับ${product.targetAudience || "คนที่กำลังหาของอยู่"}`,
       `จุดที่น่าสนใจ: ${sell}`,
       `ช่วยเรื่อง: ${pain}`,
@@ -395,6 +438,7 @@ export function generateContentPack(
       `แชร์ให้เพื่อนในกลุ่มที่กำลังหาของหมวด ${product.category}`,
       "",
       proofLine,
+      offerLine,
       `บริบท: ${pain}`,
       `สิ่งที่น่าลอง: ${sell}`,
       `ราคาประมาณ ${priceLabel(product.price)} — ไม่การันตีว่าจะเหมาะทุกคน ลองเทียบรีวิวก่อนนะ`,
@@ -413,6 +457,7 @@ export function generateContentPack(
     [
       hooks[0],
       proofTag,
+      offerTag,
       `${sell} · ${priceLabel(product.price)}`,
       ctas[2] ?? ctas[0],
       `ลิงก์ในไบโอ/คอมเมนต์`,
@@ -423,10 +468,10 @@ export function generateContentPack(
   const styleTag = SCRIPT_STYLE_LABEL[scriptStyleForVariant(variant)];
   const videoPriorityNote =
     product.videoEase >= 4
-      ? `${styleTag} · ${proofTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
+      ? `${styleTag} · ${proofTag} · ${offerTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
       : product.videoEase >= 3
-        ? `${styleTag} · ${proofTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
-        : `${styleTag} · ${proofTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
+        ? `${styleTag} · ${proofTag} · ${offerTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
+        : `${styleTag} · ${proofTag} · ${offerTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
 
   const noteHint = product.notes?.trim()
     ? `โน้ตจากผู้ใช้: ${softCopy(product.notes.trim()).slice(0, 120)}`

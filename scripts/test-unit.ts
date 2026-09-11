@@ -167,6 +167,13 @@ import {
   buildProofFitLab,
 } from "../src/lib/proof-fit";
 import {
+  classifyOfferStyle,
+  offerFitLabLines,
+  offerFitLabToMarkdown,
+  offerStyleOf,
+  buildOfferFitLab,
+} from "../src/lib/offer-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -5469,6 +5476,245 @@ function run() {
   assert.equal(emptyProof.counts.postsWithMetrics, 0);
   assert.ok(
     emptyProof.summary.includes("ยังไม่มีเมตริก") || emptyProof.score <= 50,
+  );
+
+  // --- Offer Fit Lab ---
+  assert.equal(classifyOfferStyle(""), "none");
+  assert.equal(
+    classifyOfferStyle("เสนอคุ้มเทียบ · เทียบคุ้มสั้น ๆ"),
+    "value_compare",
+  );
+  assert.equal(
+    classifyOfferStyle("เสนอประหยัดเบา ช่วยเซฟงบ"),
+    "soft_save",
+  );
+  assert.equal(
+    classifyOfferStyle("เสนอแก้ปัญหาก่อน เคยเจอไหม…"),
+    "problem_first",
+  );
+  assert.equal(
+    classifyOfferStyle("เสนอราคาพอดี ราคาประมาณ 199"),
+    "fair_price",
+  );
+  assert.equal(
+    classifyOfferStyle("เสนอขายแข็ง รีบซื้อ ของหมด"),
+    "hard_push",
+  );
+  assert.equal(
+    classifyOfferStyle("ช่วยเซฟงบโดยไม่ต้องซื้อแพง"),
+    "soft_save",
+  );
+  assert.equal(classifyOfferStyle("สินค้าดีมาก"), "none");
+  // hard_push overrides soft labels when mixed
+  assert.equal(
+    classifyOfferStyle("เสนอคุ้มเทียบ แต่รีบซื้อ ของหมด"),
+    "hard_push",
+  );
+
+  const offerSoftProd = sample({
+    id: "prod_offer_soft",
+    name: "เสนอแก้ปัญหาก่อน",
+    price: 259,
+    commissionRate: 15,
+  });
+  const offerHardProd = sample({
+    id: "prod_offer_hard",
+    name: "เสนอขายแข็ง",
+    price: 89,
+    commissionRate: 5,
+  });
+  const packOfferSoft = {
+    id: "pack_offer_soft",
+    productId: offerSoftProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยเจอไหม…"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์"],
+    hashtagsTh: ["#เลือกดี"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: {
+      durationSec: 25,
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: "เคยเจอไหม…",
+          visual: "เสนอแก้ปัญหาก่อน",
+        },
+      ],
+      voiceover: "เสนอแก้ปัญหาก่อน แชร์ตัวเลือกก่อนค่อยดูราคา",
+    },
+    facebookCaption: withDisclosure(
+      "เสนอแก้ปัญหาก่อน: เคยเจอไหม… แชร์ตัวเลือกที่ช่วยได้",
+    ),
+    facebookGroupCaption: withDisclosure("แชร์ตัวเลือกจัดโต๊ะ"),
+    reelsCaption: withDisclosure("เสนอแก้ปัญหาก่อน · ช่วยเลือกของ"),
+    videoPriorityNote: "โครงปัญหา→สาธิต · เสนอแก้ปัญหาก่อน · ถ่ายง่าย",
+    filmingChecklist: ["โชว์ปัญหา", "disclosure"],
+    sellingAngles: ["มุมแก้ปัญหา"],
+  };
+  const packOfferHard = {
+    id: "pack_offer_hard",
+    productId: offerHardProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["รีบซื้อ"],
+    ctas: ["กดเลย"],
+    hashtagsTh: ["#สินค้า"],
+    hashtagsEn: ["#shop"],
+    tiktokScript: {
+      durationSec: 15,
+      scenes: [{ time: "0-3วิ", line: "รีบซื้อ", visual: "ลดแรง" }],
+      voiceover: "รีบซื้อ ของหมด",
+    },
+    facebookCaption: withDisclosure("ลดแรง รีบซื้อ ของหมด สุดคุ้มแน่นอน"),
+    facebookGroupCaption: withDisclosure("รีบซื้อ"),
+    reelsCaption: withDisclosure("ลดแรง"),
+    videoPriorityNote: "ขายแรง",
+    filmingChecklist: ["เร่งซื้อ"],
+    sellingAngles: ["มุมลดแรง"],
+  };
+
+  assert.equal(
+    offerStyleOf(
+      {
+        captionPreview: packOfferSoft.facebookCaption,
+        contentPackId: packOfferSoft.id,
+      },
+      packOfferSoft as never,
+    ),
+    "problem_first",
+  );
+  assert.equal(
+    offerStyleOf(
+      {
+        captionPreview: packOfferHard.facebookCaption,
+        contentPackId: packOfferHard.id,
+      },
+      packOfferHard as never,
+    ),
+    "hard_push",
+  );
+
+  const generatedOfferPack = generateContentPack(offerSoftProd, {
+    variant: 0,
+  });
+  assert.ok(
+    /เสนอคุ้มเทียบ|เสนอประหยัดเบา|เสนอแก้ปัญหาก่อน|เสนอราคาพอดี/.test(
+      `${generatedOfferPack.facebookCaption}\n${generatedOfferPack.videoPriorityNote}\n${generatedOfferPack.reelsCaption}`,
+    ),
+  );
+
+  const offerSchedule = [
+    {
+      id: "sch_offer_1",
+      date: "2026-08-21",
+      suggestedTime: "10:00",
+      channel: "tiktok",
+      productId: offerSoftProd.id,
+      contentPackId: packOfferSoft.id,
+      status: "posted",
+      captionPreview: packOfferSoft.facebookCaption,
+      metrics: {
+        views: 1200,
+        clicks: 90,
+        orders: 4,
+        commissionEarned: 180,
+        loggedAt: "2026-08-21T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_offer_2",
+      date: "2026-08-22",
+      suggestedTime: "11:00",
+      channel: "facebook_page",
+      productId: offerSoftProd.id,
+      contentPackId: packOfferSoft.id,
+      status: "posted",
+      captionPreview: packOfferSoft.facebookCaption,
+      metrics: {
+        views: 900,
+        clicks: 70,
+        orders: 3,
+        commissionEarned: 140,
+        loggedAt: "2026-08-22T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_offer_3",
+      date: "2026-08-22",
+      suggestedTime: "15:00",
+      channel: "facebook_reels",
+      productId: offerHardProd.id,
+      contentPackId: packOfferHard.id,
+      status: "posted",
+      captionPreview: packOfferHard.facebookCaption,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+        loggedAt: "2026-08-22T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_offer_draft",
+      date: "2026-08-23",
+      suggestedTime: "09:30",
+      channel: "tiktok",
+      productId: offerHardProd.id,
+      contentPackId: packOfferHard.id,
+      status: "draft",
+      captionPreview: packOfferHard.facebookCaption,
+    },
+  ];
+
+  const offerLab = buildOfferFitLab(
+    {
+      products: [offerSoftProd, offerHardProd],
+      contentPacks: [packOfferSoft, packOfferHard] as never[],
+      schedule: offerSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(offerLab.counts.postsWithMetrics, 3);
+  assert.ok(offerLab.counts.hardPushSamples >= 1);
+  const offerSoftRow = offerLab.bands.find((b) => b.band === "problem_first");
+  const offerHardRow = offerLab.bands.find((b) => b.band === "hard_push");
+  assert.ok(offerSoftRow);
+  assert.ok(offerHardRow);
+  assert.ok(offerSoftRow!.score > offerHardRow!.score);
+  assert.ok(offerLab.suggestions.length >= 1);
+  assert.ok(
+    offerLab.suggestions[0].suggestedBand === "problem_first" ||
+      offerLab.suggestions[0].suggestedLabel.includes("แก้ปัญหา"),
+  );
+  assert.ok(offerFitLabLines(offerLab, 3).length <= 3);
+  const offerMd = offerFitLabToMarkdown(offerLab);
+  assert.ok(offerMd.includes("Offer Fit Lab"));
+  assert.ok(offerMd.includes("ทดลอง"));
+  assert.ok(
+    offerMd.includes("ไม่เปลี่ยนอัตโนมัติ") || offerMd.includes("Approve"),
+  );
+  assert.ok(
+    offerMd.includes("ไม่รับประกัน") ||
+      offerMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyOffer = buildOfferFitLab(
+    {
+      products: [offerSoftProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyOffer.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyOffer.summary.includes("ยังไม่มีเมตริก") || emptyOffer.score <= 50,
   );
 
   console.log("All unit tests passed");
