@@ -5743,8 +5743,12 @@ function run() {
     "feel_relief",
   );
   assert.equal(
-    classifyBenefitStyle("ประโยชน์เคลมเกิน หายขาด 100%"),
+    classifyBenefitStyle("ประโยชน์เคลมเกิน หายขาด การันตีผล"),
     "hype_claim",
+  );
+  assert.equal(
+    classifyBenefitStyle("ผลที่ได้ที่น่าสนใจ — ไม่การันตีผลทุกคน"),
+    "result_first",
   );
   assert.equal(
     classifyBenefitStyle("ใช้ง่าย ไม่ยุ่งยาก พกง่าย"),

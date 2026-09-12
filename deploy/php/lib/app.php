@@ -10015,7 +10015,7 @@ function classify_benefit_style(string $raw): string
     $raw = trim($raw);
     if ($raw === '') return 'none';
 
-    if (preg_match('/ประโยชน์เคลมเกิน|วิเศษ|หายขาด|100%|การันตีผล|สุดยอดแน่นอน|ต้องได้ผล|hype.?claim|เปลี่ยนชีวิตทันที|มหัศจรรย์/iu', $raw)) {
+    if (preg_match('/ประโยชน์เคลมเกิน|วิเศษ|หายขาด|(?<!ไม่)การันตีผล|สุดยอดแน่นอน|ต้องได้ผล|hype.?claim|เปลี่ยนชีวิตทันที|มหัศจรรย์|100\s*%/iu', $raw)) {
         return 'hype_claim';
     }
 
