@@ -39,7 +39,7 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 - `src/lib/` — scoring, content, schedule, compliance, workflows, playbooks, results-intake, fit labs (incl. Hook Fit + CTA Fit)
 - `src/app/` — dashboard pages + API routes
 - `scripts/` — seed, morning/evening CLI, unit tests
-- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-aaca`)
+- `deploy/php/` — production PHP mirror (`pull.php` / `sync-auto.php` default tip `cursor/affiliate-88d0`)
 
 ### Rules agents must keep
 
@@ -50,5 +50,5 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 
 ### Latest incremental feature
 
-- **Hook Fit Lab** (`src/lib/hook-fit.ts` + PHP `build_hook_fit_lab`) — soft ranking of opening-hook style bands (pain / browse / value / social / soft) from logged metrics; mix tips + queue suggestions (never auto-swap hooks); morning/evening brief lines; export `scope=hook-fit`
-- Prior tip: **Audience Fit Lab** (`src/lib/audience-fit.ts` + PHP `build_audience_fit_lab`) — target-audience clarity bands; export `scope=audience-fit`
+- **Benefit Fit Lab** (`src/lib/benefit-fit.ts` + PHP `build_benefit_fit_lab`) — soft ranking of benefit framing (result_first / ease_daily / save_time / feel_relief / hype_claim / none) from logged metrics; flags hype claims; mix tips + queue suggestions (never auto-rewrite); morning/evening brief lines; export `scope=benefit-fit`
+- Prior tip: **Offer Fit Lab** (`src/lib/offer-fit.ts` + PHP `build_offer_fit_lab`) — value/offer framing; export `scope=offer-fit`

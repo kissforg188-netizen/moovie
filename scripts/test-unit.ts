@@ -174,6 +174,13 @@ import {
   buildOfferFitLab,
 } from "../src/lib/offer-fit";
 import {
+  classifyBenefitStyle,
+  benefitStyleOf,
+  benefitFitLabLines,
+  benefitFitLabToMarkdown,
+  buildBenefitFitLab,
+} from "../src/lib/benefit-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -5715,6 +5722,245 @@ function run() {
   assert.equal(emptyOffer.counts.postsWithMetrics, 0);
   assert.ok(
     emptyOffer.summary.includes("ยังไม่มีเมตริก") || emptyOffer.score <= 50,
+  );
+
+  // --- Benefit Fit Lab ---
+  assert.equal(classifyBenefitStyle(""), "none");
+  assert.equal(
+    classifyBenefitStyle("ประโยชน์ผลลัพธ์ · ผลที่ได้สั้น ๆ"),
+    "result_first",
+  );
+  assert.equal(
+    classifyBenefitStyle("ประโยชน์ใช้ง่าย ใช้ง่ายในชีวิตประจำวัน"),
+    "ease_daily",
+  );
+  assert.equal(
+    classifyBenefitStyle("ประโยชน์ประหยัดเวลา ช่วยเซฟเวลา"),
+    "save_time",
+  );
+  assert.equal(
+    classifyBenefitStyle("ประโยชน์โล่งใจ เคยกังวลเรื่อง…"),
+    "feel_relief",
+  );
+  assert.equal(
+    classifyBenefitStyle("ประโยชน์เคลมเกิน หายขาด 100%"),
+    "hype_claim",
+  );
+  assert.equal(
+    classifyBenefitStyle("ใช้ง่าย ไม่ยุ่งยาก พกง่าย"),
+    "ease_daily",
+  );
+  assert.equal(classifyBenefitStyle("สินค้าดีมาก"), "none");
+  // hype_claim overrides soft labels when mixed
+  assert.equal(
+    classifyBenefitStyle("ประโยชน์ผลลัพธ์ แต่หายขาด การันตีผล"),
+    "hype_claim",
+  );
+
+  const benefitSoftProd = sample({
+    id: "prod_benefit_soft",
+    name: "ประโยชน์โล่งใจ",
+    price: 259,
+    commissionRate: 15,
+  });
+  const benefitHypeProd = sample({
+    id: "prod_benefit_hype",
+    name: "ประโยชน์เคลมเกิน",
+    price: 89,
+    commissionRate: 5,
+  });
+  const packBenefitSoft = {
+    id: "pack_benefit_soft",
+    productId: benefitSoftProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["เคยกังวลไหม…"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์"],
+    hashtagsTh: ["#เลือกดี"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: {
+      durationSec: 25,
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: "เคยกังวลไหม…",
+          visual: "ประโยชน์โล่งใจ",
+        },
+      ],
+      voiceover: "ประโยชน์โล่งใจ แชร์ตัวเลือกก่อนค่อยดูราคา",
+    },
+    facebookCaption: withDisclosure(
+      "ประโยชน์โล่งใจ: เคยกังวลไหม… แชร์ตัวเลือกที่ช่วยได้",
+    ),
+    facebookGroupCaption: withDisclosure("แชร์ตัวเลือกจัดโต๊ะ"),
+    reelsCaption: withDisclosure("ประโยชน์โล่งใจ · ช่วยเลือกของ"),
+    videoPriorityNote: "โครงกังวล→สาธิต · ประโยชน์โล่งใจ · ถ่ายง่าย",
+    filmingChecklist: ["โชว์กังวล", "disclosure"],
+    sellingAngles: ["มุมโล่งใจ"],
+  };
+  const packBenefitHype = {
+    id: "pack_benefit_hype",
+    productId: benefitHypeProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["วิเศษ"],
+    ctas: ["กดเลย"],
+    hashtagsTh: ["#สินค้า"],
+    hashtagsEn: ["#shop"],
+    tiktokScript: {
+      durationSec: 15,
+      scenes: [{ time: "0-3วิ", line: "วิเศษ", visual: "หายขาด" }],
+      voiceover: "หายขาด 100% การันตีผล",
+    },
+    facebookCaption: withDisclosure("วิเศษ หายขาด 100% สุดยอดแน่นอน"),
+    facebookGroupCaption: withDisclosure("การันตีผล"),
+    reelsCaption: withDisclosure("มหัศจรรย์"),
+    videoPriorityNote: "เคลมแรง",
+    filmingChecklist: ["เร่งซื้อ"],
+    sellingAngles: ["มุมเคลมเกิน"],
+  };
+
+  assert.equal(
+    benefitStyleOf(
+      {
+        captionPreview: packBenefitSoft.facebookCaption,
+        contentPackId: packBenefitSoft.id,
+      },
+      packBenefitSoft as never,
+    ),
+    "feel_relief",
+  );
+  assert.equal(
+    benefitStyleOf(
+      {
+        captionPreview: packBenefitHype.facebookCaption,
+        contentPackId: packBenefitHype.id,
+      },
+      packBenefitHype as never,
+    ),
+    "hype_claim",
+  );
+
+  const generatedBenefitPack = generateContentPack(benefitSoftProd, {
+    variant: 0,
+  });
+  assert.ok(
+    /ประโยชน์ผลลัพธ์|ประโยชน์ใช้ง่าย|ประโยชน์ประหยัดเวลา|ประโยชน์โล่งใจ/.test(
+      `${generatedBenefitPack.facebookCaption}\n${generatedBenefitPack.videoPriorityNote}\n${generatedBenefitPack.reelsCaption}`,
+    ),
+  );
+
+  const benefitSchedule = [
+    {
+      id: "sch_benefit_1",
+      date: "2026-08-21",
+      suggestedTime: "10:00",
+      channel: "tiktok",
+      productId: benefitSoftProd.id,
+      contentPackId: packBenefitSoft.id,
+      status: "posted",
+      captionPreview: packBenefitSoft.facebookCaption,
+      metrics: {
+        views: 1200,
+        clicks: 90,
+        orders: 4,
+        commissionEarned: 180,
+        loggedAt: "2026-08-21T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_benefit_2",
+      date: "2026-08-22",
+      suggestedTime: "11:00",
+      channel: "facebook_page",
+      productId: benefitSoftProd.id,
+      contentPackId: packBenefitSoft.id,
+      status: "posted",
+      captionPreview: packBenefitSoft.facebookCaption,
+      metrics: {
+        views: 900,
+        clicks: 70,
+        orders: 3,
+        commissionEarned: 140,
+        loggedAt: "2026-08-22T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_benefit_3",
+      date: "2026-08-22",
+      suggestedTime: "15:00",
+      channel: "facebook_reels",
+      productId: benefitHypeProd.id,
+      contentPackId: packBenefitHype.id,
+      status: "posted",
+      captionPreview: packBenefitHype.facebookCaption,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+        loggedAt: "2026-08-22T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_benefit_draft",
+      date: "2026-08-23",
+      suggestedTime: "09:30",
+      channel: "tiktok",
+      productId: benefitHypeProd.id,
+      contentPackId: packBenefitHype.id,
+      status: "draft",
+      captionPreview: packBenefitHype.facebookCaption,
+    },
+  ];
+
+  const benefitLab = buildBenefitFitLab(
+    {
+      products: [benefitSoftProd, benefitHypeProd],
+      contentPacks: [packBenefitSoft, packBenefitHype] as never[],
+      schedule: benefitSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(benefitLab.counts.postsWithMetrics, 3);
+  assert.ok(benefitLab.counts.hypeClaimSamples >= 1);
+  const benefitSoftRow = benefitLab.bands.find((b) => b.band === "feel_relief");
+  const benefitHypeRow = benefitLab.bands.find((b) => b.band === "hype_claim");
+  assert.ok(benefitSoftRow);
+  assert.ok(benefitHypeRow);
+  assert.ok(benefitSoftRow!.score > benefitHypeRow!.score);
+  assert.ok(benefitLab.suggestions.length >= 1);
+  assert.ok(
+    benefitLab.suggestions[0].suggestedBand === "feel_relief" ||
+      benefitLab.suggestions[0].suggestedLabel.includes("โล่งใจ"),
+  );
+  assert.ok(benefitFitLabLines(benefitLab, 3).length <= 3);
+  const benefitMd = benefitFitLabToMarkdown(benefitLab);
+  assert.ok(benefitMd.includes("Benefit Fit Lab"));
+  assert.ok(benefitMd.includes("ทดลอง"));
+  assert.ok(
+    benefitMd.includes("ไม่เปลี่ยนอัตโนมัติ") || benefitMd.includes("Approve"),
+  );
+  assert.ok(
+    benefitMd.includes("ไม่รับประกัน") ||
+      benefitMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyBenefit = buildBenefitFitLab(
+    {
+      products: [benefitSoftProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyBenefit.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyBenefit.summary.includes("ยังไม่มีเมตริก") || emptyBenefit.score <= 50,
   );
 
   console.log("All unit tests passed");

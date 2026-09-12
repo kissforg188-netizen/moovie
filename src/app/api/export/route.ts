@@ -43,6 +43,7 @@ import { lengthFitLabToMarkdown } from "@/lib/length-fit";
 import { scriptFitLabToMarkdown } from "@/lib/script-fit";
 import { proofFitLabToMarkdown } from "@/lib/proof-fit";
 import { offerFitLabToMarkdown } from "@/lib/offer-fit";
+import { benefitFitLabToMarkdown } from "@/lib/benefit-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -302,6 +303,16 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = offerFitLabToMarkdown(snap.offerFitLab);
       filename = `affiliate-offer-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "benefit-fit" ||
+      scope === "benefit" ||
+      scope === "benefits" ||
+      scope === "value-benefit" ||
+      scope === "benefit-framing"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = benefitFitLabToMarkdown(snap.benefitFitLab);
+      filename = `affiliate-benefit-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

@@ -163,6 +163,26 @@ const OFFER_STYLE_LABEL: Record<OfferStyleVariant, string> = {
   fair_price: "เสนอราคาพอดี",
 };
 
+type BenefitStyleVariant =
+  | "result_first"
+  | "ease_daily"
+  | "save_time"
+  | "feel_relief";
+
+const BENEFIT_STYLE_VARIANTS: BenefitStyleVariant[] = [
+  "result_first",
+  "ease_daily",
+  "save_time",
+  "feel_relief",
+];
+
+const BENEFIT_STYLE_LABEL: Record<BenefitStyleVariant, string> = {
+  result_first: "ประโยชน์ผลลัพธ์",
+  ease_daily: "ประโยชน์ใช้ง่าย",
+  save_time: "ประโยชน์ประหยัดเวลา",
+  feel_relief: "ประโยชน์โล่งใจ",
+};
+
 function scriptStyleForVariant(variant: number): ScriptStyleVariant {
   const i = Math.abs(variant) % SCRIPT_STYLE_VARIANTS.length;
   return SCRIPT_STYLE_VARIANTS[i]!;
@@ -176,6 +196,11 @@ function proofStyleForVariant(variant: number): ProofStyleVariant {
 function offerStyleForVariant(variant: number): OfferStyleVariant {
   const i = Math.abs(variant) % OFFER_STYLE_VARIANTS.length;
   return OFFER_STYLE_VARIANTS[i]!;
+}
+
+function benefitStyleForVariant(variant: number): BenefitStyleVariant {
+  const i = Math.abs(variant) % BENEFIT_STYLE_VARIANTS.length;
+  return BENEFIT_STYLE_VARIANTS[i]!;
 }
 
 function buildTikTokScript(
@@ -381,6 +406,7 @@ export function generateContentPack(
 
   const proofTag = PROOF_STYLE_LABEL[proofStyleForVariant(variant)];
   const offerTag = OFFER_STYLE_LABEL[offerStyleForVariant(variant)];
+  const benefitTag = BENEFIT_STYLE_LABEL[benefitStyleForVariant(variant)];
   const proofLineByStyle: Record<ProofStyleVariant, string> = {
     used_real: softCopy(
       `${proofTag}: ลองใช้แล้วชอบจุดนี้ — ${sell} (ไม่การันตีผลทุกคน)`,
@@ -414,12 +440,29 @@ export function generateContentPack(
   };
   const offerLine = offerLineByStyle[offerStyleForVariant(variant)];
 
+  const benefitLineByStyle: Record<BenefitStyleVariant, string> = {
+    result_first: softCopy(
+      `${benefitTag}: ผลที่ได้ที่น่าสนใจ — ${sell} (ไม่การันตีผลทุกคน)`,
+    ),
+    ease_daily: softCopy(
+      `${benefitTag}: ใช้ง่ายในชีวิตประจำวัน — จุดที่ช่วยได้ ${sell}`,
+    ),
+    save_time: softCopy(
+      `${benefitTag}: ช่วยเซฟเวลา/ขั้นตอนเบา ๆ — ${sell}`,
+    ),
+    feel_relief: softCopy(
+      `${benefitTag}: เคยกังวลเรื่อง ${pain} — แชร์ตัวเลือกที่ช่วยโล่งใจ`,
+    ),
+  };
+  const benefitLine = benefitLineByStyle[benefitStyleForVariant(variant)];
+
   const facebookBody = softCopy(
     [
       hooks[1],
       "",
       proofLine,
       offerLine,
+      benefitLine,
       `วันนี้มาแชร์ตัวเลือกในหมวด ${product.category} สำหรับ${product.targetAudience || "คนที่กำลังหาของอยู่"}`,
       `จุดที่น่าสนใจ: ${sell}`,
       `ช่วยเรื่อง: ${pain}`,
@@ -439,6 +482,7 @@ export function generateContentPack(
       "",
       proofLine,
       offerLine,
+      benefitLine,
       `บริบท: ${pain}`,
       `สิ่งที่น่าลอง: ${sell}`,
       `ราคาประมาณ ${priceLabel(product.price)} — ไม่การันตีว่าจะเหมาะทุกคน ลองเทียบรีวิวก่อนนะ`,
@@ -458,6 +502,7 @@ export function generateContentPack(
       hooks[0],
       proofTag,
       offerTag,
+      benefitTag,
       `${sell} · ${priceLabel(product.price)}`,
       ctas[2] ?? ctas[0],
       `ลิงก์ในไบโอ/คอมเมนต์`,
@@ -468,10 +513,10 @@ export function generateContentPack(
   const styleTag = SCRIPT_STYLE_LABEL[scriptStyleForVariant(variant)];
   const videoPriorityNote =
     product.videoEase >= 4
-      ? `${styleTag} · ${proofTag} · ${offerTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
+      ? `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
       : product.videoEase >= 3
-        ? `${styleTag} · ${proofTag} · ${offerTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
-        : `${styleTag} · ${proofTag} · ${offerTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
+        ? `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
+        : `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
 
   const noteHint = product.notes?.trim()
     ? `โน้ตจากผู้ใช้: ${softCopy(product.notes.trim()).slice(0, 120)}`

@@ -375,6 +375,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md offer-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['benefit-fit', 'benefit', 'benefits', 'value-benefit', 'benefit-framing'], true)) {
+                $lab = build_benefit_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-benefit-fit-lab-'.today_iso().'.md"');
+                echo benefit_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md benefit-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

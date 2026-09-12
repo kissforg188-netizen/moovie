@@ -9960,6 +9960,447 @@ function offer_fit_lab_to_markdown(array $lab): string
 
 
 
+
+/**
+ * Benefit Fit Lab — soft ranking of benefit framing from logged metrics.
+ */
+function benefit_style_order(): array
+{
+    return ['result_first', 'ease_daily', 'save_time', 'feel_relief', 'hype_claim', 'none'];
+}
+
+function benefit_style_label(string $band): string
+{
+    return [
+        'result_first' => 'ประโยชน์ผลลัพธ์',
+        'ease_daily' => 'ประโยชน์ใช้ง่าย',
+        'save_time' => 'ประโยชน์ประหยัดเวลา',
+        'feel_relief' => 'ประโยชน์โล่งใจ',
+        'hype_claim' => 'ประโยชน์เคลมเกิน',
+        'none' => 'ไม่มีสัญญาณประโยชน์',
+    ][$band] ?? $band;
+}
+
+function benefit_style_range(string $band): string
+{
+    return [
+        'result_first' => 'พูดผลที่ได้แบบช่วยตัดสินใจ ไม่การันตีผลทุกคน',
+        'ease_daily' => 'เน้นใช้ง่ายในชีวิตประจำวัน ไม่เทสเปกยาว',
+        'save_time' => 'พูดประหยัดเวลา/ขั้นตอนเบา ๆ ไม่โอเวอร์',
+        'feel_relief' => 'เปิดด้วยกังวล/pain แล้วแชร์ตัวเลือกที่ช่วยโล่งใจ',
+        'hype_claim' => 'เคลมวิเศษ/หายขาด/100% — ไม่แนะนำ',
+        'none' => 'ไม่มีสัญญาณประโยชน์หรือผลที่ได้ในแคปชัน',
+    ][$band] ?? '';
+}
+
+function benefit_style_hint(string $band): string
+{
+    return [
+        'result_first' => 'บอกผลที่หวังได้ 1 ข้อ + ให้ดูสเปกต่อเอง + disclosure',
+        'ease_daily' => 'โชว์ขั้นตอนใช้สั้น ๆ ในชีวิตประจำวัน',
+        'save_time' => 'พูดช่วยเซฟเวลาเบา ๆ ไม่การันตีนาที',
+        'feel_relief' => 'เปิดด้วยกังวล → แชร์ตัวเลือก → ไม่เร่งซื้อ',
+        'hype_claim' => 'หลีกเลี่ยง — regenerate เป็นประโยชน์แบบช่วยเลือกของ',
+        'none' => 'ใส่ป้ายประโยชน์ (ผลลัพธ์ / ใช้ง่าย / ประหยัดเวลา / โล่งใจ) ให้ชัดก่อน Approve',
+    ][$band] ?? '';
+}
+
+function resolve_benefit_text(?array $pack, string $captionPreview = ''): string
+{
+    return resolve_proof_text($pack, $captionPreview);
+}
+
+function classify_benefit_style(string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '') return 'none';
+
+    if (preg_match('/ประโยชน์เคลมเกิน|วิเศษ|หายขาด|100%|การันตีผล|สุดยอดแน่นอน|ต้องได้ผล|hype.?claim|เปลี่ยนชีวิตทันที|มหัศจรรย์/iu', $raw)) {
+        return 'hype_claim';
+    }
+
+    if (preg_match('/ประโยชน์ผลลัพธ์|ประโยชน์ใช้ง่าย|ประโยชน์ประหยัดเวลา|ประโยชน์โล่งใจ|ประโยชน์เคลมเกิน/iu', $raw, $m)) {
+        $label = mb_strtolower($m[0]);
+        if (str_contains($label, 'ผลลัพธ์')) return 'result_first';
+        if (str_contains($label, 'ใช้ง่าย')) return 'ease_daily';
+        if (str_contains($label, 'ประหยัดเวลา')) return 'save_time';
+        if (str_contains($label, 'โล่งใจ')) return 'feel_relief';
+        if (str_contains($label, 'เคลมเกิน')) return 'hype_claim';
+    }
+
+    $result = (bool)preg_match('/ประโยชน์ผลลัพธ์|ผลลัพธ์ก่อน|result.?first|ได้ผลแบบ|ผลที่ได้|ช่วยให้ได้/iu', $raw);
+    $ease = (bool)preg_match('/ประโยชน์ใช้ง่าย|ใช้ง่ายประจำวัน|ease.?daily|ใช้ง่าย|ตั้งง่าย|พกง่าย|ไม่ยุ่งยาก/iu', $raw);
+    $save = (bool)preg_match('/ประโยชน์ประหยัดเวลา|ประหยัดเวลา|save.?time|เซฟเวลา|ลดขั้นตอน|รวดเร็วขึ้น/iu', $raw);
+    $relief = (bool)preg_match('/ประโยชน์โล่งใจ|โล่งใจ|feel.?relief|ลดกังวล|หายห่วง|เคยเครียด|ช่วยเรื่อง/iu', $raw);
+
+    if ($relief) return 'feel_relief';
+    if ($result) return 'result_first';
+    if ($ease) return 'ease_daily';
+    if ($save) return 'save_time';
+    return 'none';
+}
+
+function benefit_style_of(array $post, ?array $pack = null): string
+{
+    return classify_benefit_style(resolve_benefit_text($pack, (string)($post['caption_preview'] ?? $post['captionPreview'] ?? '')));
+}
+
+function build_benefit_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = benefit_style_order();
+    $packs = [];
+    foreach (all_content_packs() as $p) $packs[$p['id']] = $p;
+    $products = [];
+    foreach (all_products() as $p) $products[$p['id']] = $p;
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE status='posted' AND metrics_at IS NOT NULL AND post_date>=? AND post_date<=?");
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $byBand = [];
+    foreach ($order as $b) $byBand[$b] = [];
+    foreach ($posted as $post) {
+        $pack = $packs[$post['content_pack_id'] ?? ''] ?? null;
+        $cap = (string)($post['caption_preview'] ?? '');
+        $key = classify_benefit_style(resolve_benefit_text($pack, $cap));
+        $byBand[$key][] = $post;
+    }
+
+    $allComm = array_map(fn($p) => (float)($p['commission_earned'] ?? 0), $posted);
+    $globalAvg = $allComm ? array_sum($allComm) / count($allComm) : 0.0;
+    $postedN = count($posted);
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band] ?? [];
+        $samples = count($list);
+        $views = array_map(fn($p) => (float)($p['views'] ?? 0), $list);
+        $clicks = array_map(fn($p) => (float)($p['clicks'] ?? 0), $list);
+        $orders = array_map(fn($p) => (float)($p['orders_count'] ?? 0), $list);
+        $comms = array_map(fn($p) => (float)($p['commission_earned'] ?? 0), $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0;
+        $avgOpc = $totalClicks > 0 ? $totalOrders / $totalClicks : 0;
+        $share = $postedN > 0 ? $samples / $postedN : 0;
+
+        $score = 0;
+        if ($samples > 0) {
+            $commBase = $globalAvg > 0
+                ? max(0, min(70, ($avgCommission / $globalAvg) * 50))
+                : max(0, min(50, $avgCommission * 2));
+            $score = $commBase + max(0, min(22, $avgCtr * 220)) + max(0, min(15, $avgOpc * 100)) + max(0, min(15, $avgOrders * 8));
+            if ($band === 'feel_relief') $score += 5;
+            elseif ($band === 'result_first') $score += 4;
+            elseif ($band === 'ease_daily') $score += 4;
+            elseif ($band === 'save_time') $score += 3;
+            elseif ($band === 'hype_claim') $score -= 18;
+            elseif ($band === 'none') $score -= 6;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = (int)round(max(0, min(100, $score)));
+        }
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        $status = $samples === 0 ? 'no_data' : ($score >= 65 && $samples >= 2 ? 'hot' : ($score >= 45 ? 'steady' : 'cold'));
+
+        $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในมุมประโยชน์นี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        if ($samples === 0) $tip = 'ยังไม่มีผลมุมประโยชน์นี้ — ลอง draft 1 ชิ้นแนว “' . benefit_style_hint($band) . '” แล้วกรอกเมตริก';
+        elseif ($band === 'hype_claim') $tip = 'มุมเคลมเกิน — หลีกเลี่ยง regenerate เป็นประโยชน์แบบช่วยเลือกของก่อน Approve';
+        elseif ($band === 'none') $tip = 'ไม่มีสัญญาณประโยชน์ — ใส่ป้ายประโยชน์ให้ชัด แล้ว regenerate ก่อน Approve';
+        elseif ($status === 'hot') $tip = 'มุมประโยชน์นี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ได้ แต่สลับสินค้า/ช่องเพื่อไม่ให้ซ้ำ';
+        elseif ($status === 'cold') $tip = 'ผลเย็นในมุมประโยชน์นี้ — ลองปรับกรอบประโยชน์หรือ regenerate ก่อนโพสต์ซ้ำ';
+        elseif ($share >= 0.55) $tip = 'ใช้มุมประโยชน์นี้บ่อย (' . round($share * 100) . '%) — กระจายผลลัพธ์/ใช้ง่าย/โล่งใจ เพื่อลดความซ้ำ';
+
+        $bands[] = [
+            'band' => $band,
+            'bandLabel' => benefit_style_label($band),
+            'rangeLabel' => benefit_style_range($band),
+            'samples' => $samples,
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOpc, 2),
+            'score' => $score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => $tip,
+        ];
+    }
+    usort($bands, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['samples'] <=> $a['samples']));
+
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $hypeClaimSamples = count($byBand['hype_claim'] ?? []);
+    $noneSamples = count($byBand['none'] ?? []);
+    $topShare = 0.0;
+    foreach ($bands as $b) $topShare = max($topShare, (float)$b['shareOfPosts']);
+    $unbalanced = $topShare >= 0.55 && $postedN >= 3;
+
+    $labScore = $withData ? (int)round(array_sum(array_column($withData, 'score')) / count($withData)) : 0;
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && $postedN >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    if ($hypeClaimSamples > 0) $labScore = max(0, $labScore - 10);
+    if ($noneSamples > 0) $labScore = max(0, $labScore - 4);
+    $labScore = max(0, min(100, $labScore));
+    $grade = count($withData) === 0 ? 'D' : ($labScore >= 75 ? 'A' : ($labScore >= 58 ? 'B' : ($labScore >= 40 ? 'C' : 'D')));
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'none' && $b['band'] !== 'hype_claim') { $best = $b; break; }
+    }
+    if (!$best) {
+        foreach ($withData as $b) {
+            if ($b['band'] !== 'none' && $b['band'] !== 'hype_claim') { $best = $b; break; }
+        }
+    }
+    if (!$best) $best = $withData[0] ?? null;
+
+    $cold = array_values(array_filter($withData, fn($b) => $b['status'] === 'cold' || $b['band'] === 'none' || $b['band'] === 'hype_claim'));
+
+    if ($postedN === 0) {
+        $mixTip = 'ยังไม่มีเมตริกรายมุมประโยชน์ — โพสต์มือแล้วกรอกผลที่ /results ก่อนจัดมิกซ์ประโยชน์';
+    } elseif ($hypeClaimSamples > 0) {
+        $mixTip = "พบประโยชน์เคลมเกิน {$hypeClaimSamples} ชิ้น — regenerate เป็นมุมช่วยเลือกของก่อน Approve (ทดลอง)";
+    } elseif ($noneSamples > 0 && $noneSamples >= (int)ceil($postedN / 2)) {
+        $mixTip = "พบประโยชน์ none {$noneSamples} ชิ้น — ใส่ป้ายประโยชน์ให้ชัดก่อน Approve (ทดลอง)";
+    } elseif ($unbalanced && $best) {
+        $mixTip = "มิกซ์เอนไปมุม {$best['bandLabel']} มาก — วันถัดไปลองสลับมุมประโยชน์ 1 ชิ้น (ทดลอง)";
+    } elseif ($best) {
+        $mixTip = "มุมประโยชน์เด่น: {$best['bandLabel']} — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์";
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามมุมประโยชน์ก่อนจัดอันดับมิกซ์';
+    }
+
+    if ($postedN === 0) {
+        $summary = 'Benefit Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับมุมประโยชน์';
+    } else {
+        $summary = "Benefit Fit Lab: {$postedN} โพสต์มีเมตริก · มุมที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}"
+            . ($hypeClaimSamples ? " · เคลมเกิน {$hypeClaimSamples}" : '')
+            . ($noneSamples ? " · none {$noneSamples}" : '')
+            . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    }
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'none' && $b['band'] !== 'hype_claim') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0 && $b['band'] !== 'none' && $b['band'] !== 'hype_claim') { $preferred = $b; break; }
+        }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['band'] === 'feel_relief') { $preferred = $b; break; }
+        }
+    }
+
+    $suggestions = [];
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE post_date=? AND status IN ('draft','approved') ORDER BY suggested_time ASC LIMIT 6");
+    $stmt->execute([$date]);
+    $todaySlots = $stmt->fetchAll() ?: [];
+    foreach ($todaySlots as $slot) {
+        if (!$preferred) break;
+        $product = $products[$slot['product_id'] ?? ''] ?? null;
+        $pack = $packs[$slot['content_pack_id'] ?? ''] ?? null;
+        if (!$product) continue;
+        $currentKey = classify_benefit_style(resolve_benefit_text($pack, (string)($slot['caption_preview'] ?? '')));
+        $currentRow = null;
+        foreach ($bands as $b) {
+            if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        }
+        $same = $currentKey === $preferred['band'];
+        $preview = mb_substr((string)($slot['caption_preview'] ?? ''), 0, 80) ?: '(ไม่มีแคปชัน)';
+        $currentCold = $currentKey === 'none' || $currentKey === 'hype_claim'
+            || ($currentRow && ($currentRow['status'] === 'cold' || ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')));
+
+        if ($currentCold && !$same) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => benefit_style_label($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'captionPreview' => $preview,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel'] ?? ''),
+                'reason' => benefit_style_label($currentKey) . ' เย็น/ไม่ชัด · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่แก้แคปชันอัตโนมัติ — regenerate หรือแก้มือ แล้ว Approve ก่อนโพสต์',
+            ];
+        } elseif ($unbalanced && $same && $cold && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($bands as $b) {
+                if ($b['band'] !== $currentKey && $b['band'] !== 'none' && $b['band'] !== 'hype_claim' && in_array($b['status'], ['steady', 'no_data'], true)) {
+                    $alt = $b; break;
+                }
+            }
+            if (!$alt) {
+                foreach ($bands as $b) {
+                    if (in_array($b['band'], ['result_first', 'ease_daily'], true)) { $alt = $b; break; }
+                }
+            }
+            if (!$alt) {
+                foreach ($cold as $b) {
+                    if ($b['band'] !== 'none' && $b['band'] !== 'hype_claim') { $alt = $b; break; }
+                }
+            }
+            if (!$alt) continue;
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => benefit_style_label($currentKey),
+                'suggestedBand' => $alt['band'],
+                'suggestedLabel' => $alt['bandLabel'],
+                'captionPreview' => $preview,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel'] ?? ''),
+                'reason' => 'วันนี้ซ้อนมุม ' . benefit_style_label($currentKey) . ' — ลองกระจายไป ' . $alt['bandLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยนแคปชันเอง — regenerate draft แล้ว Approve ใหม่',
+            ];
+        }
+    }
+    $suggestions = array_slice($suggestions, 0, 5);
+
+    $actions = [];
+    if ($postedN === 0) {
+        $actions[] = ['id' => 'need-metrics', 'title' => 'เริ่มเก็บผลรายมุมประโยชน์', 'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ /results อย่างน้อย 1 ชิ้นต่อมุมประโยชน์'];
+    }
+    if ($hypeClaimSamples > 0) {
+        $actions[] = ['id' => 'drop-hype-claim', 'title' => 'เลิกมุมเคลมเกิน / การันตีผล', 'detail' => "พบ {$hypeClaimSamples} โพสต์แนวเคลมเกิน — regenerate เป็นประโยชน์แบบช่วยเลือกของก่อน Approve"];
+    }
+    if ($noneSamples > 0) {
+        $actions[] = ['id' => 'clarify-none', 'title' => 'ทำให้มุมประโยชน์ชัดขึ้น', 'detail' => "พบ {$noneSamples} โพสต์ไม่มีสัญญาณประโยชน์ — ใส่ป้าย (ผลลัพธ์/ใช้ง่าย/ประหยัดเวลา/โล่งใจ) แล้ว regenerate ก่อน Approve"];
+    }
+    if ($best && $best['status'] === 'hot' && $best['band'] !== 'none' && $best['band'] !== 'hype_claim') {
+        $actions[] = ['id' => 'lean-benefit', 'title' => 'เอียงไปมุม ' . $best['bandLabel'], 'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต · ' . benefit_style_hint($best['band'])];
+    }
+    if ($unbalanced) {
+        $actions[] = ['id' => 'diversify', 'title' => 'กระจายมิกซ์มุมประโยชน์', 'detail' => 'มุมประโยชน์เด่นกินสัดส่วนสูง — เพิ่ม draft คนละมุม 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)'];
+    }
+    $actions[] = ['id' => 'compliance', 'title' => 'คงกฎ Approve + disclosure + ไม่หลอกลวง', 'detail' => 'ห้ามเคลมวิเศษ/หายขาด/100% — ทุกแคปชันต้องมี disclosure และผ่าน Approve ก่อนโพสต์มือ'];
+    $actions = array_slice($actions, 0, 5);
+
+    $checklist = [
+        'อันดับมุมประโยชน์มาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับมุมประโยชน์เป็นคำแนะนำเท่านั้น — ต้องแก้เอง + Approve',
+        'ห้ามใช้คำวิเศษ / หายขาด / การันตีผลแบบหลอกลวง',
+        'ทุกโพสต์ต้องมี disclosure และน้ำเสียงช่วยเลือกของ',
+    ];
+
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $lines = [
+        "Benefit Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = ($statusLabel[$b['status']] ?? $b['status']) . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score'] . ' (' . ($confLabel[$b['confidence']] ?? '') . ', n=' . $b['samples'] . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => $postedN,
+            'bandsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+            'hypeClaimSamples' => $hypeClaimSamples,
+            'noneSamples' => $noneSamples,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => $suggestions,
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function benefit_fit_lab_to_markdown(array $lab): string
+{
+    $bandRows = [];
+    foreach ($lab['bands'] as $b) {
+        if (($b['samples'] ?? 0) <= 0) continue;
+        $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'][$b['status']] ?? $b['status'];
+        $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'][$b['confidence']] ?? $b['confidence'];
+        $n = count($bandRows) + 1;
+        $bandRows[] = "{$n}. **[{$statusLabel}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel}\n"
+            . '   CTR ~' . round($b['avgCtr'] * 100, 1) . "% · ออเดอร์/คลิก ~{$b['avgOrdersPerClick']} · ค่าคอมเฉลี่ย ฿{$b['avgCommission']}\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']}\n"
+            . "   preview: {$s['captionPreview']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) $suggestionRows[] = '_(ไม่มีคำแนะนำสลับมุมประโยชน์วันนี้)_';
+
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = array_map(fn($c) => "- {$c}", $lab['checklist']);
+
+    return "# Benefit Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- มุมที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . "- เคลมเกิน: {$lab['counts']['hypeClaimSamples']}\n"
+        . "- none: {$lab['counts']['noneSamples']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . (!empty($lab['counts']['unbalanced']) ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับมุมประโยชน์ (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+
 /**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
@@ -11943,6 +12384,7 @@ function run_morning_workflow(?string $date = null): array
     $scriptFitLines = array_slice(build_script_fit_lab($date)['lines'], 0, 4);
     $proofFitLines = array_slice(build_proof_fit_lab($date)['lines'], 0, 4);
     $offerFitLines = array_slice(build_offer_fit_lab($date)['lines'], 0, 4);
+    $benefitFitLines = array_slice(build_benefit_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -11977,6 +12419,7 @@ function run_morning_workflow(?string $date = null): array
         ...$scriptFitLines,
         ...$proofFitLines,
         ...$offerFitLines,
+        ...$benefitFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -12080,6 +12523,7 @@ function run_evening_workflow(?string $date = null): array
     $scriptFitLab = build_script_fit_lab($date);
     $proofFitLab = build_proof_fit_lab($date);
     $offerFitLab = build_offer_fit_lab($date);
+    $benefitFitLab = build_benefit_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -12156,6 +12600,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($offerFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($benefitFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -12220,6 +12667,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($offerFitLab['counts']['hot'] ?? 0) > 0 || !empty($offerFitLab['counts']['unbalanced']) || ($offerFitLab['counts']['hardPushSamples'] ?? 0) > 0 || ($offerFitLab['counts']['noneSamples'] ?? 0) > 0) {
         $recs[] = 'Offer Fit: ช่วงร้อน ' . $offerFitLab['counts']['hot'] . ' · ' . $offerFitLab['mixTip'];
+    }
+    if (($benefitFitLab['counts']['hot'] ?? 0) > 0 || !empty($benefitFitLab['counts']['unbalanced']) || ($benefitFitLab['counts']['hypeClaimSamples'] ?? 0) > 0 || ($benefitFitLab['counts']['noneSamples'] ?? 0) > 0) {
+        $recs[] = 'Benefit Fit: ช่วงร้อน ' . $benefitFitLab['counts']['hot'] . ' · ' . $benefitFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));
