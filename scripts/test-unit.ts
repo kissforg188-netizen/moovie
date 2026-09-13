@@ -181,6 +181,13 @@ import {
   buildBenefitFitLab,
 } from "../src/lib/benefit-fit";
 import {
+  classifyTrustStyle,
+  trustStyleOf,
+  trustFitLabLines,
+  trustFitLabToMarkdown,
+  buildTrustFitLab,
+} from "../src/lib/trust-fit";
+import {
   auditDraftCaptions,
   productReadinessIssues,
   sanitizeMarketingText,
@@ -5965,6 +5972,249 @@ function run() {
   assert.equal(emptyBenefit.counts.postsWithMetrics, 0);
   assert.ok(
     emptyBenefit.summary.includes("ยังไม่มีเมตริก") || emptyBenefit.score <= 50,
+  );
+
+  // --- Trust Fit Lab ---
+  assert.equal(classifyTrustStyle(""), "none");
+  assert.equal(
+    classifyTrustStyle("ความเชื่อถือจำกัด · ไม่การันตีผลทุกคน"),
+    "honest_limit",
+  );
+  assert.equal(
+    classifyTrustStyle("ความเชื่อถือช่วยเลือก แชร์ตัวเลือกเบา ๆ"),
+    "soft_choose",
+  );
+  assert.equal(
+    classifyTrustStyle("ความเชื่อถือเปิดเผย ลิงก์นี้เป็นลิงก์ affiliate"),
+    "disclose_first",
+  );
+  assert.equal(
+    classifyTrustStyle("ความเชื่อถือตรวจก่อน ตรวจราคาก่อนซื้อ"),
+    "try_check",
+  );
+  assert.equal(
+    classifyTrustStyle("ความเชื่อถือขายแข็ง กดเลยตอนนี้ ของหมดแล้ว"),
+    "hard_hype",
+  );
+  assert.equal(
+    classifyTrustStyle("ไม่การันตีผลทุกคน — ดูสเปกต่อเองได้"),
+    "honest_limit",
+  );
+  assert.equal(
+    classifyTrustStyle("ช่วยเลือกของ ไม่เร่งซื้อ"),
+    "soft_choose",
+  );
+  assert.equal(classifyTrustStyle("สินค้าดีมาก"), "none");
+  // hard_hype overrides soft labels when mixed
+  assert.equal(
+    classifyTrustStyle("ความเชื่อถือจำกัด แต่กดเลยตอนนี้ ของหมดแล้ว"),
+    "hard_hype",
+  );
+
+  const trustSoftProd = sample({
+    id: "prod_trust_soft",
+    name: "ความเชื่อถือจำกัด",
+    price: 259,
+    commissionRate: 15,
+  });
+  const trustHypeProd = sample({
+    id: "prod_trust_hype",
+    name: "ความเชื่อถือขายแข็ง",
+    price: 89,
+    commissionRate: 5,
+  });
+  const packTrustSoft = {
+    id: "pack_trust_soft",
+    productId: trustSoftProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["แชร์ตัวเลือกนะ…"],
+    ctas: ["สนใจดูรายละเอียดต่อได้ที่ลิงก์"],
+    hashtagsTh: ["#เลือกดี"],
+    hashtagsEn: ["#AffiliateDisclosure"],
+    tiktokScript: {
+      durationSec: 25,
+      scenes: [
+        {
+          time: "0-3วิ",
+          line: "แชร์ตัวเลือกนะ…",
+          visual: "ความเชื่อถือจำกัด",
+        },
+      ],
+      voiceover: "ความเชื่อถือจำกัด ไม่การันตีผลทุกคน",
+    },
+    facebookCaption: withDisclosure(
+      "ความเชื่อถือจำกัด: ไม่การันตีผลทุกคน — แชร์ตัวเลือกที่ช่วยได้",
+    ),
+    facebookGroupCaption: withDisclosure("แชร์ตัวเลือกจัดโต๊ะ"),
+    reelsCaption: withDisclosure("ความเชื่อถือจำกัด · ช่วยเลือกของ"),
+    videoPriorityNote: "โครงเปิดเผยข้อจำกัด · ความเชื่อถือจำกัด · ถ่ายง่าย",
+    filmingChecklist: ["โชว์ข้อจำกัด", "disclosure"],
+    sellingAngles: ["มุมเชื่อถือ"],
+  };
+  const packTrustHype = {
+    id: "pack_trust_hype",
+    productId: trustHypeProd.id,
+    createdAt: "2026-08-20T00:00:00.000Z",
+    disclosure: fitDisclosure,
+    hooks: ["กดเลย"],
+    ctas: ["รีบกด"],
+    hashtagsTh: ["#สินค้า"],
+    hashtagsEn: ["#shop"],
+    tiktokScript: {
+      durationSec: 15,
+      scenes: [{ time: "0-3วิ", line: "กดเลยตอนนี้", visual: "ของหมดแล้ว" }],
+      voiceover: "รับประกันรายได้ รวยแน่ 100%",
+    },
+    facebookCaption: withDisclosure("กดเลยตอนนี้ ของหมดแล้ว รับประกันรายได้"),
+    facebookGroupCaption: withDisclosure("รีบกด ไม่ซื้อคือพลาด"),
+    reelsCaption: withDisclosure("สุดยอดแน่นอน"),
+    videoPriorityNote: "เร่งซื้อ",
+    filmingChecklist: ["เร่งซื้อ"],
+    sellingAngles: ["มุมขายแข็ง"],
+  };
+
+  assert.equal(
+    trustStyleOf(
+      {
+        captionPreview: packTrustSoft.facebookCaption,
+        contentPackId: packTrustSoft.id,
+      },
+      packTrustSoft as never,
+    ),
+    "honest_limit",
+  );
+  assert.equal(
+    trustStyleOf(
+      {
+        captionPreview: packTrustHype.facebookCaption,
+        contentPackId: packTrustHype.id,
+      },
+      packTrustHype as never,
+    ),
+    "hard_hype",
+  );
+
+  const generatedTrustPack = generateContentPack(trustSoftProd, {
+    variant: 0,
+  });
+  assert.ok(
+    /ความเชื่อถือจำกัด|ความเชื่อถือช่วยเลือก|ความเชื่อถือเปิดเผย|ความเชื่อถือตรวจก่อน/.test(
+      `${generatedTrustPack.facebookCaption}\n${generatedTrustPack.videoPriorityNote}\n${generatedTrustPack.reelsCaption}`,
+    ),
+  );
+
+  const trustSchedule = [
+    {
+      id: "sch_trust_1",
+      date: "2026-08-21",
+      suggestedTime: "10:00",
+      channel: "tiktok",
+      productId: trustSoftProd.id,
+      contentPackId: packTrustSoft.id,
+      status: "posted",
+      captionPreview: packTrustSoft.facebookCaption,
+      metrics: {
+        views: 1200,
+        clicks: 90,
+        orders: 4,
+        commissionEarned: 180,
+        loggedAt: "2026-08-21T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_trust_2",
+      date: "2026-08-22",
+      suggestedTime: "11:00",
+      channel: "facebook_page",
+      productId: trustSoftProd.id,
+      contentPackId: packTrustSoft.id,
+      status: "posted",
+      captionPreview: packTrustSoft.facebookCaption,
+      metrics: {
+        views: 900,
+        clicks: 70,
+        orders: 3,
+        commissionEarned: 140,
+        loggedAt: "2026-08-22T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_trust_3",
+      date: "2026-08-22",
+      suggestedTime: "15:00",
+      channel: "facebook_reels",
+      productId: trustHypeProd.id,
+      contentPackId: packTrustHype.id,
+      status: "posted",
+      captionPreview: packTrustHype.facebookCaption,
+      metrics: {
+        views: 400,
+        clicks: 8,
+        orders: 0,
+        commissionEarned: 0,
+        loggedAt: "2026-08-22T20:00:00.000Z",
+      },
+    },
+    {
+      id: "sch_trust_draft",
+      date: "2026-08-23",
+      suggestedTime: "09:30",
+      channel: "tiktok",
+      productId: trustHypeProd.id,
+      contentPackId: packTrustHype.id,
+      status: "draft",
+      captionPreview: packTrustHype.facebookCaption,
+    },
+  ];
+
+  const trustLab = buildTrustFitLab(
+    {
+      products: [trustSoftProd, trustHypeProd],
+      contentPacks: [packTrustSoft, packTrustHype] as never[],
+      schedule: trustSchedule,
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(trustLab.counts.postsWithMetrics, 3);
+  assert.ok(trustLab.counts.hardHypeSamples >= 1);
+  const trustSoftRow = trustLab.bands.find((b) => b.band === "honest_limit");
+  const trustHypeRow = trustLab.bands.find((b) => b.band === "hard_hype");
+  assert.ok(trustSoftRow);
+  assert.ok(trustHypeRow);
+  assert.ok(trustSoftRow!.score > trustHypeRow!.score);
+  assert.ok(trustLab.suggestions.length >= 1);
+  assert.ok(
+    trustLab.suggestions[0].suggestedBand === "honest_limit" ||
+      trustLab.suggestions[0].suggestedLabel.includes("จำกัด"),
+  );
+  assert.ok(trustFitLabLines(trustLab, 3).length <= 3);
+  const trustMd = trustFitLabToMarkdown(trustLab);
+  assert.ok(trustMd.includes("Trust Fit Lab"));
+  assert.ok(trustMd.includes("ทดลอง"));
+  assert.ok(
+    trustMd.includes("ไม่เปลี่ยนอัตโนมัติ") || trustMd.includes("Approve"),
+  );
+  assert.ok(
+    trustMd.includes("ไม่รับประกัน") ||
+      trustMd.includes(INCOME_DISCLAIMER.slice(0, 10)),
+  );
+
+  const emptyTrust = buildTrustFitLab(
+    {
+      products: [trustSoftProd],
+      contentPacks: [],
+      schedule: [],
+      briefs: [],
+      automationLogs: [],
+    } as never,
+    "2026-08-23",
+  );
+  assert.equal(emptyTrust.counts.postsWithMetrics, 0);
+  assert.ok(
+    emptyTrust.summary.includes("ยังไม่มีเมตริก") || emptyTrust.score <= 50,
   );
 
   console.log("All unit tests passed");

@@ -382,6 +382,13 @@ try {
                 automation_log_finish($job, 'success', 'exported md benefit-fit-lab');
                 exit;
             }
+            if (in_array($scope, ['trust-fit', 'trust', 'trusts', 'sincerity', 'trust-framing'], true)) {
+                $lab = build_trust_fit_lab(today_iso());
+                header('Content-Disposition: attachment; filename="affiliate-trust-fit-lab-'.today_iso().'.md"');
+                echo trust_fit_lab_to_markdown($lab);
+                automation_log_finish($job, 'success', 'exported md trust-fit-lab');
+                exit;
+            }
             automation_log_finish($job, 'failed', 'unknown md scope');
             json_response(['error' => 'unknown markdown scope'], 400);
         }

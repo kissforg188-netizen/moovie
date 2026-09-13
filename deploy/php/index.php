@@ -56,6 +56,7 @@ $scriptFitLab = build_script_fit_lab($date);
 $proofFitLab = build_proof_fit_lab($date);
 $offerFitLab = build_offer_fit_lab($date);
 $benefitFitLab = build_benefit_fit_lab($date);
+$trustFitLab = build_trust_fit_lab($date);
 ?>
 <!doctype html>
 <html lang="th">
@@ -1273,6 +1274,54 @@ $benefitFitLab = build_benefit_fit_lab($date);
       </section>
 
       <section class="card fade-up">
+        <h2>Trust Fit Lab</h2>
+        <p class="muted"><?= h($trustFitLab['summary']) ?></p>
+        <p class="muted">เกรด <?= h($trustFitLab['grade']) ?> · <?= (int)$trustFitLab['score'] ?>/100 · หน้าต่าง <?= (int)$trustFitLab['windowDays'] ?> วัน</p>
+        <p><?= h($trustFitLab['mixTip']) ?></p>
+        <div class="stats" style="margin-top:0.75rem">
+          <article><p>มีเมตริก</p><strong><?= (int)$trustFitLab['counts']['postsWithMetrics'] ?></strong></article>
+          <article><p>มุมมีข้อมูล</p><strong><?= (int)$trustFitLab['counts']['bandsWithData'] ?></strong></article>
+          <article><p>ร้อน</p><strong><?= (int)$trustFitLab['counts']['hot'] ?></strong></article>
+          <article><p>ขายแข็ง</p><strong><?= (int)$trustFitLab['counts']['hardHypeSamples'] ?></strong></article>
+          <article><p>none</p><strong><?= (int)$trustFitLab['counts']['noneSamples'] ?></strong></article>
+        </div>
+        <?php
+          $trustBandRows = array_values(array_filter($trustFitLab['bands'], fn($b) => ($b['samples'] ?? 0) > 0));
+          if (!$trustBandRows): ?>
+          <p class="muted">ยังไม่มีเมตริกรายมุมความเชื่อถือ — โพสต์มือแล้วกรอกผลที่ Results</p>
+        <?php else: ?>
+          <ol>
+            <?php foreach (array_slice($trustBandRows, 0, 4) as $b): ?>
+              <li>
+                <strong>[<?= h($b['status'] === 'hot' ? 'ร้อน' : ($b['status'] === 'cold' ? 'เย็น' : ($b['status'] === 'steady' ? 'นิ่ง' : 'ยังไม่มีข้อมูล'))) ?>]</strong>
+                <?= h($b['bandLabel']) ?>
+                <div class="muted">คะแนน <?= (int)$b['score'] ?>/100 · n=<?= (int)$b['samples'] ?> · CTR ~<?= h((string)round($b['avgCtr'] * 100, 1)) ?>%</div>
+                <div class="muted"><?= h($b['tip']) ?></div>
+              </li>
+            <?php endforeach; ?>
+          </ol>
+        <?php endif; ?>
+        <?php if ($trustFitLab['suggestions']): ?>
+          <p class="muted" style="margin-top:0.75rem"><strong>คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)</strong></p>
+          <ul>
+            <?php foreach (array_slice($trustFitLab['suggestions'], 0, 4) as $s): ?>
+              <li><?= h($s['productName']) ?>: <?= h($s['currentLabel']) ?> → <?= h($s['suggestedLabel']) ?> — <?= h($s['reason']) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        <?php endif; ?>
+        <ul>
+          <?php foreach (array_slice($trustFitLab['actions'], 0, 3) as $a): ?>
+            <li><strong><?= h($a['title']) ?></strong> — <?= h($a['detail']) ?></li>
+          <?php endforeach; ?>
+        </ul>
+        <div class="actions">
+          <a class="btn" href="api.php?action=export&format=md&scope=trust-fit">Export Trust Fit Lab (.md)</a>
+          <a class="btn" href="?page=results">ไปกรอกผล</a>
+        </div>
+        <p class="note"><?= h($trustFitLab['disclaimer']) ?></p>
+      </section>
+
+      <section class="card fade-up">
         <h2>Tomorrow Plan · <?= h($tomorrowPlan['tomorrowDate']) ?></h2>
         <p class="muted"><?= h($tomorrowPlan['summary']) ?></p>
         <?php if (!$tomorrowPlan['picks']): ?>
@@ -1534,6 +1583,7 @@ $benefitFitLab = build_benefit_fit_lab($date);
           <a class="btn" href="api.php?action=export&format=md&scope=proof-fit">Export Proof Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=offer-fit">Export Offer Fit Lab (.md)</a>
           <a class="btn" href="api.php?action=export&format=md&scope=benefit-fit">Export Benefit Fit Lab (.md)</a>
+          <a class="btn" href="api.php?action=export&format=md&scope=trust-fit">Export Trust Fit Lab (.md)</a>
         </div>
         <p class="note"><?= h($creativePerformance['disclaimer']) ?></p>
       </section>

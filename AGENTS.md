@@ -51,4 +51,5 @@ Lint: `npx eslint .` (Next 16 removed `next lint`).
 ### Latest incremental feature
 
 - **Benefit Fit Lab** (`src/lib/benefit-fit.ts` + PHP `build_benefit_fit_lab`) — soft ranking of benefit framing (result_first / ease_daily / save_time / feel_relief / hype_claim / none) from logged metrics; flags hype claims; mix tips + queue suggestions (never auto-rewrite); morning/evening brief lines; export `scope=benefit-fit`
+- **Trust Fit Lab** (`src/lib/trust-fit.ts` + PHP `build_trust_fit_lab`) — soft ranking of trust/sincerity cues (honest_limit / soft_choose / disclose_first / try_check / hard_hype / none); flags hard-sell hype; mix tips + queue suggestions (never auto-rewrite); morning/evening brief lines; export `scope=trust-fit`
 - Prior tip: **Offer Fit Lab** (`src/lib/offer-fit.ts` + PHP `build_offer_fit_lab`) — value/offer framing; export `scope=offer-fit`

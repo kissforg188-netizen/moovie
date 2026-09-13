@@ -66,6 +66,7 @@
 - **Proof Fit Lab**: จัดอันดับหลักฐาน/social proof (used_real / compare_help / spec_point / situation / soft_popular / none) จากเมตริกที่กรอก — แนะนำมุมหลักฐานแบบช่วยเลือกของ โดยไม่แก้แคปชันอัตโนมัติ และห้ามรีวิวปลอม
 - **Offer Fit Lab**: จัดอันดับมุมเสนอคุ้มค่า (value_compare / soft_save / problem_first / fair_price / hard_push / none) จากเมตริกที่กรอก — แนะนำกรอบคุ้มค่าแบบช่วยเลือกของ ธงขายแข็ง/ลดแรง และไม่แก้แคปชันอัตโนมัติ
 - **Benefit Fit Lab**: จัดอันดับมุมประโยชน์ (result_first / ease_daily / save_time / feel_relief / hype_claim / none) จากเมตริกที่กรอก — แนะนำกรอบประโยชน์แบบช่วยเลือกของ ธงเคลมเกิน และไม่แก้แคปชันอัตโนมัติ
+- **Trust Fit Lab**: จัดอันดับมุมความเชื่อถือ (honest_limit / soft_choose / disclose_first / try_check / hard_hype / none) จากเมตริกที่กรอก — แนะนำกรอบความจริงใจ/disclosure ธงขายแข็ง และไม่แก้แคปชันอัตโนมัติ
 
 
 ## Production (cPanel / MySQL)
@@ -122,10 +123,10 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 
 - `/` ออฟฟิศ Workflow (แผนผังการ์ตูน)
 - `/affiliate` แดชบอร์ด Affiliate + แผง Login ตอนไหน/สถานะบัญชี + workflow + Top สินค้า
-- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Channel Fit Lab, Category Fit Lab, Price Band Lab, Commission Band Lab, Pain Clarity Lab, Video Ease Lab, Seasonal Fit Lab, Audience Fit Lab, Hook Fit Lab, CTA Fit Lab, Hashtag Fit Lab, Tone Fit Lab, Angle Fit Lab, Length Fit Lab, Script Fit Lab, Proof Fit Lab, Offer Fit Lab, Benefit Fit Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
+- `/automation` ศูนย์อัตโนมัติ (Daily Action Digest, Approve Priority Queue, Manual Publish Queue, Soft ROI Lab, Channel Fit Lab, Category Fit Lab, Price Band Lab, Commission Band Lab, Pain Clarity Lab, Video Ease Lab, Seasonal Fit Lab, Audience Fit Lab, Hook Fit Lab, CTA Fit Lab, Hashtag Fit Lab, Tone Fit Lab, Angle Fit Lab, Length Fit Lab, Script Fit Lab, Proof Fit Lab, Offer Fit Lab, Benefit Fit Lab, Trust Fit Lab, Tomorrow Plan, Winner Playbook, Weekly Review, Posting Hygiene, Results Intake, Creative Performance, login status, morning/evening, import CSV/JSON, bulk approve, logs)
 - `/products` เพิ่มสินค้า / สร้าง content pack
 - `/calendar` ตารางโพสต์วันนี้ + คิว Approve + Manual Publish Queue + Approve / ข้าม / Mark posted
-- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Channel Fit Lab + Category Fit Lab + Price Band Lab + Commission Band Lab + Pain Clarity Lab + Video Ease Lab + Seasonal Fit Lab + Audience Fit Lab + Hook Fit Lab + CTA Fit Lab + Hashtag Fit Lab + Tone Fit Lab + Angle Fit Lab + Length Fit Lab + Script Fit Lab + Proof Fit Lab + Offer Fit Lab + Benefit Fit Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
+- `/results` กรอก views/clicks/orders/ค่าคอม + Results Intake + Soft ROI Lab + Channel Fit Lab + Category Fit Lab + Price Band Lab + Commission Band Lab + Pain Clarity Lab + Video Ease Lab + Seasonal Fit Lab + Audience Fit Lab + Hook Fit Lab + CTA Fit Lab + Hashtag Fit Lab + Tone Fit Lab + Angle Fit Lab + Length Fit Lab + Script Fit Lab + Proof Fit Lab + Offer Fit Lab + Benefit Fit Lab + Trust Fit Lab + Creative Performance + Winner Playbook + Weekly Review + Posting Hygiene + ดูวิเคราะห์
 - `/guide` คู่มือการใช้งาน
 
 ### Export
@@ -169,6 +170,7 @@ Affiliate dashboard เดิมอยู่ที่ `/affiliate`
 - Markdown Proof Fit Lab: `/api/export?format=md&scope=proof-fit`
 - Markdown Offer Fit Lab: `/api/export?format=md&scope=offer-fit`
 - Markdown Benefit Fit Lab: `/api/export?format=md&scope=benefit-fit`
+- Markdown Trust Fit Lab: `/api/export?format=md&scope=trust-fit`
 
 ## Workflow แนะนำ
 

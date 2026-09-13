@@ -44,6 +44,7 @@ import { scriptFitLabToMarkdown } from "@/lib/script-fit";
 import { proofFitLabToMarkdown } from "@/lib/proof-fit";
 import { offerFitLabToMarkdown } from "@/lib/offer-fit";
 import { benefitFitLabToMarkdown } from "@/lib/benefit-fit";
+import { trustFitLabToMarkdown } from "@/lib/trust-fit";
 import { getDashboardSnapshot } from "@/lib/workflow";
 import { weeklyProductRollup } from "@/lib/weekly";
 
@@ -313,6 +314,16 @@ export async function GET(request: Request) {
       const snap = await getDashboardSnapshot();
       md = benefitFitLabToMarkdown(snap.benefitFitLab);
       filename = `affiliate-benefit-fit-lab-${todayISO()}.md`;
+    } else if (
+      scope === "trust-fit" ||
+      scope === "trust" ||
+      scope === "trusts" ||
+      scope === "sincerity" ||
+      scope === "trust-framing"
+    ) {
+      const snap = await getDashboardSnapshot();
+      md = trustFitLabToMarkdown(snap.trustFitLab);
+      filename = `affiliate-trust-fit-lab-${todayISO()}.md`;
     } else {
       md = contentPacksToMarkdown(db);
     }

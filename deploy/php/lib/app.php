@@ -355,8 +355,19 @@ function generate_content_pack(array $product, int $variant = 0): array
         'voiceover' => $hooks[0] . ' ตัวเลือกนี้ช่วยเรื่อง' . $product['category'] . ": {$sell} ราคาประมาณ " . price_label($product['price']) . ' — ดูสเปกและรีวิวเพิ่มก่อนซื้อได้ ' . AFFILIATE_DISCLOSURE,
     ];
 
+    $trustTags = ['ความเชื่อถือจำกัด', 'ความเชื่อถือช่วยเลือก', 'ความเชื่อถือเปิดเผย', 'ความเชื่อถือตรวจก่อน'];
+    $trustTag = $trustTags[abs($variant) % count($trustTags)];
+    $trustLines = [
+        'ความเชื่อถือจำกัด' => "{$trustTag}: ไม่การันตีผลทุกคน — จุดที่น่าสนใจคือ {$sell} (ดูสเปกต่อเองได้)",
+        'ความเชื่อถือช่วยเลือก' => "{$trustTag}: แชร์ตัวเลือกเบา ๆ ให้" . ($product['targetAudience'] ?: 'เพื่อน') . 'เทียบก่อน ไม่เร่งซื้อ',
+        'ความเชื่อถือเปิดเผย' => "{$trustTag}: ลิงก์นี้เป็นลิงก์ affiliate ผู้เขียนอาจได้รับค่าคอมมิชชัน — แชร์เพื่อช่วยเลือกของ",
+        'ความเชื่อถือตรวจก่อน' => "{$trustTag}: ตรวจราคา/รีวิว/สเปกก่อนตัดสินใจ — ราคาประมาณ " . price_label($product['price']),
+    ];
+    $trustLine = $trustLines[$trustTag];
+
     $fb = implode("\n", [
         $hooks[1], '',
+        $trustLine,
         "วันนี้มาแชร์ตัวเลือกในหมวด {$product['category']} สำหรับ" . ($product['targetAudience'] ?: 'คนที่กำลังหาของอยู่'),
         "จุดที่น่าสนใจ: {$sell}",
         "ช่วยเรื่อง: {$pain}",
@@ -368,6 +379,7 @@ function generate_content_pack(array $product, int $variant = 0): array
 
     $group = implode("\n", [
         "แชร์ให้เพื่อนในกลุ่มที่กำลังหาของหมวด {$product['category']}", '',
+        $trustLine,
         "บริบท: {$pain}",
         "สิ่งที่น่าลอง: {$sell}",
         'ราคาประมาณ ' . price_label($product['price']) . ' — ไม่การันตีว่าจะเหมาะทุกคน ลองเทียบรีวิวก่อนนะ', '',
@@ -379,6 +391,7 @@ function generate_content_pack(array $product, int $variant = 0): array
 
     $reels = implode("\n", [
         $hooks[0],
+        $trustTag,
         $sell . ' · ' . price_label($product['price']),
         $ctas[2],
         'ลิงก์ในไบโอ/คอมเมนต์',
@@ -386,10 +399,10 @@ function generate_content_pack(array $product, int $variant = 0): array
     ]);
 
     $note = $product['videoEase'] >= 4
-        ? 'ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)'
+        ? "{$trustTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)"
         : ($product['videoEase'] >= 3
-            ? 'ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ'
-            : 'ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน');
+            ? "{$trustTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ"
+            : "{$trustTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน");
 
     return [
         'id' => new_id('pack'),
@@ -10402,6 +10415,450 @@ function benefit_fit_lab_to_markdown(array $lab): string
 
 
 /**
+ * Trust Fit Lab — soft ranking of trust / sincerity cues from logged metrics.
+ */
+function trust_style_order(): array
+{
+    return ['honest_limit', 'soft_choose', 'disclose_first', 'try_check', 'hard_hype', 'none'];
+}
+
+function trust_style_label(string $band): string
+{
+    return [
+        'honest_limit' => 'ความเชื่อถือจำกัด',
+        'soft_choose' => 'ความเชื่อถือช่วยเลือก',
+        'disclose_first' => 'ความเชื่อถือเปิดเผย',
+        'try_check' => 'ความเชื่อถือตรวจก่อน',
+        'hard_hype' => 'ความเชื่อถือขายแข็ง',
+        'none' => 'ไม่มีสัญญาณความเชื่อถือ',
+    ][$band] ?? $band;
+}
+
+function trust_style_range(string $band): string
+{
+    return [
+        'honest_limit' => 'เปิดข้อจำกัด / ไม่การันตีผลทุกคน / ไม่โอเวอร์เคลม',
+        'soft_choose' => 'แชร์ตัวเลือก ช่วยเลือกของ ไม่เร่งกดซื้อ',
+        'disclose_first' => 'disclosure / ลิงก์ affiliate ชัดตั้งแต่ต้น',
+        'try_check' => 'ชวนตรวจราคา รีวิว สเปกก่อนตัดสินใจ',
+        'hard_hype' => 'เร่งซื้อ / ของหมด / ขายแข็ง — ไม่แนะนำ',
+        'none' => 'ไม่มีสัญญาณความเชื่อถือหรือผลที่ได้ในแคปชัน',
+    ][$band] ?? '';
+}
+
+function trust_style_hint(string $band): string
+{
+    return [
+        'honest_limit' => 'บอกข้อจำกัด 1 ข้อ + ไม่การันตีผล + disclosure',
+        'soft_choose' => 'แชร์ตัวเลือกเบา ๆ ให้เทียบเอง ก่อนปิดด้วยลิงก์',
+        'disclose_first' => 'ใส่ disclosure ใกล้ต้นแคปชัน + บอกเป็นลิงก์ affiliate',
+        'try_check' => 'ชวนดูรีวิว/ราคา/สเปกก่อน แล้วค่อยตัดสินใจ',
+        'hard_hype' => 'หลีกเลี่ยง — regenerate เป็นมุมความเชื่อถือแบบช่วยเลือกของ',
+        'none' => 'ใส่ป้ายความเชื่อถือ (จำกัด / ช่วยเลือก / เปิดเผย / ตรวจก่อน) ให้ชัดก่อน Approve',
+    ][$band] ?? '';
+}
+
+function resolve_trust_text(?array $pack, string $captionPreview = ''): string
+{
+    $base = resolve_proof_text($pack, $captionPreview);
+    if ($pack && !empty($pack['disclosure'])) {
+        return trim($base . "\n" . (string)$pack['disclosure']);
+    }
+    return $base;
+}
+
+function classify_trust_style(string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '') return 'none';
+
+    if (preg_match('/ความเชื่อถือขายแข็ง|hard.?hype|กดเลยตอนนี้|ของหมดแล้ว|รีบกด|ต้องซื้อ|รับประกันรายได้|รวยแน่|ไม่ซื้อคือพลาด|สุดยอดแน่นอน|100\s*%/iu', $raw)) {
+        return 'hard_hype';
+    }
+
+    if (preg_match('/ความเชื่อถือจำกัด|ความเชื่อถือช่วยเลือก|ความเชื่อถือเปิดเผย|ความเชื่อถือตรวจก่อน|ความเชื่อถือขายแข็ง/iu', $raw, $m)) {
+        $label = mb_strtolower($m[0]);
+        if (str_contains($label, 'จำกัด')) return 'honest_limit';
+        if (str_contains($label, 'ช่วยเลือก')) return 'soft_choose';
+        if (str_contains($label, 'เปิดเผย')) return 'disclose_first';
+        if (str_contains($label, 'ตรวจก่อน')) return 'try_check';
+        if (str_contains($label, 'ขายแข็ง')) return 'hard_hype';
+    }
+
+    $honest = (bool)preg_match('/ความเชื่อถือจำกัด|ไม่การันตี|ไม่โอเวอร์เคลม|ไม่รับประกัน|ข้อจำกัด|honest.?limit|ไม่เหมาะทุกคน/iu', $raw);
+    $soft = (bool)preg_match('/ความเชื่อถือช่วยเลือก|ช่วยเลือกของ|แชร์ตัวเลือก|soft.?choose|ไม่เร่งซื้อ|ช่วยกันเลือก/iu', $raw);
+    $disclose = (bool)preg_match('/ความเชื่อถือเปิดเผย|disclose.?first|ลิงก์นี้เป็นลิงก์ affiliate|ผู้เขียนอาจได้รับค่าคอม|affiliate disclosure|disclosure/iu', $raw);
+    $tryCheck = (bool)preg_match('/ความเชื่อถือตรวจก่อน|try.?check|ตรวจราคาก่อน|ดูรีวิวก่อน|ดูสเปก|เทียบรีวิว|ตรวจสเปก/iu', $raw);
+
+    if ($honest) return 'honest_limit';
+    if ($soft) return 'soft_choose';
+    if ($disclose) return 'disclose_first';
+    if ($tryCheck) return 'try_check';
+    return 'none';
+}
+
+function trust_style_of(array $post, ?array $pack = null): string
+{
+    return classify_trust_style(resolve_trust_text($pack, (string)($post['caption_preview'] ?? $post['captionPreview'] ?? '')));
+}
+
+function build_trust_fit_lab(?string $date = null, int $windowDays = 14): array
+{
+    $date = $date ?: today_iso();
+    $window = max(7, min(30, $windowDays));
+    $from = date('Y-m-d', strtotime($date . ' -' . ($window - 1) . ' days'));
+    $order = trust_style_order();
+    $packs = [];
+    foreach (all_content_packs() as $p) $packs[$p['id']] = $p;
+    $products = [];
+    foreach (all_products() as $p) $products[$p['id']] = $p;
+
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE status='posted' AND metrics_at IS NOT NULL AND post_date>=? AND post_date<=?");
+    $stmt->execute([$from, $date]);
+    $posted = $stmt->fetchAll() ?: [];
+
+    $byBand = [];
+    foreach ($order as $b) $byBand[$b] = [];
+    foreach ($posted as $post) {
+        $pack = $packs[$post['content_pack_id'] ?? ''] ?? null;
+        $cap = (string)($post['caption_preview'] ?? '');
+        $key = classify_trust_style(resolve_trust_text($pack, $cap));
+        $byBand[$key][] = $post;
+    }
+
+    $allComm = array_map(fn($p) => (float)($p['commission_earned'] ?? 0), $posted);
+    $globalAvg = $allComm ? array_sum($allComm) / count($allComm) : 0.0;
+    $postedN = count($posted);
+
+    $bands = [];
+    foreach ($order as $band) {
+        $list = $byBand[$band] ?? [];
+        $samples = count($list);
+        $views = array_map(fn($p) => (float)($p['views'] ?? 0), $list);
+        $clicks = array_map(fn($p) => (float)($p['clicks'] ?? 0), $list);
+        $orders = array_map(fn($p) => (float)($p['orders_count'] ?? 0), $list);
+        $comms = array_map(fn($p) => (float)($p['commission_earned'] ?? 0), $list);
+        $avgViews = $samples ? array_sum($views) / $samples : 0;
+        $avgClicks = $samples ? array_sum($clicks) / $samples : 0;
+        $avgOrders = $samples ? array_sum($orders) / $samples : 0;
+        $avgCommission = $samples ? array_sum($comms) / $samples : 0;
+        $totalViews = array_sum($views);
+        $totalClicks = array_sum($clicks);
+        $totalOrders = array_sum($orders);
+        $avgCtr = $totalViews > 0 ? $totalClicks / $totalViews : 0;
+        $avgOpc = $totalClicks > 0 ? $totalOrders / $totalClicks : 0;
+        $share = $postedN > 0 ? $samples / $postedN : 0;
+
+        $score = 0;
+        if ($samples > 0) {
+            $commBase = $globalAvg > 0
+                ? max(0, min(70, ($avgCommission / $globalAvg) * 50))
+                : max(0, min(50, $avgCommission * 2));
+            $score = $commBase + max(0, min(22, $avgCtr * 220)) + max(0, min(15, $avgOpc * 100)) + max(0, min(15, $avgOrders * 8));
+            if ($band === 'honest_limit') $score += 5;
+            elseif ($band === 'soft_choose') $score += 5;
+            elseif ($band === 'disclose_first') $score += 4;
+            elseif ($band === 'try_check') $score += 4;
+            elseif ($band === 'hard_hype') $score -= 18;
+            elseif ($band === 'none') $score -= 6;
+            if ($share >= 0.7 && $samples >= 3) $score -= 12;
+            elseif ($share >= 0.55 && $samples >= 2) $score -= 6;
+            if ($samples === 1) $score *= 0.75;
+            $score = (int)round(max(0, min(100, $score)));
+        }
+        $confidence = $samples >= 4 ? 'solid' : ($samples >= 2 ? 'ok' : 'thin');
+        $status = $samples === 0 ? 'no_data' : ($score >= 65 && $samples >= 2 ? 'hot' : ($score >= 45 ? 'steady' : 'cold'));
+
+        $tip = 'เก็บข้อมูลต่ออีก 1–2 โพสต์ในมุมความเชื่อถือนี้ก่อนสรุป — ตัวเลขยังเป็นสมมติฐาน';
+        if ($samples === 0) $tip = 'ยังไม่มีผลมุมความเชื่อถือนี้ — ลอง draft 1 ชิ้นแนว “' . trust_style_hint($band) . '” แล้วกรอกเมตริก';
+        elseif ($band === 'hard_hype') $tip = 'มุมขายแข็ง — หลีกเลี่ยง regenerate เป็นความเชื่อถือแบบช่วยเลือกของก่อน Approve';
+        elseif ($band === 'none') $tip = 'ไม่มีสัญญาณความเชื่อถือ — ใส่ป้ายประโยชน์ให้ชัด แล้ว regenerate ก่อน Approve';
+        elseif ($status === 'hot') $tip = 'มุมความเชื่อถือนี้ดูเวิร์กกว่าในหน้าต่างนี้ (ทดลอง) — ใช้ได้ แต่สลับสินค้า/ช่องเพื่อไม่ให้ซ้ำ';
+        elseif ($status === 'cold') $tip = 'ผลเย็นในมุมความเชื่อถือนี้ — ลองปรับกรอบความจริงใจหรือ regenerate ก่อนโพสต์ซ้ำ';
+        elseif ($share >= 0.55) $tip = 'ใช้มุมความเชื่อถือนี้บ่อย (' . round($share * 100) . '%) — กระจายผลลัพธ์/ใช้ง่าย/โล่งใจ เพื่อลดความซ้ำ';
+
+        $bands[] = [
+            'band' => $band,
+            'bandLabel' => trust_style_label($band),
+            'rangeLabel' => trust_style_range($band),
+            'samples' => $samples,
+            'avgViews' => round($avgViews, 1),
+            'avgClicks' => round($avgClicks, 1),
+            'avgOrders' => round($avgOrders, 2),
+            'avgCommission' => round($avgCommission, 1),
+            'avgCtr' => round($avgCtr, 2),
+            'avgOrdersPerClick' => round($avgOpc, 2),
+            'score' => $score,
+            'status' => $status,
+            'confidence' => $confidence,
+            'shareOfPosts' => round($share, 2),
+            'tip' => $tip,
+        ];
+    }
+    usort($bands, fn($a, $b) => ($b['score'] <=> $a['score']) ?: ($b['samples'] <=> $a['samples']));
+
+    $withData = array_values(array_filter($bands, fn($b) => $b['samples'] > 0));
+    $hot = count(array_filter($bands, fn($b) => $b['status'] === 'hot'));
+    $hardHypeSamples = count($byBand['hard_hype'] ?? []);
+    $noneSamples = count($byBand['none'] ?? []);
+    $topShare = 0.0;
+    foreach ($bands as $b) $topShare = max($topShare, (float)$b['shareOfPosts']);
+    $unbalanced = $topShare >= 0.55 && $postedN >= 3;
+
+    $labScore = $withData ? (int)round(array_sum(array_column($withData, 'score')) / count($withData)) : 0;
+    if (count($withData) >= 3) $labScore = min(100, $labScore + 8);
+    elseif (count($withData) === 1 && $postedN >= 3) $labScore = max(0, $labScore - 10);
+    if ($unbalanced) $labScore = max(0, $labScore - 8);
+    if ($hardHypeSamples > 0) $labScore = max(0, $labScore - 10);
+    if ($noneSamples > 0) $labScore = max(0, $labScore - 4);
+    $labScore = max(0, min(100, $labScore));
+    $grade = count($withData) === 0 ? 'D' : ($labScore >= 75 ? 'A' : ($labScore >= 58 ? 'B' : ($labScore >= 40 ? 'C' : 'D')));
+
+    $best = null;
+    foreach ($withData as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'none' && $b['band'] !== 'hard_hype') { $best = $b; break; }
+    }
+    if (!$best) {
+        foreach ($withData as $b) {
+            if ($b['band'] !== 'none' && $b['band'] !== 'hard_hype') { $best = $b; break; }
+        }
+    }
+    if (!$best) $best = $withData[0] ?? null;
+
+    $cold = array_values(array_filter($withData, fn($b) => $b['status'] === 'cold' || $b['band'] === 'none' || $b['band'] === 'hard_hype'));
+
+    if ($postedN === 0) {
+        $mixTip = 'ยังไม่มีเมตริกรายมุมความเชื่อถือ — โพสต์มือแล้วกรอกผลที่ /results ก่อนจัดมิกซ์ความเชื่อถือ';
+    } elseif ($hardHypeSamples > 0) {
+        $mixTip = "พบความเชื่อถือขายแข็ง {$hardHypeSamples} ชิ้น — regenerate เป็นมุมช่วยเลือกของก่อน Approve (ทดลอง)";
+    } elseif ($noneSamples > 0 && $noneSamples >= (int)ceil($postedN / 2)) {
+        $mixTip = "พบประโยชน์ none {$noneSamples} ชิ้น — ใส่ป้ายประโยชน์ให้ชัดก่อน Approve (ทดลอง)";
+    } elseif ($unbalanced && $best) {
+        $mixTip = "มิกซ์เอนไปมุม {$best['bandLabel']} มาก — วันถัดไปลองสลับมุมความเชื่อถือ 1 ชิ้น (ทดลอง)";
+    } elseif ($best) {
+        $mixTip = "มุมความเชื่อถือเด่น: {$best['bandLabel']} — ใช้เป็นสมมติฐาน ไม่ล็อคทุกโพสต์";
+    } else {
+        $mixTip = 'เก็บผลต่ออีก 2–3 โพสต์ข้ามมุมความเชื่อถือก่อนจัดอันดับมิกซ์';
+    }
+
+    if ($postedN === 0) {
+        $summary = 'Trust Fit Lab: ยังไม่มีเมตริกในหน้าต่างนี้ — กรอกผลหลังโพสต์มือก่อนจัดอันดับมุมความเชื่อถือ';
+    } else {
+        $summary = "Trust Fit Lab: {$postedN} โพสต์มีเมตริก · มุมที่มีข้อมูล " . count($withData) . " · ร้อน {$hot}"
+            . ($hardHypeSamples ? " · ขายแข็ง {$hardHypeSamples}" : '')
+            . ($noneSamples ? " · none {$noneSamples}" : '')
+            . ($unbalanced ? ' · มิกซ์เอนข้างเดียว' : '');
+    }
+
+    $preferred = null;
+    foreach ($bands as $b) {
+        if ($b['status'] === 'hot' && $b['band'] !== 'none' && $b['band'] !== 'hard_hype') { $preferred = $b; break; }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['status'] === 'steady' && $b['samples'] > 0 && $b['band'] !== 'none' && $b['band'] !== 'hard_hype') { $preferred = $b; break; }
+        }
+    }
+    if (!$preferred) {
+        foreach ($bands as $b) {
+            if ($b['band'] === 'honest_limit') { $preferred = $b; break; }
+        }
+    }
+
+    $suggestions = [];
+    $stmt = db()->prepare("SELECT * FROM schedule WHERE post_date=? AND status IN ('draft','approved') ORDER BY suggested_time ASC LIMIT 6");
+    $stmt->execute([$date]);
+    $todaySlots = $stmt->fetchAll() ?: [];
+    foreach ($todaySlots as $slot) {
+        if (!$preferred) break;
+        $product = $products[$slot['product_id'] ?? ''] ?? null;
+        $pack = $packs[$slot['content_pack_id'] ?? ''] ?? null;
+        if (!$product) continue;
+        $currentKey = classify_trust_style(resolve_trust_text($pack, (string)($slot['caption_preview'] ?? '')));
+        $currentRow = null;
+        foreach ($bands as $b) {
+            if ($b['band'] === $currentKey) { $currentRow = $b; break; }
+        }
+        $same = $currentKey === $preferred['band'];
+        $preview = mb_substr((string)($slot['caption_preview'] ?? ''), 0, 80) ?: '(ไม่มีแคปชัน)';
+        $currentCold = $currentKey === 'none' || $currentKey === 'hard_hype'
+            || ($currentRow && ($currentRow['status'] === 'cold' || ($currentRow['status'] === 'no_data' && $preferred['status'] === 'hot')));
+
+        if ($currentCold && !$same) {
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => trust_style_label($currentKey),
+                'suggestedBand' => $preferred['band'],
+                'suggestedLabel' => $preferred['bandLabel'],
+                'captionPreview' => $preview,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel'] ?? ''),
+                'reason' => trust_style_label($currentKey) . ' เย็น/ไม่ชัด · ' . $preferred['bandLabel'] . ' ดูดีกว่าในหน้าต่างนี้ (ทดลอง)',
+                'tip' => 'ไม่แก้แคปชันอัตโนมัติ — regenerate หรือแก้มือ แล้ว Approve ก่อนโพสต์',
+            ];
+        } elseif ($unbalanced && $same && $cold && count($suggestions) < 2) {
+            $alt = null;
+            foreach ($bands as $b) {
+                if ($b['band'] !== $currentKey && $b['band'] !== 'none' && $b['band'] !== 'hard_hype' && in_array($b['status'], ['steady', 'no_data'], true)) {
+                    $alt = $b; break;
+                }
+            }
+            if (!$alt) {
+                foreach ($bands as $b) {
+                    if (in_array($b['band'], ['soft_choose', 'try_check'], true)) { $alt = $b; break; }
+                }
+            }
+            if (!$alt) {
+                foreach ($cold as $b) {
+                    if ($b['band'] !== 'none' && $b['band'] !== 'hard_hype') { $alt = $b; break; }
+                }
+            }
+            if (!$alt) continue;
+            $suggestions[] = [
+                'scheduleId' => $slot['id'],
+                'productId' => $product['id'],
+                'productName' => $product['name'],
+                'currentBand' => $currentKey,
+                'currentLabel' => trust_style_label($currentKey),
+                'suggestedBand' => $alt['band'],
+                'suggestedLabel' => $alt['bandLabel'],
+                'captionPreview' => $preview,
+                'status' => $slot['status'],
+                'channelLabel' => channel_label($slot['channel'] ?? ''),
+                'reason' => 'วันนี้ซ้อนมุม ' . trust_style_label($currentKey) . ' — ลองกระจายไป ' . $alt['bandLabel'] . ' เพื่อลดความซ้ำ (ทดลอง)',
+                'tip' => 'ระบบไม่เปลี่ยนแคปชันเอง — regenerate draft แล้ว Approve ใหม่',
+            ];
+        }
+    }
+    $suggestions = array_slice($suggestions, 0, 5);
+
+    $actions = [];
+    if ($postedN === 0) {
+        $actions[] = ['id' => 'need-metrics', 'title' => 'เริ่มเก็บผลรายมุมความเชื่อถือ', 'detail' => 'Approve → โพสต์มือ → กรอก views/clicks/orders ที่ /results อย่างน้อย 1 ชิ้นต่อมุมความเชื่อถือ'];
+    }
+    if ($hardHypeSamples > 0) {
+        $actions[] = ['id' => 'drop-hard-hype', 'title' => 'เลิกมุมขายแข็ง / การันตีผล', 'detail' => "พบ {$hardHypeSamples} โพสต์แนวขายแข็ง — regenerate เป็นความเชื่อถือแบบช่วยเลือกของก่อน Approve"];
+    }
+    if ($noneSamples > 0) {
+        $actions[] = ['id' => 'clarify-none', 'title' => 'ทำให้มุมความเชื่อถือชัดขึ้น', 'detail' => "พบ {$noneSamples} โพสต์ไม่มีสัญญาณความเชื่อถือ — ใส่ป้าย (จำกัด/ช่วยเลือก/เปิดเผย/ตรวจก่อน) แล้ว regenerate ก่อน Approve"];
+    }
+    if ($best && $best['status'] === 'hot' && $best['band'] !== 'none' && $best['band'] !== 'hard_hype') {
+        $actions[] = ['id' => 'lean-trust', 'title' => 'เอียงไปมุม ' . $best['bandLabel'], 'detail' => 'n=' . $best['samples'] . ' · คะแนนฟิต ~' . $best['score'] . ' — ใช้ 1–2 สล็อต · ' . trust_style_hint($best['band'])];
+    }
+    if ($unbalanced) {
+        $actions[] = ['id' => 'diversify', 'title' => 'กระจายมิกซ์มุมความเชื่อถือ', 'detail' => 'มุมความเชื่อถือเด่นกินสัดส่วนสูง — เพิ่ม draft คนละมุม 1 ชิ้นในรอบถัดไป (กันสแปมฟีล)'];
+    }
+    $actions[] = ['id' => 'compliance', 'title' => 'คงกฎ Approve + disclosure + ไม่หลอกลวง', 'detail' => 'ห้ามเร่งซื้อ/ของหมด/รับประกันรายได้ — ทุกแคปชันต้องมี disclosure และผ่าน Approve ก่อนโพสต์มือ'];
+    $actions = array_slice($actions, 0, 5);
+
+    $checklist = [
+        'อันดับมุมความเชื่อถือมาจากเมตริกที่คุณกรอกเอง — ไม่ดึง API แพลตฟอร์ม',
+        'คะแนนฟิตเป็นสมมติฐานทดลอง ไม่การันตียอดขาย/ค่าคอม',
+        'คำแนะนำสลับมุมความเชื่อถือเป็นคำแนะนำเท่านั้น — ต้องแก้เอง + Approve',
+        'ห้ามใช้คำเร่งซื้อ / ของหมด / รับประกันรายได้แบบหลอกลวง',
+        'ทุกโพสต์ต้องมี disclosure และน้ำเสียงช่วยเลือกของ',
+    ];
+
+    $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'];
+    $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'];
+    $lines = [
+        "Trust Fit Lab {$date}: เกรด {$grade} ({$labScore}/100) · {$summary}",
+        $mixTip,
+    ];
+    foreach (array_slice($withData, 0, 3) as $b) {
+        $lines[] = ($statusLabel[$b['status']] ?? $b['status']) . ' · ' . $b['bandLabel'] . ': คะแนน ' . $b['score'] . ' (' . ($confLabel[$b['confidence']] ?? '') . ', n=' . $b['samples'] . ', CTR ~' . round($b['avgCtr'] * 100, 1) . '%)';
+    }
+    foreach (array_slice($suggestions, 0, 2) as $s) {
+        $lines[] = 'แนะนำทดลอง · ' . $s['productName'] . ': ' . $s['currentLabel'] . ' → ' . $s['suggestedLabel'];
+    }
+    $lines[] = INCOME_DISCLAIMER;
+
+    return [
+        'date' => $date,
+        'fromDate' => $from,
+        'windowDays' => $window,
+        'grade' => $grade,
+        'score' => $labScore,
+        'summary' => $summary,
+        'counts' => [
+            'postsWithMetrics' => $postedN,
+            'bandsWithData' => count($withData),
+            'unbalanced' => $unbalanced,
+            'suggestions' => count($suggestions),
+            'hot' => $hot,
+            'hardHypeSamples' => $hardHypeSamples,
+            'noneSamples' => $noneSamples,
+        ],
+        'bands' => $bands,
+        'mixTip' => $mixTip,
+        'suggestions' => $suggestions,
+        'actions' => $actions,
+        'checklist' => $checklist,
+        'lines' => $lines,
+        'disclaimer' => INCOME_DISCLAIMER,
+    ];
+}
+
+function trust_fit_lab_to_markdown(array $lab): string
+{
+    $bandRows = [];
+    foreach ($lab['bands'] as $b) {
+        if (($b['samples'] ?? 0) <= 0) continue;
+        $statusLabel = ['hot' => 'ร้อน', 'steady' => 'นิ่ง', 'cold' => 'เย็น', 'no_data' => 'ยังไม่มีข้อมูล'][$b['status']] ?? $b['status'];
+        $confLabel = ['thin' => 'ข้อมูลบาง', 'ok' => 'พอใช้', 'solid' => 'หนาขึ้น'][$b['confidence']] ?? $b['confidence'];
+        $n = count($bandRows) + 1;
+        $bandRows[] = "{$n}. **[{$statusLabel}]** {$b['bandLabel']} ({$b['rangeLabel']}) · คะแนน {$b['score']}/100 · n={$b['samples']} · {$confLabel}\n"
+            . '   CTR ~' . round($b['avgCtr'] * 100, 1) . "% · ออเดอร์/คลิก ~{$b['avgOrdersPerClick']} · ค่าคอมเฉลี่ย ฿{$b['avgCommission']}\n"
+            . '   สัดส่วนในหน้าต่าง ~' . round($b['shareOfPosts'] * 100) . "%\n"
+            . "   {$b['tip']}";
+    }
+    if (!$bandRows) $bandRows[] = '_(ยังไม่มีข้อมูล)_';
+
+    $suggestionRows = [];
+    foreach ($lab['suggestions'] as $i => $s) {
+        $n = $i + 1;
+        $suggestionRows[] = "{$n}. {$s['productName']} · {$s['status']} · {$s['channelLabel']}\n"
+            . "   preview: {$s['captionPreview']}\n"
+            . "   {$s['currentLabel']} → **{$s['suggestedLabel']}**\n"
+            . "   {$s['reason']}\n"
+            . "   {$s['tip']}";
+    }
+    if (!$suggestionRows) $suggestionRows[] = '_(ไม่มีคำแนะนำสลับมุมความเชื่อถือวันนี้)_';
+
+    $actionLines = [];
+    foreach ($lab['actions'] as $a) {
+        $actionLines[] = "- **{$a['title']}**: {$a['detail']}";
+    }
+    $checkLines = array_map(fn($c) => "- {$c}", $lab['checklist']);
+
+    return "# Trust Fit Lab · {$lab['date']}\n\n"
+        . $lab['summary'] . "\n\n"
+        . "- เกรดแล็บ: {$lab['grade']} ({$lab['score']}/100)\n"
+        . "- หน้าต่าง: {$lab['fromDate']} → {$lab['date']} ({$lab['windowDays']} วัน)\n"
+        . "- โพสต์มีเมตริก: {$lab['counts']['postsWithMetrics']}\n"
+        . "- มุมที่มีข้อมูล: {$lab['counts']['bandsWithData']}\n"
+        . "- ช่วงร้อน: {$lab['counts']['hot']}\n"
+        . "- ขายแข็ง: {$lab['counts']['hardHypeSamples']}\n"
+        . "- none: {$lab['counts']['noneSamples']}\n"
+        . '- มิกซ์เอนข้างเดียว: ' . (!empty($lab['counts']['unbalanced']) ? 'ใช่' : 'ไม่') . "\n\n"
+        . "## มิกซ์ทิป\n"
+        . $lab['mixTip'] . "\n\n"
+        . "## อันดับมุมความเชื่อถือ (ทดลอง)\n"
+        . implode("\n", $bandRows) . "\n\n"
+        . "## คำแนะนำคิววันนี้ (ไม่เปลี่ยนอัตโนมัติ)\n"
+        . implode("\n", $suggestionRows) . "\n\n"
+        . "## Actions\n"
+        . implode("\n", $actionLines) . "\n\n"
+        . "## Checklist\n"
+        . implode("\n", $checkLines) . "\n\n"
+        . $lab['disclaimer'] . "\n";
+}
+
+
+/**
  * Winner Playbook — keep/stop/try from posted metrics (soft, never auto-publish).
  * @return array{date:string,windowDays:int,samplePosts:int,summary:string,keepDoing:array,stopOrPause:array,channelTips:array,hookTips:array,ctaTips:array,timeTips:array,experiments:array,checklist:array,lines:array,disclaimer:string}
  */
@@ -12385,6 +12842,7 @@ function run_morning_workflow(?string $date = null): array
     $proofFitLines = array_slice(build_proof_fit_lab($date)['lines'], 0, 4);
     $offerFitLines = array_slice(build_offer_fit_lab($date)['lines'], 0, 4);
     $benefitFitLines = array_slice(build_benefit_fit_lab($date)['lines'], 0, 4);
+    $trustFitLines = array_slice(build_trust_fit_lab($date)['lines'], 0, 4);
 
     $recs = [
         $ranked ? 'Top โปรโมตวันนี้: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $ranked)) : 'ยังไม่มีสินค้า',
@@ -12420,6 +12878,7 @@ function run_morning_workflow(?string $date = null): array
         ...$proofFitLines,
         ...$offerFitLines,
         ...$benefitFitLines,
+        ...$trustFitLines,
         'สร้าง draft โพสต์ ' . count($newPosts) . " ชิ้น (เป้า {$maxPosts}/วัน · ต้อง Approve ก่อนโพสต์จริง)",
         'ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง',
         "ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน {$cooldown} วันล่าสุด เพื่อลดสแปม",
@@ -12524,6 +12983,7 @@ function run_evening_workflow(?string $date = null): array
     $proofFitLab = build_proof_fit_lab($date);
     $offerFitLab = build_offer_fit_lab($date);
     $benefitFitLab = build_benefit_fit_lab($date);
+    $trustFitLab = build_trust_fit_lab($date);
     $recs = $analysis['recs'];
     foreach (array_slice($tomorrow['lines'], 0, 6) as $line) {
         $recs[] = $line;
@@ -12603,6 +13063,9 @@ function run_evening_workflow(?string $date = null): array
     foreach (array_slice($benefitFitLab['lines'], 0, 5) as $line) {
         $recs[] = $line;
     }
+    foreach (array_slice($trustFitLab['lines'], 0, 5) as $line) {
+        $recs[] = $line;
+    }
     $recs[] = 'แคปชันที่ไม่ผ่าน disclosure/คำโฆษณาจะ Approve ไม่ได้ — กดสร้างแคปชันใหม่ที่ตารางโพสต์';
     $recs[] = 'ถ้าสินค้าอ่อนต่อเนื่อง แนะนำพักชั่วคราวเองที่หน้าสินค้า (ระบบไม่พักอัตโนมัติ)';
     if (($intake['counts']['needsAttention'] ?? 0) > 0) {
@@ -12670,6 +13133,9 @@ function run_evening_workflow(?string $date = null): array
     }
     if (($benefitFitLab['counts']['hot'] ?? 0) > 0 || !empty($benefitFitLab['counts']['unbalanced']) || ($benefitFitLab['counts']['hypeClaimSamples'] ?? 0) > 0 || ($benefitFitLab['counts']['noneSamples'] ?? 0) > 0) {
         $recs[] = 'Benefit Fit: ช่วงร้อน ' . $benefitFitLab['counts']['hot'] . ' · ' . $benefitFitLab['mixTip'];
+    }
+    if (($trustFitLab['counts']['hot'] ?? 0) > 0 || !empty($trustFitLab['counts']['unbalanced']) || ($trustFitLab['counts']['hardHypeSamples'] ?? 0) > 0 || ($trustFitLab['counts']['noneSamples'] ?? 0) > 0) {
+        $recs[] = 'Trust Fit: ช่วงร้อน ' . $trustFitLab['counts']['hot'] . ' · ' . $trustFitLab['mixTip'];
     }
     if ($next) {
         $recs[] = 'สินค้าแนะนำวันถัดไป: ' . implode(', ', array_map(fn($r) => $r['product']['name'], $next));

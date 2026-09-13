@@ -160,6 +160,11 @@ import {
   benefitFitLabLines,
   type BenefitFitLab,
 } from "./benefit-fit";
+import {
+  buildTrustFitLab,
+  trustFitLabLines,
+  type TrustFitLab,
+} from "./trust-fit";
 
 function dayNumber(date: string): number {
   const n = Number(date.replaceAll("-", ""));
@@ -359,6 +364,7 @@ export async function runMorningWorkflow(
         ...proofFitLabLines(buildProofFitLab(db, date), 4),
         ...offerFitLabLines(buildOfferFitLab(db, date), 4),
         ...benefitFitLabLines(buildBenefitFitLab(db, date), 4),
+        ...trustFitLabLines(buildTrustFitLab(db, date), 4),
         `สร้าง draft โพสต์ ${newPosts.length} ชิ้น (เป้า ${settings.maxPostsPerDay}/วัน · ต้อง Approve ก่อนโพสต์จริง)`,
         "ห้ามโพสต์ซ้ำข้อความเดิม และต้องมี disclosure ทุกครั้ง",
         `ระบบหลีกเลี่ยง product+channel ที่เพิ่งใช้ใน ${settings.cooldownDays} วันล่าสุด และกระจายช่องทางในวันเดียวกัน`,
@@ -477,6 +483,7 @@ export async function runEveningWorkflow(
       const proofFitLab = buildProofFitLab(db, date);
       const offerFitLab = buildOfferFitLab(db, date);
       const benefitFitLab = buildBenefitFitLab(db, date);
+      const trustFitLab = buildTrustFitLab(db, date);
 
       const recommendations = [
         ...analysis.recommendations,
@@ -509,6 +516,7 @@ export async function runEveningWorkflow(
         ...proofFitLabLines(proofFitLab, 5),
         ...offerFitLabLines(offerFitLab, 5),
         ...benefitFitLabLines(benefitFitLab, 5),
+        ...trustFitLabLines(trustFitLab, 5),
         nextFocus.length
           ? `สินค้าแนะนำวันถัดไป (จากคะแนน+ผลที่บันทึก): ${nextFocus.join(", ")}`
           : "เพิ่มสินค้าเพิ่มเติมเพื่อให้จัดอันดับได้แม่นขึ้น",
@@ -597,6 +605,12 @@ export async function runEveningWorkflow(
           benefitFitLab.counts.noneSamples > 0
           ? `Benefit Fit: ช่วงร้อน ${benefitFitLab.counts.hot} · ${benefitFitLab.mixTip}`
           : null,
+        trustFitLab.counts.hot > 0 ||
+          trustFitLab.counts.unbalanced ||
+          trustFitLab.counts.hardHypeSamples > 0 ||
+          trustFitLab.counts.noneSamples > 0
+          ? `Trust Fit: ช่วงร้อน ${trustFitLab.counts.hot} · ${trustFitLab.mixTip}`
+          : null,
       ].filter(Boolean) as string[];
 
       const brief: DailyBrief = {
@@ -669,6 +683,7 @@ export async function getDashboardSnapshot(): Promise<{
   proofFitLab: ProofFitLab;
   offerFitLab: OfferFitLab;
   benefitFitLab: BenefitFitLab;
+  trustFitLab: TrustFitLab;
 }> {
   const db = await readDb();
   const date = todayISO();
@@ -731,6 +746,7 @@ export async function getDashboardSnapshot(): Promise<{
   const proofFitLab = buildProofFitLab(db, date);
   const offerFitLab = buildOfferFitLab(db, date);
   const benefitFitLab = buildBenefitFitLab(db, date);
+  const trustFitLab = buildTrustFitLab(db, date);
   return {
     db,
     ranked,
@@ -767,5 +783,6 @@ export async function getDashboardSnapshot(): Promise<{
     proofFitLab,
     offerFitLab,
     benefitFitLab,
+    trustFitLab,
   };
 }

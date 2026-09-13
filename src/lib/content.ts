@@ -183,6 +183,26 @@ const BENEFIT_STYLE_LABEL: Record<BenefitStyleVariant, string> = {
   feel_relief: "ประโยชน์โล่งใจ",
 };
 
+type TrustStyleVariant =
+  | "honest_limit"
+  | "soft_choose"
+  | "disclose_first"
+  | "try_check";
+
+const TRUST_STYLE_VARIANTS: TrustStyleVariant[] = [
+  "honest_limit",
+  "soft_choose",
+  "disclose_first",
+  "try_check",
+];
+
+const TRUST_STYLE_LABEL: Record<TrustStyleVariant, string> = {
+  honest_limit: "ความเชื่อถือจำกัด",
+  soft_choose: "ความเชื่อถือช่วยเลือก",
+  disclose_first: "ความเชื่อถือเปิดเผย",
+  try_check: "ความเชื่อถือตรวจก่อน",
+};
+
 function scriptStyleForVariant(variant: number): ScriptStyleVariant {
   const i = Math.abs(variant) % SCRIPT_STYLE_VARIANTS.length;
   return SCRIPT_STYLE_VARIANTS[i]!;
@@ -201,6 +221,11 @@ function offerStyleForVariant(variant: number): OfferStyleVariant {
 function benefitStyleForVariant(variant: number): BenefitStyleVariant {
   const i = Math.abs(variant) % BENEFIT_STYLE_VARIANTS.length;
   return BENEFIT_STYLE_VARIANTS[i]!;
+}
+
+function trustStyleForVariant(variant: number): TrustStyleVariant {
+  const i = Math.abs(variant) % TRUST_STYLE_VARIANTS.length;
+  return TRUST_STYLE_VARIANTS[i]!;
 }
 
 function buildTikTokScript(
@@ -407,6 +432,7 @@ export function generateContentPack(
   const proofTag = PROOF_STYLE_LABEL[proofStyleForVariant(variant)];
   const offerTag = OFFER_STYLE_LABEL[offerStyleForVariant(variant)];
   const benefitTag = BENEFIT_STYLE_LABEL[benefitStyleForVariant(variant)];
+  const trustTag = TRUST_STYLE_LABEL[trustStyleForVariant(variant)];
   const proofLineByStyle: Record<ProofStyleVariant, string> = {
     used_real: softCopy(
       `${proofTag}: ลองใช้แล้วชอบจุดนี้ — ${sell} (ไม่การันตีผลทุกคน)`,
@@ -456,6 +482,22 @@ export function generateContentPack(
   };
   const benefitLine = benefitLineByStyle[benefitStyleForVariant(variant)];
 
+  const trustLineByStyle: Record<TrustStyleVariant, string> = {
+    honest_limit: softCopy(
+      `${trustTag}: ไม่การันตีผลทุกคน — จุดที่น่าสนใจคือ ${sell} (ดูสเปกต่อเองได้)`,
+    ),
+    soft_choose: softCopy(
+      `${trustTag}: แชร์ตัวเลือกเบา ๆ ให้${product.targetAudience || "เพื่อน"}เทียบก่อน ไม่เร่งซื้อ`,
+    ),
+    disclose_first: softCopy(
+      `${trustTag}: ลิงก์นี้เป็นลิงก์ affiliate ผู้เขียนอาจได้รับค่าคอมมิชชัน — แชร์เพื่อช่วยเลือกของ`,
+    ),
+    try_check: softCopy(
+      `${trustTag}: ตรวจราคา/รีวิว/สเปกก่อนตัดสินใจ — ราคาประมาณ ${priceLabel(product.price)}`,
+    ),
+  };
+  const trustLine = trustLineByStyle[trustStyleForVariant(variant)];
+
   const facebookBody = softCopy(
     [
       hooks[1],
@@ -463,6 +505,7 @@ export function generateContentPack(
       proofLine,
       offerLine,
       benefitLine,
+      trustLine,
       `วันนี้มาแชร์ตัวเลือกในหมวด ${product.category} สำหรับ${product.targetAudience || "คนที่กำลังหาของอยู่"}`,
       `จุดที่น่าสนใจ: ${sell}`,
       `ช่วยเรื่อง: ${pain}`,
@@ -483,6 +526,7 @@ export function generateContentPack(
       proofLine,
       offerLine,
       benefitLine,
+      trustLine,
       `บริบท: ${pain}`,
       `สิ่งที่น่าลอง: ${sell}`,
       `ราคาประมาณ ${priceLabel(product.price)} — ไม่การันตีว่าจะเหมาะทุกคน ลองเทียบรีวิวก่อนนะ`,
@@ -503,6 +547,7 @@ export function generateContentPack(
       proofTag,
       offerTag,
       benefitTag,
+      trustTag,
       `${sell} · ${priceLabel(product.price)}`,
       ctas[2] ?? ctas[0],
       `ลิงก์ในไบโอ/คอมเมนต์`,
@@ -513,10 +558,10 @@ export function generateContentPack(
   const styleTag = SCRIPT_STYLE_LABEL[scriptStyleForVariant(variant)];
   const videoPriorityNote =
     product.videoEase >= 4
-      ? `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
+      ? `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ${trustTag} · ถ่ายง่าย: โชว์ปัญหา → สาธิต 1 จุด → ปิดด้วยลิงก์+disclosure (เริ่มตัวนี้ก่อน)`
       : product.videoEase >= 3
-        ? `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
-        : `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
+        ? `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ${trustTag} · ถ่ายระดับกลาง: เตรียมฉากใช้งานจริง 1 นาที แล้วตัดเหลือ 20–25 วิ`
+        : `${styleTag} · ${proofTag} · ${offerTag} · ${benefitTag} · ${trustTag} · ถ่ายยากกว่าเพื่อน: ใช้ภาพนิ่ง/สไลด์ + พากย์สั้นก่อน แล้วค่อยทำวิดีโอเต็ม`;
 
   const noteHint = product.notes?.trim()
     ? `โน้ตจากผู้ใช้: ${softCopy(product.notes.trim()).slice(0, 120)}`
